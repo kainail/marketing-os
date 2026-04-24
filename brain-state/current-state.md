@@ -27,7 +27,7 @@ Full package: nurture-sync-20260424-A-IO8L (Variant A) and nurture-sync-20260424
 Status: pending GHL and ElevenLabs implementation — Kai approval required before live
 
 ## Last Session Notes
-Sessions 1-8 complete. nurture-sync skill built and fully cleaned: emojis removed, messages shortened to 3-sentence max, KAI ACTION REQUIRED flags added for missing GHL custom values (cohort_start_date, spots_remaining), Section 8 FAQ responses added (15 FAQs, SMS + call format, KAI personalization labels). Character counting added to SKILL.md — all 38 SMS variants now labelled with char count and segment count, 6 over-limit messages rewritten to 2 segments. GymSuite AI knowledge base complete (workflow-structure.md, current-sms-scripts.md, current-elevenlabs-prompts.md). Engine supports configurable max-tokens per skill. Tagged v1.1 in git.
+Sessions 1-9 complete. ahri.ts master conversational agent built: banner, session context, intent parser (claude-opus-4-6), 9 intent routes, session history persistence, queue management with approve flow. voice.ts built: ElevenLabs TTS + node-record-lpcm16/Whisper voice input. All 5 intents tested live: show_status, generate_skill (hook-writer ran + generated 2 assets), run_campaign (plan shown), review_queue (14 assets listed), switch_context. tsc clean. Tagged v1.2 in git.
 
 ## Next Session
-Build ahri.ts — master agent conversational interface. This is the brain that reads all context and routes generation tasks across skills.
+Build remaining skills: content-calendar, vsl-script, flyer-generator, image-generator, seo-content, google-ads, referral-campaign, reactivation, partnership-outreach, review-engine. Then wire up weekly automation routine.
