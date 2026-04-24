@@ -19,6 +19,7 @@ interface Args {
 interface SkillConfig {
   skill: string;
   model: string;
+  maxTokens: number;
   knowledgeBases: string[];
   awarenessLevel: number;
   instructions: string;
@@ -43,6 +44,7 @@ interface UserPromptArgs {
 interface GenerateParams {
   client: Anthropic;
   model: string;
+  maxTokens: number;
   systemPrompt: string;
   userPrompt: string;
   variant: 'A' | 'B';
@@ -143,6 +145,7 @@ function parseSkillMd(content: string): SkillConfig {
   return {
     skill: yamlStr(config, 'skill', ''),
     model: yamlStr(config, 'model', 'claude-sonnet-4-6'),
+    maxTokens: parseInt(yamlStr(config, 'max-tokens', '8192'), 10) || 8192,
     knowledgeBases: yamlList(config, 'knowledge-base'),
     awarenessLevel: parseInt(yamlStr(config, 'awareness-level', '3'), 10),
     instructions,
@@ -264,7 +267,7 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, model: string):
 
 /** Stream a single variant from Claude. Returns the complete generated text. */
 async function generateVariant(params: GenerateParams): Promise<string> {
-  const { client, model, systemPrompt, userPrompt, variant } = params;
+  const { client, model, maxTokens, systemPrompt, userPrompt, variant } = params;
   console.log(chalk.cyan(`\n[Variant ${variant}] Streaming from ${model}...\n`));
   console.log(chalk.gray('─'.repeat(60)));
 
@@ -272,7 +275,7 @@ async function generateVariant(params: GenerateParams): Promise<string> {
     let fullText = '';
     const stream = client.messages.stream({
       model,
-      max_tokens: 8192,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     });
@@ -371,7 +374,7 @@ async function main(): Promise<void> {
     });
 
     try {
-      const content = await generateVariant({ client, model: skillConfig.model, systemPrompt, userPrompt, variant });
+      const content = await generateVariant({ client, model: skillConfig.model, maxTokens: skillConfig.maxTokens, systemPrompt, userPrompt, variant });
       const outputPath = writeOutput({ content, assetId, skill: args.skill, context: args.context, variant, testId });
       logAsset(assetId, args.skill, path.basename(args.context), avatarName, variant, testId);
       results.push({ variant, assetId, outputPath });
