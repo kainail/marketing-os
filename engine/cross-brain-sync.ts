@@ -412,18 +412,18 @@ export async function syncBrains(): Promise<SyncReport> {
   }
   const client = new Anthropic({ apiKey });
 
-  const spreadsheetId = process.env['GOOGLE_SHEETS_GYMSUITE_ID'];
+  const spreadsheetId = process.env['GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID'];
   const callReviewId  = process.env['GOOGLE_SHEETS_CALL_REVIEW_ID'];
 
   // --- No credentials path ---
   if (!spreadsheetId) {
-    console.log(chalk.yellow('\n  [Cross-Brain Sync] GOOGLE_SHEETS_GYMSUITE_ID not set.'));
+    console.log(chalk.yellow('\n  [Cross-Brain Sync] GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID not set.'));
     console.log(chalk.gray('  Cross-brain sync complete — no call data yet. AHRI will generate from frameworks until real data is available. Re-run after calls are logged.\n'));
 
-    writeNoDataFiles('GOOGLE_SHEETS_GYMSUITE_ID not set in .env. Add the spreadsheet ID of the AI Transcript Review sheet to enable cross-brain sync.');
+    writeNoDataFiles('GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID not set in .env. Add the spreadsheet ID of the AI Transcript Review sheet to enable cross-brain sync.');
     ensureCoachingAlertsHeader();
     updateBrainState([
-      'No GymSuite AI data available yet — set GOOGLE_SHEETS_GYMSUITE_ID in .env to enable cross-brain sync.',
+      'No GymSuite AI data available yet — set GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID in .env to enable cross-brain sync.',
       'Once connected, AHRI will automatically adjust content strategy based on archetype conversion rates.',
       'High-converting archetypes will receive more content budget allocation when data is available.',
     ], new Date().toISOString().slice(0, 10));
@@ -433,8 +433,8 @@ export async function syncBrains(): Promise<SyncReport> {
       sample_size: 0,
       top_converting_archetype: 'unknown',
       top_performing_source: 'unknown',
-      insights: ['GOOGLE_SHEETS_GYMSUITE_ID not configured.'],
-      error: 'GOOGLE_SHEETS_GYMSUITE_ID not set',
+      insights: ['GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID not configured.'],
+      error: 'GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID not set',
     };
   }
 
@@ -447,7 +447,7 @@ export async function syncBrains(): Promise<SyncReport> {
   } catch (err) {
     const msg = `Failed to read AI Transcript Review: ${(err as Error).message}`;
     logError('readSheet:primary', err as Error);
-    console.log(chalk.red(`  Cross-brain sync failed — ${msg}. Check .env for GOOGLE_SHEETS_GYMSUITE_ID.`));
+    console.log(chalk.red(`  Cross-brain sync failed — ${msg}. Check .env for GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID.`));
     writeNoDataFiles(msg);
     ensureCoachingAlertsHeader();
     return { success: false, sample_size: 0, top_converting_archetype: 'unknown', top_performing_source: 'unknown', insights: [], error: msg };

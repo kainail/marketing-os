@@ -18,7 +18,7 @@ This runs Sunday night so the Monday 7 AM content calendar generation has fresh 
 ## What It Does — Step by Step
 
 **1. Read the Stage Log**
-Reads the GymSuite AI Stage Log Google Sheet via the Sheets API (GOOGLE_SHEETS_GYMSUITE_ID). The Stage Log contains one row per lead with columns for: archetype, lead source, booking status, show status, conversion status, and lead date.
+Reads the GymSuite AI Stage Log Google Sheet via the Sheets API (GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID). The Stage Log contains one row per lead with columns for: archetype, lead source, booking status, show status, conversion status, and lead date.
 
 The column names are detected dynamically — the sync is resilient to minor changes in column naming as long as the column contains one of the expected name variants.
 
@@ -55,7 +55,7 @@ Appends a row to performance/asset-log.csv with sync timestamp, rows processed, 
 ## Required .env Variables
 
 ```
-GOOGLE_SHEETS_GYMSUITE_ID=          # Google Sheets ID of the GymSuite AI Stage Log
+GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID=          # Google Sheets ID of the GymSuite AI Stage Log
 GOOGLE_DRIVE_SERVICE_ACCOUNT_EMAIL= # service account email (same as Drive auth)
 GOOGLE_DRIVE_PRIVATE_KEY=           # service account private key
 ANTHROPIC_API_KEY=                  # for claude-opus-4-6 insight generation
@@ -65,7 +65,7 @@ ANTHROPIC_API_KEY=                  # for claude-opus-4-6 insight generation
 
 ## Failure Behavior
 
-- GOOGLE_SHEETS_GYMSUITE_ID not set: writes placeholder JSONs to intelligence-db/cross-brain/ with explanatory insights telling AHRI what data is missing. Logs `success: false`. Does not crash.
+- GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID not set: writes placeholder JSONs to intelligence-db/cross-brain/ with explanatory insights telling AHRI what data is missing. Logs `success: false`. Does not crash.
 - Sheets API auth fails: logs to errors.csv, alerts Kai, writes last-known data to brain state. The previous week's insights remain active.
 - No rows in Stage Log: writes metrics with all zeros, generates the insight "Stage Log has no data yet — share the GymSuite AI service account email with the GymSuite AI sheet to begin receiving cross-brain data."
 - Insight generation fails (API error): logs the error, skips the insight block, writes raw metrics only. The metrics are still valuable without AI-generated narrative.

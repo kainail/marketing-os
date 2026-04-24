@@ -714,7 +714,7 @@ async function handleSyncBrains(ctx: SessionContext): Promise<void> {
     console.log(chalk.bold.green('\n  Cross-brain sync complete. Brain state updated with latest insights.\n'));
   } catch (err) {
     console.log(chalk.yellow(`\n  Cross-brain sync encountered an issue: ${(err as Error).message}`));
-    console.log(chalk.gray('  Check GOOGLE_SHEETS_GYMSUITE_ID and service account credentials in .env\n'));
+    console.log(chalk.gray('  Check GOOGLE_SHEETS_TRANSCRIPT_REVIEW_ID and service account credentials in .env\n'));
   }
 }
 

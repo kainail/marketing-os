@@ -1,1 +1,27 @@
-[]
+{
+  "last_updated": "2026-04-24T22:23:59.890Z",
+  "data_source": "AI Transcript Review — Sheet1 column G",
+  "total_objections_logged": 5,
+  "by_frequency": [
+    {
+      "objection": "Lead asked if he could just use the pass without scheduling — implied resistance to commitment",
+      "count": 1
+    },
+    {
+      "objection": "Lead said she was unsure about timing due to work schedule and preferred to call back or book online herself",
+      "count": 1
+    },
+    {
+      "objection": "lead was busy — getting ready for a meeting",
+      "count": 1
+    },
+    {
+      "objection": "lead unavailable — said no to having a minute",
+      "count": 1
+    },
+    {
+      "objection": "none verbalized — lead went silent",
+      "count": 1
+    }
+  ]
+}
