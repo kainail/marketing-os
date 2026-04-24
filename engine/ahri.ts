@@ -202,6 +202,7 @@ Rules:
 - Multiple skills in one request → batch_generate
 - Single skill → generate_skill
 - "what's in queue" / "pending" / "review" → review_queue
+- "approve [skill/asset/all]" / "approve offer-machine" / "approve hook writer" → review_queue
 - "status" / "what's active" / "what's running" / "what's current" → show_status
 - "update" / "change brain" / "set offer" / "set objection" → update_brain_state
 - "switch to" / "change context" / "use [gym name]" → switch_context
@@ -546,7 +547,7 @@ function approveFiles(files: string[], ctx: SessionContext, budget: string): voi
   logAction('review_queue', [], 0, !!budget, `Approved ${count} asset(s)`);
 }
 
-async function reviewQueue(ctx: SessionContext, rl: RLInterface): Promise<void> {
+async function reviewQueue(ctx: SessionContext, rl: RLInterface, preFilter?: string): Promise<void> {
   const files = pendingFiles();
 
   if (files.length === 0) {
@@ -578,17 +579,32 @@ async function reviewQueue(ctx: SessionContext, rl: RLInterface): Promise<void> 
   console.log(chalk.gray('  Reply with asset ID, "all", a skill name, or "skip"'));
   console.log('');
 
-  const answer = await ask(rl, chalk.green('  > '));
-  const input = answer.trim().toLowerCase();
+  let rawInput: string;
+  if (preFilter !== undefined) {
+    rawInput = preFilter; // already normalized by caller
+    console.log(chalk.gray(`  Auto-filtering: ${preFilter}\n`));
+  } else {
+    const answer = await ask(rl, chalk.green('  > '));
+    rawInput = answer.trim().toLowerCase();
+  }
 
-  if (!input || input === 'skip') {
+  if (!rawInput || rawInput === 'skip') {
     console.log(chalk.gray('  Skipped.\n'));
     return;
   }
 
-  const toApprove = input === 'all'
+  // Normalize: strip "approve" prefix, replace spaces with hyphens
+  const normalizedInput = rawInput
+    .replace(/^approve\s+/i, '')
+    .replace(/\s+/g, '-')
+    .toLowerCase();
+
+  const toApprove = normalizedInput === 'all'
     ? rows
-    : rows.filter(r => r.assetId.toLowerCase().includes(input) || r.skill.toLowerCase() === input);
+    : rows.filter(r =>
+        r.assetId.toLowerCase().includes(normalizedInput) ||
+        r.skill.toLowerCase().replace(/\s+/g, '-') === normalizedInput
+      );
 
   if (toApprove.length === 0) {
     console.log(chalk.yellow('  No matching assets.\n'));
@@ -1098,9 +1114,14 @@ async function main(): Promise<void> {
           await handleCampaign(parsed, ctx, rl);
           break;
 
-        case 'review_queue':
-          await reviewQueue(ctx, rl);
+        case 'review_queue': {
+          const approveMatch = trimmed.match(/^approve\s+(.+)$/i);
+          const preFilter = approveMatch
+            ? approveMatch[1].trim().replace(/\s+/g, '-').toLowerCase()
+            : undefined;
+          await reviewQueue(ctx, rl, preFilter);
           break;
+        }
 
         case 'update_brain_state':
           await handleUpdateBrainState(trimmed, ctx, rl, client);
