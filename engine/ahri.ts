@@ -5,9 +5,11 @@ import path from 'path';
 import chalk from 'chalk';
 import { createInterface, Interface as RLInterface } from 'readline';
 import { spawn } from 'child_process';
+import { getFunnelPage, updatePageElement, publishPage } from './ghl-funnel';
+import { validateSmsContent, resolveWorkflowId, updateWorkflowStep, parseNurtureSync } from './ghl-workflows';
 
 const ROOT = process.cwd();
-const VERSION = '1.1.0';
+const VERSION = '1.4.0';
 const VOICE_MODE = process.argv.includes('--voice');
 
 // --- Paths ---
@@ -19,6 +21,7 @@ const ASSET_LOG     = path.join(ROOT, 'performance', 'asset-log.csv');
 const SESSION_LOG   = path.join(ROOT, 'logs', 'session-log.csv');
 const SESSION_HIST  = path.join(ROOT, 'logs', 'session-history.json');
 const BIZ_CONTEXT   = path.join(ROOT, 'business-context');
+const CROSS_BRAIN   = path.join(ROOT, 'intelligence-db', 'cross-brain');
 
 // --- Types ---
 
@@ -52,6 +55,10 @@ type IntentType =
   | 'run_campaign'
   | 'switch_context'
   | 'get_help'
+  | 'sync_media'
+  | 'sync_brains'
+  | 'update_funnel'
+  | 'update_workflows'
   | 'exit';
 
 interface SessionHistoryEntry {
@@ -70,6 +77,10 @@ function readSafe(p: string): string {
   try { return fs.readFileSync(p, 'utf-8'); } catch { return ''; }
 }
 
+function readJsonSafe<T>(p: string): T | null {
+  try { return JSON.parse(readSafe(p)) as T; } catch { return null; }
+}
+
 function extractField(content: string, heading: string): string {
   const re = new RegExp(`##\\s*${heading}[^\\n]*\\n([^#]+)`, 'i');
   const m = content.match(re);
@@ -83,6 +94,11 @@ function pendingCount(): number {
 
 function pendingFiles(): string[] {
   try { return fs.readdirSync(PENDING_DIR).filter(f => f.endsWith('.md')); }
+  catch { return []; }
+}
+
+function readyFiles(): string[] {
+  try { return fs.readdirSync(READY_DIR).filter(f => f.endsWith('.md')); }
   catch { return []; }
 }
 
@@ -113,7 +129,13 @@ function logAction(intent: string, skills: string[], generated: number, budgetFl
 }
 
 function ask(rl: RLInterface, q: string): Promise<string> {
-  return new Promise(resolve => rl.question(q, resolve));
+  return new Promise(resolve => {
+    try {
+      rl.question(q, resolve);
+    } catch {
+      resolve(''); // readline closed (e.g., piped stdin ended)
+    }
+  });
 }
 
 const PAID_SKILLS = new Set(['ad-copy', 'google-ads', 'image-generator']);
@@ -173,7 +195,7 @@ async function parseIntent(client: Anthropic, input: string, ctx: SessionContext
 Return this exact shape:
 {"intent":"<type>","skills":[],"context":"<biz>","avatar_override":null,"awareness_override":null,"budget_required":false,"message":""}
 
-intent values: generate_skill | batch_generate | review_queue | update_brain_state | show_status | run_campaign | switch_context | get_help | exit
+intent values: generate_skill | batch_generate | review_queue | update_brain_state | show_status | run_campaign | switch_context | get_help | sync_media | sync_brains | update_funnel | update_workflows | exit
 
 Rules:
 - "run campaign" / "build everything" / "full campaign" → run_campaign
@@ -185,9 +207,13 @@ Rules:
 - "switch to" / "change context" / "use [gym name]" → switch_context
 - "help" / "what can you do" → get_help
 - "exit" / "quit" / "done" / "bye" → exit
+- "sync media" / "analyze media" / "process media library" / "media sync" → sync_media
+- "sync brains" / "sync performance data" / "pull GymSuite data" / "cross-brain" / "sync the performance" → sync_brains
+- "update funnel" / "push landing page" / "update GHL funnel" / "funnel update" / "push the landing page" → update_funnel
+- "push scripts" / "update workflows" / "push SMS" / "push nurture" / "update GHL workflows" / "push the script updates" → update_workflows
 - ad-copy, google-ads, image-generator are paid skills → set budget_required: true
 - Default context: ${ctx.activeBusiness}
-- Available skills: offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync, content-calendar, vsl-script, flyer-generator, image-generator, seo-content, google-ads, referral-campaign, reactivation, review-engine
+- Available skills: offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync, content-calendar, vsl-script, flyer-generator, image-generator, seo-content, google-ads, referral-campaign, reactivation, review-engine, funnel-updater, workflow-updater
 - Active offer: ${ctx.activeOffer}`;
 
   const response = await client.messages.create({
@@ -234,6 +260,23 @@ function showStatus(ctx: SessionContext): void {
     }
   }
 
+  // Cross-brain insights from brain state
+  const crossBrainSection = bs.match(/##\s*Cross-Brain Insights[^\n]*\n([\s\S]*?)(?=\n##|$)/i);
+  if (crossBrainSection) {
+    const lines = crossBrainSection[1].trim().split('\n').filter(l => l.trim() && !l.trim().startsWith('#'));
+    if (lines.length > 0) {
+      console.log(chalk.gray('\n  Cross-brain insights:'));
+      lines.slice(0, 3).forEach(l => console.log(chalk.gray('    · ') + chalk.cyan(l.replace(/^[-*]\s*/, '').trim())));
+    }
+  } else {
+    // Fallback: read archetype-performance.json directly
+    const archetypeData = readJsonSafe<{ insights?: string[] }>(path.join(CROSS_BRAIN, 'archetype-performance.json'));
+    if (archetypeData?.insights && archetypeData.insights.length > 0) {
+      console.log(chalk.gray('\n  Cross-brain insights:'));
+      archetypeData.insights.slice(0, 2).forEach(i => console.log(chalk.gray('    · ') + chalk.cyan(i)));
+    }
+  }
+
   if (ctx.sessionActions.length > 0) {
     console.log(chalk.gray('\n  This session:'));
     ctx.sessionActions.forEach(a => console.log(chalk.gray('    · ') + chalk.white(a)));
@@ -267,6 +310,14 @@ function showHelp(): void {
     'Build everything for next month',
     'Run the full campaign for the comeback offer',
   ]);
+  group('GHL AUTOMATION', [
+    'Update the GHL funnel with the approved landing page',
+    'Push the script updates to GHL workflows',
+  ]);
+  group('SYNC INTELLIGENCE', [
+    'Sync the media library',
+    'Sync the performance data',
+  ]);
   group('REVIEW QUEUE', [
     'What\'s in my review queue?',
     'Show pending assets',
@@ -288,6 +339,8 @@ function showHelp(): void {
   console.log(chalk.gray('\n  Skills: offer-machine, hook-writer, ad-copy, landing-page,'));
   console.log(chalk.gray('  email-sequence, nurture-sync, content-calendar, vsl-script,'));
   console.log(chalk.gray('  flyer-generator, referral-campaign, reactivation, review-engine'));
+  console.log(chalk.gray('\n  GHL: funnel-updater, workflow-updater'));
+  console.log(chalk.gray('  Sync: analyze-media (Drive), sync-brains (GymSuite AI Sheets)'));
   console.log('\n' + chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
   console.log('');
 }
@@ -316,6 +369,30 @@ function runSkill(skill: string, context: string, avatarOverride: string | null,
         resolve();
       } else {
         reject(new Error(`${skill} exited with code ${code ?? '?'}`));
+      }
+    });
+  });
+}
+
+function runEngine(scriptRelPath: string, label: string, ctx: SessionContext): Promise<void> {
+  return new Promise((resolve, reject) => {
+    console.log(chalk.bold.cyan(`\n  Running: ${label}`));
+    console.log(chalk.gray('  ' + '─'.repeat(58)));
+
+    const child = spawn('npx', ['tsx', scriptRelPath], {
+      cwd: ROOT,
+      stdio: ['ignore', 'inherit', 'inherit'],
+      env: { ...process.env },
+      shell: true,
+    });
+
+    child.on('close', code => {
+      if (code === 0) {
+        ctx.sessionActions.push(`Synced: ${label}`);
+        logAction(label, [], 0, false, `${label} complete`);
+        resolve();
+      } else {
+        reject(new Error(`${label} exited with code ${code ?? '?'}`));
       }
     });
   });
@@ -429,6 +506,17 @@ async function handleCampaign(parsed: ParsedIntent, ctx: SessionContext, rl: RLI
   console.log(chalk.gray('  Live this week: ad creative (after budget approval)'));
   console.log(chalk.gray('  GHL implementation: nurture-sync (after Kai review)'));
   console.log('');
+
+  // Optional: push approved content to GHL
+  const pushFunnel = await ask(rl, chalk.gray('  Push approved landing page to GHL funnel now? (y/n) > '));
+  if (pushFunnel.trim().toLowerCase() === 'y') {
+    await handleUpdateFunnel(ctx, rl);
+  }
+
+  const pushWorkflows = await ask(rl, chalk.gray('  Push nurture scripts to GHL workflows now? (y/n) > '));
+  if (pushWorkflows.trim().toLowerCase() === 'y') {
+    await handleUpdateWorkflows(ctx, rl);
+  }
 }
 
 function approveFiles(files: string[], ctx: SessionContext, budget: string): void {
@@ -443,7 +531,6 @@ function approveFiles(files: string[], ctx: SessionContext, budget: string): voi
       if (budget) content = content.replace(/^(status: ready-to-post)/m, `$1\nbudget_approved: ${budget}`);
       fs.writeFileSync(dst, content, 'utf-8');
       fs.removeSync(src);
-      // update asset-log
       const assetId = file.replace('.md', '');
       const log = readSafe(ASSET_LOG);
       const updated = log.replace(new RegExp(`("${assetId}"[^\\n]*)pending-review`), '$1ready-to-post');
@@ -575,7 +662,6 @@ What field and value? Return JSON only:
 function handleSwitchContext(ctx: SessionContext, parsed: ParsedIntent): void {
   const contexts = listContexts();
 
-  // Try to match a specific context from the parsed message or skills
   const allText = (parsed.message + ' ' + parsed.skills.join(' ')).toLowerCase();
   const match = contexts.find(c => allText.includes(c.toLowerCase()));
 
@@ -595,6 +681,264 @@ function handleSwitchContext(ctx: SessionContext, parsed: ParsedIntent): void {
     console.log(chalk.gray(`  ${i + 1}. `) + chalk.white(c) + active);
   });
   console.log(chalk.gray('\n  "Switch to [name]" to change context.\n'));
+}
+
+async function handleSyncMedia(ctx: SessionContext): Promise<void> {
+  console.log('');
+  console.log(chalk.bold.cyan('  MEDIA LIBRARY SYNC'));
+  console.log(chalk.gray('  Scanning Google Drive for new photos and videos...'));
+  console.log(chalk.gray('  Analyzing with Claude vision — claude-opus-4-6'));
+  console.log(chalk.gray('  Generating shot list and updating media-index.json'));
+  console.log('');
+
+  try {
+    await runEngine('engine/media-analyzer.ts', 'media-analyzer', ctx);
+    console.log(chalk.bold.green('\n  Media sync complete. Check brain-state for updated library status.\n'));
+  } catch (err) {
+    console.log(chalk.yellow(`\n  Media sync encountered an issue: ${(err as Error).message}`));
+    console.log(chalk.gray('  Check GOOGLE_DRIVE_MEDIA_FOLDER_ID and service account credentials in .env\n'));
+  }
+}
+
+async function handleSyncBrains(ctx: SessionContext): Promise<void> {
+  console.log('');
+  console.log(chalk.bold.cyan('  CROSS-BRAIN SYNC — GymSuite AI Stage Log'));
+  console.log(chalk.gray('  Reading GymSuite AI Google Sheet...'));
+  console.log(chalk.gray('  Calculating archetype and source conversion rates...'));
+  console.log(chalk.gray('  Generating insights with claude-opus-4-6...'));
+  console.log(chalk.gray('  Writing to intelligence-db/cross-brain/'));
+  console.log('');
+
+  try {
+    await runEngine('engine/cross-brain-sync.ts', 'cross-brain-sync', ctx);
+    console.log(chalk.bold.green('\n  Cross-brain sync complete. Brain state updated with latest insights.\n'));
+  } catch (err) {
+    console.log(chalk.yellow(`\n  Cross-brain sync encountered an issue: ${(err as Error).message}`));
+    console.log(chalk.gray('  Check GOOGLE_SHEETS_GYMSUITE_ID and service account credentials in .env\n'));
+  }
+}
+
+async function handleUpdateFunnel(ctx: SessionContext, rl: RLInterface): Promise<void> {
+  console.log('');
+  console.log(chalk.bold.yellow('  FUNNEL UPDATER — GHL Landing Page'));
+  console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+
+  // Find approved landing page
+  const approved = readyFiles().filter(f => f.includes('landing-page'));
+  const pending = pendingFiles().filter(f => f.includes('landing-page'));
+
+  let sourceFile = '';
+  let sourceDir = '';
+  let landingContent = '';
+
+  if (approved.length > 0) {
+    sourceFile = approved[approved.length - 1];
+    sourceDir = READY_DIR;
+    landingContent = readSafe(path.join(READY_DIR, sourceFile));
+    console.log(chalk.green(`  Found approved landing page: ${sourceFile}`));
+  } else if (pending.length > 0) {
+    sourceFile = pending[pending.length - 1];
+    sourceDir = PENDING_DIR;
+    landingContent = readSafe(path.join(PENDING_DIR, sourceFile));
+    console.log(chalk.yellow(`  Found pending landing page (not yet approved): ${sourceFile}`));
+    const goAhead = await ask(rl, chalk.yellow('  This is pending review. Push anyway? (y/n) > '));
+    if (goAhead.trim().toLowerCase() !== 'y') {
+      console.log(chalk.gray('  Approve the landing page in "review queue" first.\n'));
+      return;
+    }
+  } else {
+    console.log(chalk.yellow('  No landing page assets found in queue.'));
+    console.log(chalk.gray('  Run "generate landing page" first, then approve it.\n'));
+    return;
+  }
+
+  // Get GHL page ID
+  let pageId = process.env['GHL_FUNNEL_PAGE_ID'] ?? '';
+  if (!pageId) {
+    console.log(chalk.yellow('\n  GHL_FUNNEL_PAGE_ID not set in .env'));
+    const inputId = await ask(rl, chalk.yellow('  Enter GHL funnel page ID (or "skip") > '));
+    if (!inputId.trim() || inputId.trim().toLowerCase() === 'skip') {
+      console.log(chalk.gray('  Set GHL_FUNNEL_PAGE_ID in .env to enable automatic funnel updates.\n'));
+      return;
+    }
+    pageId = inputId.trim();
+  }
+
+  // Load current page (gracefully falls back to mock if no credentials)
+  console.log(chalk.gray('\n  Reading current GHL funnel page...'));
+  const currentPage = await getFunnelPage(pageId);
+
+  // Show before/after
+  console.log(chalk.bold.cyan('\n  CURRENT FUNNEL PAGE'));
+  currentPage.elements.slice(0, 6).forEach(el => {
+    console.log(chalk.gray(`    [${el.type}] `) + chalk.red(el.content.slice(0, 72)));
+  });
+
+  // Extract key elements from approved landing page copy
+  const headlineMatch = landingContent.match(/##\s*(?:Primary\s+)?Headline[^\n]*\n([^\n#]+)/i);
+  const subMatch      = landingContent.match(/##\s*Subheadline[^\n]*\n([^\n#]+)/i);
+  const ctaMatch      = landingContent.match(/##\s*(?:Primary\s+)?CTA[^\n]*\n([^\n#]+)/i);
+  const guaranteeMatch = landingContent.match(/##\s*Guarantee[^\n]*\n([^\n#]+)/i);
+
+  console.log(chalk.bold.cyan('\n  PROPOSED (from: ' + sourceFile + ')'));
+  if (headlineMatch) console.log(chalk.gray('    [headline]    ') + chalk.green(headlineMatch[1].trim().slice(0, 72)));
+  if (subMatch)      console.log(chalk.gray('    [subheadline] ') + chalk.green(subMatch[1].trim().slice(0, 72)));
+  if (ctaMatch)      console.log(chalk.gray('    [button]      ') + chalk.green(ctaMatch[1].trim().slice(0, 72)));
+  if (guaranteeMatch) console.log(chalk.gray('    [guarantee]   ') + chalk.green(guaranteeMatch[1].trim().slice(0, 72)));
+  if (!headlineMatch && !subMatch && !ctaMatch) {
+    console.log(chalk.gray('  (Preview the full copy in ' + path.join(sourceDir, sourceFile) + ')'));
+  }
+
+  console.log('');
+  const confirm = await ask(rl, chalk.bold.red('  Type YES to publish these changes live > '));
+  if (confirm.trim() !== 'YES') {
+    console.log(chalk.gray('  Cancelled — must type YES exactly.\n'));
+    return;
+  }
+
+  // Push updates
+  console.log(chalk.gray('\n  Publishing to GHL...'));
+  try {
+    if (headlineMatch) await updatePageElement(pageId, 'headline-1', headlineMatch[1].trim());
+    if (subMatch)      await updatePageElement(pageId, 'subheadline-1', subMatch[1].trim());
+    if (ctaMatch)      await updatePageElement(pageId, 'cta-1', ctaMatch[1].trim());
+    if (guaranteeMatch) await updatePageElement(pageId, 'guarantee-1', guaranteeMatch[1].trim());
+    await publishPage(pageId);
+    ctx.sessionActions.push('Funnel updated and published');
+    logAction('update_funnel', [], 0, false, `Published funnel page ${pageId}`);
+    console.log(chalk.bold.green('\n  Funnel updated. Changes are now live.\n'));
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg.includes('GHL_API_KEY') || msg.includes('not set')) {
+      console.log(chalk.yellow('\n  GHL not configured — update queued for manual implementation.'));
+      console.log(chalk.gray('  Set GHL_API_KEY and GHL_FUNNEL_PAGE_ID in .env for automatic publishing.'));
+      console.log(chalk.gray('  Copy from: ' + path.join(sourceDir, sourceFile) + '\n'));
+    } else {
+      console.log(chalk.red(`\n  Push failed: ${msg}`));
+      console.log(chalk.gray('  Check logs/errors.csv for details.\n'));
+    }
+  }
+}
+
+async function handleUpdateWorkflows(ctx: SessionContext, rl: RLInterface): Promise<void> {
+  console.log('');
+  console.log(chalk.bold.yellow('  WORKFLOW UPDATER — GHL SMS Scripts'));
+  console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+
+  // Find nurture-sync package
+  const approvedPkgs = readyFiles().filter(f => f.includes('nurture-sync'));
+  const pendingPkgs  = pendingFiles().filter(f => f.includes('nurture-sync'));
+
+  let nurtureContent = '';
+  let sourceName = '';
+
+  if (approvedPkgs.length > 0) {
+    sourceName = approvedPkgs[approvedPkgs.length - 1];
+    nurtureContent = readSafe(path.join(READY_DIR, sourceName));
+    console.log(chalk.green(`  Found approved nurture-sync package: ${sourceName}`));
+  } else if (pendingPkgs.length > 0) {
+    sourceName = pendingPkgs[pendingPkgs.length - 1];
+    nurtureContent = readSafe(path.join(PENDING_DIR, sourceName));
+    console.log(chalk.yellow(`  Found pending nurture-sync (not yet approved): ${sourceName}`));
+    const goAhead = await ask(rl, chalk.yellow('  This is pending review. Push anyway? (y/n) > '));
+    if (goAhead.trim().toLowerCase() !== 'y') {
+      console.log(chalk.gray('  Approve the nurture-sync package in "review queue" first.\n'));
+      return;
+    }
+  } else {
+    console.log(chalk.yellow('  No nurture-sync package found in queue.'));
+    console.log(chalk.gray('  Run "sync the nurture scripts" first, then approve it.\n'));
+    return;
+  }
+
+  // Choose variant
+  const variantChoice = await ask(rl, chalk.yellow('  Which variant to push? (A/B) > '));
+  const variant = variantChoice.trim().toUpperCase() === 'B' ? 'B' : 'A';
+
+  const updates = parseNurtureSync(nurtureContent, variant as 'A' | 'B');
+
+  if (updates.length === 0) {
+    console.log(chalk.yellow(`\n  No Variant ${variant} messages parsed from the package.`));
+    console.log(chalk.gray('  Check that the nurture-sync output uses the expected format.\n'));
+    return;
+  }
+
+  // Validate all messages
+  console.log(chalk.bold.cyan(`\n  VARIANT ${variant} — UPDATE MANIFEST`));
+  console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+
+  let hasErrors = false;
+  updates.forEach((u, i) => {
+    const content = u.newContent ?? '';
+    const result = validateSmsContent(content);
+    const segLabel = result.segmentCount === 1
+      ? chalk.green(`${result.charCount}c · 1-seg`)
+      : chalk.yellow(`${result.charCount}c · 2-seg`);
+    const status = result.valid ? chalk.green('PASS') : chalk.red('FAIL');
+    console.log(chalk.gray(`  ${i + 1}. ${u.workflowName ?? '—'} › ${u.stepName ?? '—'}`));
+    console.log(chalk.gray('     ') + status + chalk.gray('  ') + segLabel);
+    if (!result.valid) {
+      hasErrors = true;
+      result.issues.forEach(issue => console.log(chalk.red(`       ! ${issue}`)));
+    }
+  });
+
+  if (hasErrors) {
+    console.log(chalk.red('\n  Validation errors found — fix messages before pushing to GHL.\n'));
+    return;
+  }
+
+  console.log(chalk.gray(`\n  ${updates.length} messages — all validation passed.`));
+
+  // Check GHL configuration
+  const hasApiKey = !!process.env['GHL_API_KEY'];
+  const hasWorkflowIds = !!process.env['GHL_WORKFLOW_IDS'];
+
+  if (!hasApiKey || !hasWorkflowIds) {
+    console.log(chalk.yellow('\n  GHL not fully configured:'));
+    if (!hasApiKey) console.log(chalk.yellow('    ! GHL_API_KEY not set in .env'));
+    if (!hasWorkflowIds) console.log(chalk.yellow('    ! GHL_WORKFLOW_IDS not set in .env'));
+    console.log(chalk.gray('  The update manifest above is ready for manual implementation in GHL.'));
+    console.log(chalk.gray('  See skills/workflow-updater/SKILL.md for step-by-step instructions.\n'));
+    ctx.sessionActions.push(`Workflow manifest prepared: ${updates.length} messages (manual push required)`);
+    return;
+  }
+
+  const confirm = await ask(rl, chalk.bold.red(`  Type YES to push Variant ${variant} to GHL workflows > `));
+  if (confirm.trim() !== 'YES') {
+    console.log(chalk.gray('  Cancelled — must type YES exactly.\n'));
+    return;
+  }
+
+  // Push each update
+  console.log(chalk.gray('\n  Pushing to GHL workflows...'));
+  let success = 0;
+  let failed = 0;
+
+  for (const update of updates) {
+    if (!update.workflowName || !update.newContent) continue;
+    const wfId = resolveWorkflowId(update.workflowName);
+    if (!wfId) {
+      console.log(chalk.yellow(`  No workflow ID for "${update.workflowName}" — check GHL_WORKFLOW_IDS`));
+      failed++;
+      continue;
+    }
+    const stepId = update.stepId ?? '';
+    try {
+      await updateWorkflowStep(wfId, stepId, update.newContent);
+      success++;
+    } catch (err) {
+      console.log(chalk.yellow(`  Failed: ${update.workflowName} › ${update.stepName ?? '—'}`));
+      failed++;
+    }
+  }
+
+  console.log('');
+  if (success > 0) console.log(chalk.green(`  ${success} messages pushed successfully.`));
+  if (failed > 0)  console.log(chalk.yellow(`  ${failed} failed — check GHL credentials and step IDs.`));
+  ctx.sessionActions.push(`Workflows updated: Variant ${variant}, ${success} pushed, ${failed} failed`);
+  logAction('update_workflows', [], 0, false, `Variant ${variant}: ${success} pushed ${failed} failed`);
+  console.log('');
 }
 
 async function handleExit(ctx: SessionContext, rl: RLInterface): Promise<void> {
@@ -617,7 +961,6 @@ async function handleExit(ctx: SessionContext, rl: RLInterface): Promise<void> {
   }
   console.log('');
 
-  // Update brain state last session notes
   const bs = readSafe(BRAIN_STATE);
   const bsUpdated = bs.replace(
     /(##\s*Last Session Notes[^\n]*\n)([\s\S]*?)(?=\n##|$)/i,
@@ -625,7 +968,6 @@ async function handleExit(ctx: SessionContext, rl: RLInterface): Promise<void> {
   );
   fs.writeFileSync(BRAIN_STATE, bsUpdated, 'utf-8');
 
-  // Append session history
   const hist = loadHistory();
   hist.push({
     date: new Date().toISOString(),
@@ -670,7 +1012,6 @@ async function main(): Promise<void> {
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set. Add it to .env and try again.');
   const client = new Anthropic({ apiKey });
 
-  // Build session context
   const bs = readSafe(BRAIN_STATE);
   const avatarFile = readSafe(path.join(ROOT, 'business-context', 'anytime-fitness', 'active-avatar.md'));
   const avatarMatch = avatarFile.match(/active\s+avatar:\s*(\S+)/i);
@@ -696,6 +1037,8 @@ async function main(): Promise<void> {
   }
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let stdinEnded = false;
+  rl.on('close', () => { stdinEnded = true; });
 
   const loop = async (): Promise<void> => {
     while (true) {
@@ -714,9 +1057,11 @@ async function main(): Promise<void> {
       }
 
       const trimmed = input.trim();
-      if (!trimmed) continue;
+      if (!trimmed) {
+        if (stdinEnded) { await handleExit(ctx, rl); return; }
+        continue;
+      }
 
-      // Fast-path exits
       if (/^(exit|quit|done|bye)$/i.test(trimmed)) {
         await handleExit(ctx, rl);
         return;
@@ -764,6 +1109,22 @@ async function main(): Promise<void> {
 
         case 'switch_context':
           handleSwitchContext(ctx, parsed);
+          break;
+
+        case 'sync_media':
+          await handleSyncMedia(ctx);
+          break;
+
+        case 'sync_brains':
+          await handleSyncBrains(ctx);
+          break;
+
+        case 'update_funnel':
+          await handleUpdateFunnel(ctx, rl);
+          break;
+
+        case 'update_workflows':
+          await handleUpdateWorkflows(ctx, rl);
           break;
 
         case 'exit':

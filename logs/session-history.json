@@ -1,1 +1,51 @@
-[]
+[
+  {
+    "date": "2026-04-24T21:32:04.780Z",
+    "duration_minutes": 0,
+    "actions": [
+      "Synced: media-analyzer"
+    ],
+    "assets_generated": 0,
+    "assets_approved": 0,
+    "brain_state_updates": [],
+    "notes": "Session 4/24/2026: Synced: media-analyzer."
+  },
+  {
+    "date": "2026-04-24T21:32:13.369Z",
+    "duration_minutes": 0,
+    "actions": [
+      "Synced: cross-brain-sync"
+    ],
+    "assets_generated": 0,
+    "assets_approved": 0,
+    "brain_state_updates": [],
+    "notes": "Session 4/24/2026: Synced: cross-brain-sync."
+  },
+  {
+    "date": "2026-04-24T21:39:31.921Z",
+    "duration_minutes": 0,
+    "actions": [],
+    "assets_generated": 0,
+    "assets_approved": 0,
+    "brain_state_updates": [],
+    "notes": "Session 4/24/2026: status check only."
+  },
+  {
+    "date": "2026-04-24T21:39:38.143Z",
+    "duration_minutes": 0,
+    "actions": [],
+    "assets_generated": 0,
+    "assets_approved": 0,
+    "brain_state_updates": [],
+    "notes": "Session 4/24/2026: status check only."
+  },
+  {
+    "date": "2026-04-24T21:39:43.889Z",
+    "duration_minutes": 0,
+    "actions": [],
+    "assets_generated": 0,
+    "assets_approved": 0,
+    "brain_state_updates": [],
+    "notes": "Session 4/24/2026: status check only."
+  }
+]

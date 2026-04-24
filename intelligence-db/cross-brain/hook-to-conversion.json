@@ -1,1 +1,53 @@
-[]
+{
+  "last_updated": "2026-04-24T21:32:13.319Z",
+  "by_lead_source": {
+    "facebook_cold": {
+      "booking_rate": 0,
+      "show_rate": 0,
+      "conversion_rate": 0,
+      "avg_ltv": null,
+      "sample_size": 0
+    },
+    "instagram_warm": {
+      "booking_rate": 0,
+      "show_rate": 0,
+      "conversion_rate": 0,
+      "avg_ltv": null,
+      "sample_size": 0
+    },
+    "google_search": {
+      "booking_rate": 0,
+      "show_rate": 0,
+      "conversion_rate": 0,
+      "avg_ltv": null,
+      "sample_size": 0
+    },
+    "referral": {
+      "booking_rate": 0,
+      "show_rate": 0,
+      "conversion_rate": 0,
+      "avg_ltv": null,
+      "sample_size": 0
+    },
+    "free_pass": {
+      "booking_rate": 0,
+      "show_rate": 0,
+      "conversion_rate": 0,
+      "avg_ltv": null,
+      "sample_size": 0
+    },
+    "lost_join": {
+      "booking_rate": 0,
+      "show_rate": 0,
+      "conversion_rate": 0,
+      "avg_ltv": null,
+      "sample_size": 0
+    }
+  },
+  "top_performing_source": "unknown",
+  "insights": [
+    "No GymSuite AI data available yet — set GOOGLE_SHEETS_GYMSUITE_ID in .env to enable cross-brain sync.",
+    "Once connected, AHRI will automatically adjust content strategy based on archetype conversion rates.",
+    "High-converting archetypes will receive more content budget allocation when data is available."
+  ]
+}

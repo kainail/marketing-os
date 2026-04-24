@@ -27,10 +27,15 @@ Full package: nurture-sync-20260424-A-IO8L (Variant A) and nurture-sync-20260424
 Status: pending GHL and ElevenLabs implementation — Kai approval required before live
 
 ## Last Session Notes
-Session 10 complete. Built 4 new SKILL.md files: content-calendar (30-piece monthly system, Gary Vee model, Schwartz arc, 40/30/20/10 ratio, 5-step generation protocol), reactivation (4-sequence system at 60/90/180/365 days post-cancellation, warmth-first, no discount-first), referral-campaign (6-trigger system, "referral" word never used, 3 incentive models scored, GHL tracking brief, landing page brief), review-engine (5-moment acquisition system, 8 response templates, velocity strategy). All 4 skills ran successfully and generated A/B variants. Rate limiting required sequential execution. Content-calendar cornerstone grounded in winning hook #1 (parent/child spring moment). Referral incentive recommendation: Model A (free month to referrer) per Variant A; Model B (enhanced offer to friend) per Variant B. Tagged v1.3 in git.
+Session 4/24/2026: status check only.
 
 ## Pending Skills
 vsl-script, flyer-generator, image-generator, seo-content, google-ads, partnership-outreach — to be built in future sessions.
 
 ## Next Session
 Wire up weekly automation routine. Build remaining skills. Consider vsl-script next as it supports paid ads channel.
+
+## Cross-Brain Insights
+- No GymSuite AI data available yet — set GOOGLE_SHEETS_GYMSUITE_ID in .env to enable cross-brain sync.
+- Once connected, AHRI will automatically adjust content strategy based on archetype conversion rates.
+- High-converting archetypes will receive more content budget allocation when data is available.
