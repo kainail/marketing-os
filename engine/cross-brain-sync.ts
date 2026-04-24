@@ -3,74 +3,126 @@ import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs-extra';
 import path from 'path';
 import chalk from 'chalk';
-import * as drive from './drive.js';
+import * as driveModule from './drive.js';
 
 const ROOT = process.cwd();
-const ERRORS_CSV = path.join(ROOT, 'logs', 'errors.csv');
-const BRAIN_STATE = path.join(ROOT, 'brain-state', 'current-state.md');
+const ERRORS_CSV      = path.join(ROOT, 'logs', 'errors.csv');
+const BRAIN_STATE     = path.join(ROOT, 'brain-state', 'current-state.md');
 const CROSS_BRAIN_DIR = path.join(ROOT, 'intelligence-db', 'cross-brain');
+const AVATAR_DIR      = path.join(ROOT, 'intelligence-db', 'avatar');
+const PATTERNS_DIR    = path.join(ROOT, 'intelligence-db', 'patterns');
+const COACHING_ALERTS = path.join(ROOT, 'logs', 'coaching-alerts.csv');
+
+// --- Fixed column indices: A=0 through S=18 ---
+// Source: AI Transcript Review → Sheet1
+
+const COL = {
+  timestamp:         0,  // A
+  transcript:        1,  // B
+  opener_score:      2,  // C
+  human_feel_score:  3,  // D
+  flow_score:        4,  // E
+  stage_reached:     5,  // F
+  main_objection:    6,  // G
+  drop_off_moment:   7,  // H
+  failure_reason:    8,  // I
+  suggested_fix:     9,  // J
+  contact_id:        10, // K
+  rep_name:          11, // L
+  lead_source:       12, // M
+  subaccount_name:   13, // N
+  call_direction:    14, // O
+  overall_score:     15, // P
+  script_deviation:  16, // Q
+  archetype_detected:17, // R
+  coaching_priority: 18, // S
+} as const;
 
 // --- Types ---
 
-interface ArchetypeMetrics {
-  booking_rate: number;
-  conversion_rate: number;
-  show_rate: number;
-  avg_ltv: number | null;
-  sample_size: number;
-}
-
-interface SourceMetrics {
+interface ArchetypeStats {
+  call_count: number;
   booking_rate: number;
   show_rate: number;
-  conversion_rate: number;
-  avg_ltv: number | null;
-  sample_size: number;
+  avg_score: number;
+  top_objection: string;
+  drop_off_pattern: string;
 }
 
-interface ArchetypePerformance {
+interface ArchetypePerformanceOutput {
   last_updated: string;
-  data_period_days: number;
+  data_source: string;
+  data_period: string;
   sample_size: number;
+  filter_applied: string;
   by_archetype: {
-    social: ArchetypeMetrics;
-    analytical: ArchetypeMetrics;
-    supportive: ArchetypeMetrics;
-    independent: ArchetypeMetrics;
+    social: ArchetypeStats;
+    analytical: ArchetypeStats;
+    supportive: ArchetypeStats;
+    independent: ArchetypeStats;
+    unknown: { call_count: number };
   };
   top_converting_archetype: string;
+  lowest_converting_archetype: string;
+  drop_off_patterns: Record<string, string>;
   insights: string[];
 }
 
-interface HookToConversion {
+interface SourceStats {
+  call_count: number;
+  booking_rate: number;
+  show_rate: number;
+  avg_score: number;
+}
+
+interface HookToConversionOutput {
   last_updated: string;
-  by_lead_source: {
-    facebook_cold: SourceMetrics;
-    instagram_warm: SourceMetrics;
-    google_search: SourceMetrics;
-    referral: SourceMetrics;
-    free_pass: SourceMetrics;
-    lost_join: SourceMetrics;
-  };
+  sample_size: number;
+  by_lead_source: Record<string, SourceStats>;
   top_performing_source: string;
+  lowest_performing_source: string;
   insights: string[];
 }
 
-interface OfferToLtv {
+interface OfferToLtvOutput {
   last_updated: string;
+  note: string;
   active_offer: string;
-  avg_ltv_by_source: Record<string, number>;
   insights: string[];
 }
 
 export interface SyncReport {
   success: boolean;
   sample_size: number;
-  data_period_days: number;
   top_converting_archetype: string;
   top_performing_source: string;
   insights: string[];
   error?: string;
+}
+
+// --- Accumulation types ---
+
+interface ArchetypeAccum {
+  total: number;
+  booked: number;
+  showed: number;
+  score_sum: number;
+  score_count: number;
+  objections: Record<string, number>;
+  drop_offs: Record<string, number>;
+}
+
+interface SourceAccum {
+  total: number;
+  booked: number;
+  showed: number;
+  score_sum: number;
+  score_count: number;
+}
+
+interface RepAccum {
+  score_sum: number;
+  score_count: number;
 }
 
 // --- Logging ---
@@ -85,14 +137,19 @@ function logError(operation: string, error: Error): void {
   }
 }
 
-// --- Sheet parsing helpers ---
+// --- Cell helpers ---
 
-function colIndex(headers: string[], ...candidates: string[]): number {
-  for (const candidate of candidates) {
-    const idx = headers.findIndex(h => h.toLowerCase().trim().includes(candidate.toLowerCase()));
-    if (idx >= 0) return idx;
-  }
-  return -1;
+function cell(row: string[], idx: number): string {
+  return (row[idx] ?? '').trim();
+}
+
+function cellLower(row: string[], idx: number): string {
+  return cell(row, idx).toLowerCase();
+}
+
+function safeFloat(value: string): number | null {
+  const n = parseFloat(value);
+  return isNaN(n) ? null : n;
 }
 
 function safeRate(numerator: number, denominator: number): number {
@@ -100,335 +157,112 @@ function safeRate(numerator: number, denominator: number): number {
   return Math.round((numerator / denominator) * 1000) / 10;
 }
 
-function emptyMetrics(): ArchetypeMetrics {
-  return { booking_rate: 0, conversion_rate: 0, show_rate: 0, avg_ltv: null, sample_size: 0 };
+function isOutbound(row: string[]): boolean {
+  return cellLower(row, COL.call_direction) === 'outbound';
 }
 
-function emptySourceMetrics(): SourceMetrics {
-  return { booking_rate: 0, show_rate: 0, conversion_rate: 0, avg_ltv: null, sample_size: 0 };
+function isBooked(row: string[]): boolean {
+  return cellLower(row, COL.stage_reached).includes('book');
 }
 
-// --- Data reading ---
-
-async function readStageLog(spreadsheetId: string): Promise<string[][]> {
-  // GymSuite AI Sheets structure — [KAI: confirm the exact sheet name and range for your Stage Log]
-  const rows = await drive.readSheet(spreadsheetId, 'Stage Log!A:Z');
-  return rows;
+function isShowed(row: string[]): boolean {
+  const stage = cellLower(row, COL.stage_reached);
+  return stage.includes('show') || stage.includes('answered');
 }
 
-async function readRevenueData(spreadsheetId: string): Promise<string[][]> {
-  // [KAI: confirm sheet name for revenue/LTV data if it exists]
-  try {
-    return await drive.readSheet(spreadsheetId, 'Revenue!A:Z');
-  } catch {
-    return [];
+function isHeaderRow(row: string[]): boolean {
+  // Detect if row 0 is a header row: opener_score cell should be a number in data rows
+  const v = cell(row, COL.opener_score).toLowerCase();
+  return isNaN(parseFloat(v)) && v.length > 0;
+}
+
+function normalizeArchetype(raw: string): 'social' | 'analytical' | 'supportive' | 'independent' | 'unknown' {
+  const v = raw.toLowerCase().trim();
+  if (!v || v === 'unknown' || v === 'n/a' || v === 'null') return 'unknown';
+  if (v.includes('social') || v === 'a' || v.includes('community') || v.includes('outgoing')) return 'social';
+  if (v.includes('analytical') || v === 'b' || v.includes('data') || v.includes('detail') || v.includes('thinker')) return 'analytical';
+  if (v.includes('support') || v === 'c' || v.includes('nurt') || v.includes('caring')) return 'supportive';
+  if (v.includes('independ') || v === 'd' || v.includes('solo') || v.includes('autonom') || v.includes('self-dir')) return 'independent';
+  return 'unknown';
+}
+
+function isValidObjection(raw: string): boolean {
+  const v = raw.toLowerCase().trim();
+  return !(!v || v === 'n/a' || v === 'null' || v === 'none');
+}
+
+function topKey(counts: Record<string, number>): string {
+  let top = '';
+  let max = 0;
+  for (const [k, v] of Object.entries(counts)) {
+    if (v > max) { max = v; top = k; }
   }
+  return top || 'none';
 }
 
-// --- Calculation ---
+function emptyArchetypeAccum(): ArchetypeAccum {
+  return { total: 0, booked: 0, showed: 0, score_sum: 0, score_count: 0, objections: {}, drop_offs: {} };
+}
 
-function calculateArchetypePerformance(rows: string[][], headers: string[]): ArchetypePerformance['by_archetype'] {
-  const archetypeCol = colIndex(headers, 'archetype', 'personality', 'type');
-  const bookedCol = colIndex(headers, 'booked', 'booking', 'appointment');
-  const showedCol = colIndex(headers, 'showed', 'show', 'attended');
-  const convertedCol = colIndex(headers, 'converted', 'member', 'joined');
+// --- Data period helpers ---
 
-  const archetypes = ['social', 'analytical', 'supportive', 'independent'] as const;
-  type ArchetypeKey = typeof archetypes[number];
-  const result: Record<ArchetypeKey, { bookings: number; shows: number; conversions: number; total: number }> = {
-    social: { bookings: 0, shows: 0, conversions: 0, total: 0 },
-    analytical: { bookings: 0, shows: 0, conversions: 0, total: 0 },
-    supportive: { bookings: 0, shows: 0, conversions: 0, total: 0 },
-    independent: { bookings: 0, shows: 0, conversions: 0, total: 0 },
-  };
-
-  if (archetypeCol < 0) return {
-    social: emptyMetrics(),
-    analytical: emptyMetrics(),
-    supportive: emptyMetrics(),
-    independent: emptyMetrics(),
-  };
-
+function detectDataPeriod(rows: string[][]): string {
+  const dates: number[] = [];
   for (const row of rows) {
-    const rawArchetype = (row[archetypeCol] ?? '').toLowerCase().trim();
-    const archetype = archetypes.find(a => rawArchetype.includes(a));
-    if (!archetype) continue;
-
-    result[archetype].total++;
-    if (bookedCol >= 0 && (row[bookedCol] ?? '').toLowerCase().includes('y')) result[archetype].bookings++;
-    if (showedCol >= 0 && (row[showedCol] ?? '').toLowerCase().includes('y')) result[archetype].shows++;
-    if (convertedCol >= 0 && (row[convertedCol] ?? '').toLowerCase().includes('y')) result[archetype].conversions++;
+    const raw = cell(row, COL.timestamp);
+    if (!raw) continue;
+    const ts = new Date(raw).getTime();
+    if (!isNaN(ts)) dates.push(ts);
   }
-
-  const toMetrics = (key: ArchetypeKey): ArchetypeMetrics => ({
-    booking_rate: safeRate(result[key].bookings, result[key].total),
-    conversion_rate: safeRate(result[key].conversions, result[key].total),
-    show_rate: safeRate(result[key].shows, result[key].bookings),
-    avg_ltv: null,
-    sample_size: result[key].total,
-  });
-
-  return {
-    social: toMetrics('social'),
-    analytical: toMetrics('analytical'),
-    supportive: toMetrics('supportive'),
-    independent: toMetrics('independent'),
-  };
+  if (dates.length < 2) return 'all time';
+  const min = new Date(Math.min(...dates)).toISOString().slice(0, 10);
+  const max = new Date(Math.max(...dates)).toISOString().slice(0, 10);
+  return min === max ? min : `${min} to ${max}`;
 }
 
-function calculateSourcePerformance(rows: string[][], headers: string[]): HookToConversion['by_lead_source'] {
-  const sourceCol = colIndex(headers, 'source', 'lead source', 'channel');
-  const bookedCol = colIndex(headers, 'booked', 'booking', 'appointment');
-  const showedCol = colIndex(headers, 'showed', 'show', 'attended');
-  const convertedCol = colIndex(headers, 'converted', 'member', 'joined');
+// --- Coaching alerts ---
 
-  const sourceMap: Record<string, string> = {
-    'facebook': 'facebook_cold',
-    'fb': 'facebook_cold',
-    'instagram': 'instagram_warm',
-    'ig': 'instagram_warm',
-    'google': 'google_search',
-    'referral': 'referral',
-    'ref': 'referral',
-    'free pass': 'free_pass',
-    'freepass': 'free_pass',
-    'lost join': 'lost_join',
-    'lostjoin': 'lost_join',
-  };
-
-  const sources = ['facebook_cold', 'instagram_warm', 'google_search', 'referral', 'free_pass', 'lost_join'] as const;
-  type SourceKey = typeof sources[number];
-  const result: Record<SourceKey, { bookings: number; shows: number; conversions: number; total: number }> = {
-    facebook_cold: { bookings: 0, shows: 0, conversions: 0, total: 0 },
-    instagram_warm: { bookings: 0, shows: 0, conversions: 0, total: 0 },
-    google_search: { bookings: 0, shows: 0, conversions: 0, total: 0 },
-    referral: { bookings: 0, shows: 0, conversions: 0, total: 0 },
-    free_pass: { bookings: 0, shows: 0, conversions: 0, total: 0 },
-    lost_join: { bookings: 0, shows: 0, conversions: 0, total: 0 },
-  };
-
-  if (sourceCol < 0) {
-    const empty = {} as Record<SourceKey, SourceMetrics>;
-    sources.forEach(s => { empty[s] = emptySourceMetrics(); });
-    return empty;
+function ensureCoachingAlertsHeader(): void {
+  fs.ensureDirSync(path.join(ROOT, 'logs'));
+  if (!fs.existsSync(COACHING_ALERTS)) {
+    fs.writeFileSync(COACHING_ALERTS, 'timestamp,rep_name,avg_score,call_count,alert_type\n', 'utf-8');
   }
-
-  for (const row of rows) {
-    const rawSource = (row[sourceCol] ?? '').toLowerCase().trim();
-    const mappedKey = Object.entries(sourceMap).find(([k]) => rawSource.includes(k))?.[1] as SourceKey | undefined;
-    if (!mappedKey) continue;
-
-    result[mappedKey].total++;
-    if (bookedCol >= 0 && (row[bookedCol] ?? '').toLowerCase().includes('y')) result[mappedKey].bookings++;
-    if (showedCol >= 0 && (row[showedCol] ?? '').toLowerCase().includes('y')) result[mappedKey].shows++;
-    if (convertedCol >= 0 && (row[convertedCol] ?? '').toLowerCase().includes('y')) result[mappedKey].conversions++;
-  }
-
-  const toSourceMetrics = (key: SourceKey): SourceMetrics => ({
-    booking_rate: safeRate(result[key].bookings, result[key].total),
-    show_rate: safeRate(result[key].shows, result[key].bookings),
-    conversion_rate: safeRate(result[key].conversions, result[key].total),
-    avg_ltv: null,
-    sample_size: result[key].total,
-  });
-
-  const out = {} as Record<SourceKey, SourceMetrics>;
-  sources.forEach(s => { out[s] = toSourceMetrics(s); });
-  return out;
 }
 
-// --- Insights generation ---
+function appendCoachingAlert(repName: string, avgScore: number, callCount: number): void {
+  ensureCoachingAlertsHeader();
+  const line = `"${new Date().toISOString()}","${repName}","${avgScore.toFixed(2)}","${callCount}","low_score_alert"\n`;
+  fs.appendFileSync(COACHING_ALERTS, line);
+}
 
-async function generateInsights(client: Anthropic, archetypeData: ArchetypePerformance, hookData: HookToConversion): Promise<string[]> {
-  const dataString = JSON.stringify({ archetypeData, hookData }, null, 2);
+// --- Secondary sheet merge ---
 
+async function mergeSecondarySheet(_primaryRows: string[][], spreadsheetId: string): Promise<Map<string, number>> {
+  const scoreBoosts = new Map<string, number>();
   try {
-    const response = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: `Given this GymSuite AI performance data, what should AHRI change about how she generates marketing for this gym? Be specific — name the archetype, the channel, and the recommended shift. Return a JSON array of 3-5 insight strings. Each insight must be one specific, actionable sentence. No explanation, just the JSON array.
+    const secondary = await driveModule.readSheet(spreadsheetId, 'Sheet1');
+    if (secondary.length < 2) return scoreBoosts;
 
-Data:
-${dataString}`,
-      }],
-    });
+    const headers = (secondary[0] ?? []).map(h => (h ?? '').toLowerCase().trim());
+    const contactIdx = headers.findIndex(h => h.includes('contact') || h.includes('id'));
+    const scoreIdx = headers.findIndex(h => h.includes('score') || h.includes('quality') || h.includes('rating'));
 
-    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '[]';
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    return JSON.parse(jsonMatch ? jsonMatch[0] : '[]') as string[];
-  } catch (err) {
-    logError('generateInsights', err as Error);
-    return ['Insufficient data for insights — run again after 30 days of lead data.'];
-  }
-}
+    if (contactIdx < 0 || scoreIdx < 0) return scoreBoosts;
 
-// --- Main ---
-
-export async function syncBrains(): Promise<SyncReport> {
-  const apiKey = process.env['ANTHROPIC_API_KEY'];
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  const client = new Anthropic({ apiKey });
-
-  const spreadsheetId = process.env['GOOGLE_SHEETS_GYMSUITE_ID'];
-
-  if (!spreadsheetId) {
-    console.log(chalk.yellow('\n  [Cross-Brain Sync] GOOGLE_SHEETS_GYMSUITE_ID not set.'));
-    console.log(chalk.gray('  Writing empty intelligence-db/cross-brain/ placeholders.\n'));
-
-    const placeholderInsights = [
-      'No GymSuite AI data available yet — set GOOGLE_SHEETS_GYMSUITE_ID in .env to enable cross-brain sync.',
-      'Once connected, AHRI will automatically adjust content strategy based on archetype conversion rates.',
-      'High-converting archetypes will receive more content budget allocation when data is available.',
-    ];
-
-    await writeAllFiles(
-      buildEmptyArchetypeData(placeholderInsights),
-      buildEmptyHookData(placeholderInsights),
-      buildEmptyLtvData(placeholderInsights)
-    );
-
-    updateBrainState(placeholderInsights);
-
-    return {
-      success: false,
-      sample_size: 0,
-      data_period_days: 0,
-      top_converting_archetype: 'unknown',
-      top_performing_source: 'unknown',
-      insights: placeholderInsights,
-      error: 'GOOGLE_SHEETS_GYMSUITE_ID not configured',
-    };
-  }
-
-  console.log(chalk.bold.cyan('\n  [Cross-Brain Sync] Reading GymSuite AI data...\n'));
-
-  // Steps 1-4 — Read sheet data
-  const rows = await readStageLog(spreadsheetId);
-  const revenueRows = await readRevenueData(spreadsheetId);
-
-  if (rows.length < 2) {
-    const msg = 'Stage Log is empty or not found. Verify GOOGLE_SHEETS_GYMSUITE_ID and sheet name.';
-    console.log(chalk.yellow(`  ${msg}`));
-
-    return {
-      success: false,
-      sample_size: 0,
-      data_period_days: 30,
-      top_converting_archetype: 'unknown',
-      top_performing_source: 'unknown',
-      insights: [msg],
-      error: msg,
-    };
-  }
-
-  const headers = rows[0].map(h => (h ?? '').toLowerCase().trim());
-  const dataRows = rows.slice(1);
-
-  console.log(chalk.gray(`  Stage Log: ${dataRows.length} records`));
-
-  // Calculate period — assume rows have a date column
-  const dateCol = colIndex(headers, 'date', 'created', 'timestamp');
-  let dataPeriodDays = 30;
-  if (dateCol >= 0 && dataRows.length > 0) {
-    const dates = dataRows
-      .map(r => new Date(r[dateCol] ?? '').getTime())
-      .filter(d => !isNaN(d));
-    if (dates.length > 1) {
-      dataPeriodDays = Math.ceil((Math.max(...dates) - Math.min(...dates)) / (1000 * 60 * 60 * 24));
-    }
-  }
-
-  // Step 2 — Archetype performance
-  console.log(chalk.gray('  Calculating archetype conversion rates...'));
-  const archetypePerf = calculateArchetypePerformance(dataRows, headers);
-
-  // Step 3 — Source performance (booking rate, show rate)
-  console.log(chalk.gray('  Calculating source performance...'));
-  const sourcePerf = calculateSourcePerformance(dataRows, headers);
-
-  // Step 4 — Revenue attribution (if available)
-  const ltvBySource: Record<string, number> = {};
-  if (revenueRows.length > 1) {
-    const revHeaders = revenueRows[0].map(h => (h ?? '').toLowerCase().trim());
-    const revSourceCol = colIndex(revHeaders, 'source', 'lead source');
-    const ltvCol = colIndex(revHeaders, 'ltv', 'revenue', 'value');
-    if (revSourceCol >= 0 && ltvCol >= 0) {
-      const ltvTotals: Record<string, { sum: number; count: number }> = {};
-      for (const row of revenueRows.slice(1)) {
-        const source = (row[revSourceCol] ?? '').trim();
-        const ltv = parseFloat(row[ltvCol] ?? '0');
-        if (source && !isNaN(ltv)) {
-          if (!ltvTotals[source]) ltvTotals[source] = { sum: 0, count: 0 };
-          ltvTotals[source].sum += ltv;
-          ltvTotals[source].count++;
-        }
+    for (const row of secondary.slice(1)) {
+      const contactId = (row[contactIdx] ?? '').trim();
+      const score = safeFloat((row[scoreIdx] ?? '').trim());
+      if (contactId && score !== null) {
+        scoreBoosts.set(contactId, score);
       }
-      Object.entries(ltvTotals).forEach(([k, v]) => {
-        ltvBySource[k] = Math.round(v.sum / v.count);
-      });
     }
+  } catch {
+    // secondary sheet unavailable — non-fatal
   }
-
-  // Find top performers
-  const archetypeEntries = Object.entries(archetypePerf) as [string, ArchetypeMetrics][];
-  const topArchetype = archetypeEntries.sort((a, b) => b[1].conversion_rate - a[1].conversion_rate)[0]?.[0] ?? 'unknown';
-
-  const sourceEntries = Object.entries(sourcePerf) as [string, SourceMetrics][];
-  const topSource = sourceEntries.sort((a, b) => b[1].conversion_rate - a[1].conversion_rate)[0]?.[0] ?? 'unknown';
-
-  // Step 6 — Generate insights
-  console.log(chalk.gray('  Generating insights via claude-opus-4-6...'));
-
-  const now = new Date().toISOString();
-  const sampleSize = dataRows.length;
-
-  const archetypeOut: ArchetypePerformance = {
-    last_updated: now,
-    data_period_days: dataPeriodDays,
-    sample_size: sampleSize,
-    by_archetype: archetypePerf,
-    top_converting_archetype: topArchetype,
-    insights: [],
-  };
-
-  const hookOut: HookToConversion = {
-    last_updated: now,
-    by_lead_source: sourcePerf,
-    top_performing_source: topSource,
-    insights: [],
-  };
-
-  const ltvOut: OfferToLtv = {
-    last_updated: now,
-    active_offer: readCurrentOffer(),
-    avg_ltv_by_source: ltvBySource,
-    insights: [],
-  };
-
-  const insights = await generateInsights(client, archetypeOut, hookOut);
-  archetypeOut.insights = insights;
-  hookOut.insights = insights;
-  ltvOut.insights = insights;
-
-  // Step 5+6 — Write files
-  await writeAllFiles(archetypeOut, hookOut, ltvOut);
-  updateBrainState(insights);
-
-  printSyncReport(archetypeOut, hookOut, insights);
-
-  return {
-    success: true,
-    sample_size: sampleSize,
-    data_period_days: dataPeriodDays,
-    top_converting_archetype: topArchetype,
-    top_performing_source: topSource,
-    insights,
-  };
+  return scoreBoosts;
 }
 
-// --- Helpers ---
+// --- Read brain state ---
 
 function readCurrentOffer(): string {
   try {
@@ -438,61 +272,106 @@ function readCurrentOffer(): string {
   } catch { return 'unknown'; }
 }
 
-function buildEmptyArchetypeData(insights: string[]): ArchetypePerformance {
-  const now = new Date().toISOString();
-  return {
-    last_updated: now,
-    data_period_days: 0,
-    sample_size: 0,
-    by_archetype: {
-      social: emptyMetrics(),
-      analytical: emptyMetrics(),
-      supportive: emptyMetrics(),
-      independent: emptyMetrics(),
-    },
-    top_converting_archetype: 'unknown',
-    insights,
-  };
+// --- Insight generation ---
+
+async function generateInsights(client: Anthropic, metricsPayload: object): Promise<string[]> {
+  try {
+    const response = await client.messages.create({
+      model: 'claude-opus-4-6',
+      max_tokens: 1024,
+      system: `You are AHRI's intelligence analyst. You have just processed real performance data from GymSuite AI's Jessica voice agent. Generate 5 specific, actionable insights that tell AHRI exactly how to change her marketing generation to improve results. Each insight must name: the specific metric, the specific finding, and the specific change AHRI should make. Do not give general advice. Be precise.
+
+Format each insight as:
+INSIGHT [N]: [metric] shows [finding]. AHRI should [specific action].
+
+Example of the precision required:
+"INSIGHT 1: Supportive archetype booking rate is 34% vs 19% for Independent. AHRI should weight Supportive-toned hooks 2:1 over Independent hooks in cold Facebook ad generation and prioritize the supportive archetype sequence in content calendar Week 2."
+
+Return exactly 5 insights, each on its own line, in the INSIGHT [N]: format. No other text.`,
+      messages: [{
+        role: 'user',
+        content: `Here is the performance data:\n${JSON.stringify(metricsPayload, null, 2)}`,
+      }],
+    });
+
+    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+    const lines = text.split('\n').filter(l => l.trim().startsWith('INSIGHT'));
+    return lines.length > 0 ? lines : ['Insufficient data for specific insights — re-run after 20+ outbound calls are logged.'];
+  } catch (err) {
+    logError('generateInsights', err as Error);
+    return ['Insight generation failed — re-run sync after verifying ANTHROPIC_API_KEY.'];
+  }
 }
 
-function buildEmptyHookData(insights: string[]): HookToConversion {
-  const now = new Date().toISOString();
-  return {
-    last_updated: now,
-    by_lead_source: {
-      facebook_cold: emptySourceMetrics(),
-      instagram_warm: emptySourceMetrics(),
-      google_search: emptySourceMetrics(),
-      referral: emptySourceMetrics(),
-      free_pass: emptySourceMetrics(),
-      lost_join: emptySourceMetrics(),
-    },
-    top_performing_source: 'unknown',
-    insights,
-  };
-}
+// --- Write helpers ---
 
-function buildEmptyLtvData(insights: string[]): OfferToLtv {
-  return {
-    last_updated: new Date().toISOString(),
-    active_offer: readCurrentOffer(),
-    avg_ltv_by_source: {},
-    insights,
-  };
-}
-
-async function writeAllFiles(arch: ArchetypePerformance, hook: HookToConversion, ltv: OfferToLtv): Promise<void> {
+function writeNoDataFiles(message: string): void {
   fs.ensureDirSync(CROSS_BRAIN_DIR);
-  fs.writeFileSync(path.join(CROSS_BRAIN_DIR, 'archetype-performance.json'), JSON.stringify(arch, null, 2), 'utf-8');
-  fs.writeFileSync(path.join(CROSS_BRAIN_DIR, 'hook-to-conversion.json'), JSON.stringify(hook, null, 2), 'utf-8');
-  fs.writeFileSync(path.join(CROSS_BRAIN_DIR, 'offer-to-ltv.json'), JSON.stringify(ltv, null, 2), 'utf-8');
-  console.log(chalk.gray('  intelligence-db/cross-brain/ updated.'));
+  const noDataPayload = {
+    last_updated: new Date().toISOString(),
+    status: 'no_data',
+    message,
+    sample_size: 0,
+    insights: ['Insufficient data for insights. Re-run sync after 20+ outbound calls are logged.'],
+  };
+  fs.writeFileSync(path.join(CROSS_BRAIN_DIR, 'archetype-performance.json'), JSON.stringify(noDataPayload, null, 2), 'utf-8');
+  fs.writeFileSync(path.join(CROSS_BRAIN_DIR, 'hook-to-conversion.json'), JSON.stringify(noDataPayload, null, 2), 'utf-8');
+  fs.writeFileSync(path.join(CROSS_BRAIN_DIR, 'offer-to-ltv.json'), JSON.stringify({
+    ...noDataPayload,
+    active_offer: readCurrentOffer(),
+  }, null, 2), 'utf-8');
 }
 
-function updateBrainState(insights: string[]): void {
+function writeArchetypeFile(data: ArchetypePerformanceOutput): void {
+  fs.ensureDirSync(CROSS_BRAIN_DIR);
+  fs.writeFileSync(path.join(CROSS_BRAIN_DIR, 'archetype-performance.json'), JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function writeHookFile(data: HookToConversionOutput): void {
+  fs.ensureDirSync(CROSS_BRAIN_DIR);
+  fs.writeFileSync(path.join(CROSS_BRAIN_DIR, 'hook-to-conversion.json'), JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function writeLtvFile(data: OfferToLtvOutput): void {
+  fs.ensureDirSync(CROSS_BRAIN_DIR);
+  fs.writeFileSync(path.join(CROSS_BRAIN_DIR, 'offer-to-ltv.json'), JSON.stringify(data, null, 2), 'utf-8');
+}
+
+function writeObjectionsFile(objectionCounts: Record<string, number>): void {
+  fs.ensureDirSync(AVATAR_DIR);
+  const sorted = Object.entries(objectionCounts)
+    .sort(([, a], [, b]) => b - a)
+    .map(([objection, count]) => ({ objection, count }));
+  const payload = {
+    last_updated: new Date().toISOString(),
+    data_source: 'AI Transcript Review — Sheet1 column G',
+    total_objections_logged: sorted.reduce((s, o) => s + o.count, 0),
+    by_frequency: sorted,
+  };
+  fs.writeFileSync(path.join(AVATAR_DIR, 'objections.json'), JSON.stringify(payload, null, 2), 'utf-8');
+}
+
+function writeWinningPatternsFile(insights: string[], topArchetype: string, topSource: string): void {
+  fs.ensureDirSync(PATTERNS_DIR);
+  const existing = (() => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(PATTERNS_DIR, 'winning-patterns.json'), 'utf-8')) as Record<string, unknown>;
+    } catch { return {}; }
+  })();
+  const updated = {
+    ...existing,
+    last_updated: new Date().toISOString(),
+    cross_brain_insights: insights,
+    top_converting_archetype: topArchetype,
+    top_performing_source: topSource,
+  };
+  fs.writeFileSync(path.join(PATTERNS_DIR, 'winning-patterns.json'), JSON.stringify(updated, null, 2), 'utf-8');
+}
+
+function updateBrainState(insights: string[], datePart: string): void {
   try {
     let bs = fs.readFileSync(BRAIN_STATE, 'utf-8');
-    const insightBlock = `\n## Cross-Brain Insights\n${insights.map(i => `- ${i}`).join('\n')}\n`;
+    const insightBlock = `\n## Cross-Brain Insights (updated ${datePart})\n${insights.map(i => `- ${i}`).join('\n')}\n`;
 
     if (/##\s*Cross-Brain Insights/i.test(bs)) {
       bs = bs.replace(/##\s*Cross-Brain Insights[^\n]*\n([\s\S]*?)(?=\n##|$)/i, insightBlock);
@@ -507,21 +386,412 @@ function updateBrainState(insights: string[]): void {
   }
 }
 
-function printSyncReport(arch: ArchetypePerformance, hook: HookToConversion, insights: string[]): void {
+function updateBrainStateTopObjections(top3: string[]): void {
+  try {
+    let bs = fs.readFileSync(BRAIN_STATE, 'utf-8');
+    const topObj = top3.join(' / ');
+    if (/##\s*Top Objection This Month/i.test(bs)) {
+      bs = bs.replace(
+        /(##\s*Top Objection This Month[^\n]*\n)([^\n#]*)/i,
+        `$1${topObj}`
+      );
+      fs.writeFileSync(BRAIN_STATE, bs, 'utf-8');
+    }
+  } catch { /* non-fatal */ }
+}
+
+// --- Main sync ---
+
+export async function syncBrains(): Promise<SyncReport> {
+  const apiKey = process.env['ANTHROPIC_API_KEY'];
+  if (!apiKey) {
+    const err = new Error('ANTHROPIC_API_KEY not set');
+    logError('syncBrains', err);
+    console.log(chalk.red('\n  Cross-brain sync failed — ANTHROPIC_API_KEY not set. Check .env for ANTHROPIC_API_KEY.'));
+    throw err;
+  }
+  const client = new Anthropic({ apiKey });
+
+  const spreadsheetId = process.env['GOOGLE_SHEETS_GYMSUITE_ID'];
+  const callReviewId  = process.env['GOOGLE_SHEETS_CALL_REVIEW_ID'];
+
+  // --- No credentials path ---
+  if (!spreadsheetId) {
+    console.log(chalk.yellow('\n  [Cross-Brain Sync] GOOGLE_SHEETS_GYMSUITE_ID not set.'));
+    console.log(chalk.gray('  Cross-brain sync complete — no call data yet. AHRI will generate from frameworks until real data is available. Re-run after calls are logged.\n'));
+
+    writeNoDataFiles('GOOGLE_SHEETS_GYMSUITE_ID not set in .env. Add the spreadsheet ID of the AI Transcript Review sheet to enable cross-brain sync.');
+    ensureCoachingAlertsHeader();
+    updateBrainState([
+      'No GymSuite AI data available yet — set GOOGLE_SHEETS_GYMSUITE_ID in .env to enable cross-brain sync.',
+      'Once connected, AHRI will automatically adjust content strategy based on archetype conversion rates.',
+      'High-converting archetypes will receive more content budget allocation when data is available.',
+    ], new Date().toISOString().slice(0, 10));
+
+    return {
+      success: false,
+      sample_size: 0,
+      top_converting_archetype: 'unknown',
+      top_performing_source: 'unknown',
+      insights: ['GOOGLE_SHEETS_GYMSUITE_ID not configured.'],
+      error: 'GOOGLE_SHEETS_GYMSUITE_ID not set',
+    };
+  }
+
+  console.log(chalk.bold.cyan('\n  [Cross-Brain Sync] Reading AI Transcript Review...\n'));
+
+  // --- Read primary sheet ---
+  let allRows: string[][];
+  try {
+    allRows = await driveModule.readSheet(spreadsheetId, 'Sheet1');
+  } catch (err) {
+    const msg = `Failed to read AI Transcript Review: ${(err as Error).message}`;
+    logError('readSheet:primary', err as Error);
+    console.log(chalk.red(`  Cross-brain sync failed — ${msg}. Check .env for GOOGLE_SHEETS_GYMSUITE_ID.`));
+    writeNoDataFiles(msg);
+    ensureCoachingAlertsHeader();
+    return { success: false, sample_size: 0, top_converting_archetype: 'unknown', top_performing_source: 'unknown', insights: [], error: msg };
+  }
+
+  // Skip header row if present
+  const hasHeader = allRows.length > 0 && isHeaderRow(allRows[0]);
+  const dataRows = hasHeader ? allRows.slice(1) : allRows;
+
+  // Filter to non-empty rows
+  const validRows = dataRows.filter(row => row.some(c => (c ?? '').trim()));
+
+  if (validRows.length === 0) {
+    const msg = 'AI Transcript Review has no call data yet. Sync will populate automatically as Jessica completes calls and data flows into the sheet.';
+    console.log(chalk.yellow(`\n  Cross-brain sync complete — no call data yet. AHRI will generate from frameworks until real data is available. Re-run after calls are logged.`));
+    writeNoDataFiles(msg);
+    ensureCoachingAlertsHeader();
+    return { success: false, sample_size: 0, top_converting_archetype: 'unknown', top_performing_source: 'unknown', insights: ['Insufficient data for insights. Re-run sync after 20+ outbound calls are logged.'], error: msg };
+  }
+
+  console.log(chalk.gray(`  Total rows: ${validRows.length}`));
+
+  // Filter to outbound only
+  const outboundRows = validRows.filter(isOutbound);
+  console.log(chalk.gray(`  Outbound calls: ${outboundRows.length}`));
+
+  if (outboundRows.length === 0) {
+    const msg = 'No outbound calls found in dataset. Ensure column O contains "outbound" for outbound calls.';
+    console.log(chalk.yellow(`  ${msg}`));
+    writeNoDataFiles(msg);
+    ensureCoachingAlertsHeader();
+    return { success: false, sample_size: 0, top_converting_archetype: 'unknown', top_performing_source: 'unknown', insights: [], error: msg };
+  }
+
+  // --- Read secondary sheet (optional merge) ---
+  const secondaryScores = callReviewId ? await mergeSecondarySheet(outboundRows, callReviewId) : new Map<string, number>();
+  if (secondaryScores.size > 0) {
+    console.log(chalk.gray(`  Secondary sheet (AI Call Review): ${secondaryScores.size} records merged`));
+  }
+
+  const datePeriod = detectDataPeriod(outboundRows);
+  const now = new Date().toISOString();
+  const todayStr = now.slice(0, 10);
+  const sampleSize = outboundRows.length;
+
+  // --- Calculation 1 & 2: Booking/show by source and archetype ---
+
+  const archetypeMap: Record<string, ArchetypeAccum> = {
+    social: emptyArchetypeAccum(),
+    analytical: emptyArchetypeAccum(),
+    supportive: emptyArchetypeAccum(),
+    independent: emptyArchetypeAccum(),
+  };
+  let unknownArchetypeCount = 0;
+
+  const sourceMap: Record<string, SourceAccum> = {};
+
+  // Calculation 5: drop-off analysis
+  const dropOffCounts: Record<string, number> = {};
+  const failureReasonCounts: Record<string, number> = {};
+
+  // Calculation 4: objections
+  const objectionCounts: Record<string, number> = {};
+
+  // Calculation 6: rep performance
+  const repAccum: Record<string, RepAccum> = {};
+
+  // Calculation 8: score correlation
+  const highScore = { total: 0, booked: 0 };
+  const lowScore  = { total: 0, booked: 0 };
+
+  for (const row of outboundRows) {
+    const booked = isBooked(row);
+    const showed = isShowed(row);
+    const archetype = normalizeArchetype(cell(row, COL.archetype_detected));
+    const source = cell(row, COL.lead_source) || 'unknown';
+    const repName = cell(row, COL.rep_name);
+    const objection = cell(row, COL.main_objection);
+    const dropOff = cell(row, COL.drop_off_moment);
+    const failureReason = cell(row, COL.failure_reason);
+    const contactId = cell(row, COL.contact_id);
+
+    // Get score — prefer secondary sheet merge if available
+    const rawScore = secondaryScores.get(contactId) ?? safeFloat(cell(row, COL.overall_score));
+    const score = rawScore !== null && rawScore > 0 ? rawScore : null;
+
+    // --- Archetype accumulation ---
+    if (archetype === 'unknown') {
+      unknownArchetypeCount++;
+    } else {
+      const a = archetypeMap[archetype];
+      a.total++;
+      if (booked) a.booked++;
+      if (showed) a.showed++;
+      if (score !== null) { a.score_sum += score; a.score_count++; }
+      if (isValidObjection(objection)) {
+        a.objections[objection] = (a.objections[objection] ?? 0) + 1;
+      }
+      if (dropOff && dropOff.toLowerCase() !== 'n/a' && dropOff.toLowerCase() !== 'null') {
+        a.drop_offs[dropOff] = (a.drop_offs[dropOff] ?? 0) + 1;
+      }
+    }
+
+    // --- Source accumulation (calc 1 & 3) ---
+    if (!sourceMap[source]) {
+      sourceMap[source] = { total: 0, booked: 0, showed: 0, score_sum: 0, score_count: 0 };
+    }
+    sourceMap[source].total++;
+    if (booked) sourceMap[source].booked++;
+    if (showed) sourceMap[source].showed++;
+    if (score !== null) { sourceMap[source].score_sum += score; sourceMap[source].score_count++; }
+
+    // --- Objection accumulation (calc 4) ---
+    if (isValidObjection(objection)) {
+      objectionCounts[objection] = (objectionCounts[objection] ?? 0) + 1;
+    }
+
+    // --- Drop-off accumulation (calc 5) ---
+    if (dropOff && dropOff.toLowerCase() !== 'n/a' && dropOff.toLowerCase() !== 'null') {
+      dropOffCounts[dropOff] = (dropOffCounts[dropOff] ?? 0) + 1;
+    }
+    if (failureReason && failureReason.toLowerCase() !== 'n/a' && failureReason.toLowerCase() !== 'null') {
+      failureReasonCounts[failureReason] = (failureReasonCounts[failureReason] ?? 0) + 1;
+    }
+
+    // --- Rep accumulation (calc 6) ---
+    if (repName && score !== null) {
+      if (!repAccum[repName]) repAccum[repName] = { score_sum: 0, score_count: 0 };
+      repAccum[repName].score_sum += score;
+      repAccum[repName].score_count++;
+    }
+
+    // --- Score correlation (calc 8) ---
+    if (score !== null) {
+      if (score >= 7) { highScore.total++; if (booked) highScore.booked++; }
+      else            { lowScore.total++;  if (booked) lowScore.booked++;  }
+    }
+  }
+
+  // --- Build archetype output ---
+
+  const archetypeKeys = ['social', 'analytical', 'supportive', 'independent'] as const;
+
+  const byArchetype: Record<string, ArchetypeStats> = {};
+  for (const key of archetypeKeys) {
+    const a = archetypeMap[key];
+    byArchetype[key] = {
+      call_count: a.total,
+      booking_rate: safeRate(a.booked, a.total),
+      show_rate: safeRate(a.showed, a.total),
+      avg_score: a.score_count > 0 ? Math.round((a.score_sum / a.score_count) * 10) / 10 : 0,
+      top_objection: topKey(a.objections) || 'none logged',
+      drop_off_pattern: topKey(a.drop_offs) || 'none logged',
+    };
+  }
+
+  // Rank archetypes by booking rate
+  const sortedArchetypes = archetypeKeys
+    .filter(k => byArchetype[k].call_count >= 3)
+    .sort((a, b) => byArchetype[b].booking_rate - byArchetype[a].booking_rate);
+
+  const topArchetype = sortedArchetypes[0] ?? 'insufficient data';
+  const lowestArchetype = sortedArchetypes[sortedArchetypes.length - 1] ?? 'insufficient data';
+
+  const dropOffPatterns: Record<string, string> = {};
+  for (const key of archetypeKeys) {
+    const a = archetypeMap[key];
+    const top = topKey(a.drop_offs);
+    if (top && top !== 'none') dropOffPatterns[key] = top;
+  }
+
+  // --- Build source output (calc 1 & 3, min 3 calls) ---
+
+  const byLeadSource: Record<string, SourceStats> = {};
+  for (const [src, s] of Object.entries(sourceMap)) {
+    if (s.total < 3) continue; // minimum sample requirement
+    byLeadSource[src] = {
+      call_count: s.total,
+      booking_rate: safeRate(s.booked, s.total),
+      show_rate: safeRate(s.showed, s.total),
+      avg_score: s.score_count > 0 ? Math.round((s.score_sum / s.score_count) * 10) / 10 : 0,
+    };
+  }
+
+  const sortedSources = Object.entries(byLeadSource).sort(([, a], [, b]) => b.booking_rate - a.booking_rate);
+  const topSource = sortedSources[0]?.[0] ?? 'insufficient data';
+  const lowestSource = sortedSources[sortedSources.length - 1]?.[0] ?? 'insufficient data';
+
+  // --- Calc 4: Top 3 objections → brain state ---
+
+  const top3Objections = Object.entries(objectionCounts)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 3)
+    .map(([k]) => k);
+
+  // --- Calc 5: Most common drop-off and failure reason ---
+
+  const topDropOff = topKey(dropOffCounts);
+  const topFailureReason = topKey(failureReasonCounts);
+
+  // --- Calc 6: Rep performance → coaching alerts ---
+
+  ensureCoachingAlertsHeader();
+  for (const [repName, r] of Object.entries(repAccum)) {
+    if (r.score_count === 0) continue;
+    const avgScore = Math.round((r.score_sum / r.score_count) * 100) / 100;
+    if (avgScore < 6.0) {
+      appendCoachingAlert(repName, avgScore, r.score_count);
+      console.log(chalk.yellow(`  [Coaching Alert] ${repName}: avg score ${avgScore.toFixed(2)} across ${r.score_count} calls`));
+    }
+  }
+
+  // --- Calc 8: Score correlation ---
+
+  const highBookingRate = safeRate(highScore.booked, highScore.total);
+  const lowBookingRate  = safeRate(lowScore.booked, lowScore.total);
+  const correlationInsight = (highBookingRate > 0 && lowBookingRate > 0 && highBookingRate >= lowBookingRate * 1.5)
+    ? `Script quality significantly impacts booking rate: high-scoring calls (≥7) book at ${highBookingRate}% vs ${lowBookingRate}% for low-scoring calls — a ${Math.round(highBookingRate / lowBookingRate * 10) / 10}x difference.`
+    : null;
+
+  // --- Generate insights ---
+
+  console.log(chalk.gray('  Generating insights via claude-opus-4-6...'));
+
+  const metricsPayload = {
+    sample_size: sampleSize,
+    data_period: datePeriod,
+    archetype_performance: byArchetype,
+    source_performance: byLeadSource,
+    top_archetype: topArchetype,
+    lowest_archetype: lowestArchetype,
+    top_source: topSource,
+    top_objections: top3Objections,
+    most_common_drop_off: topDropOff,
+    most_common_failure_reason: topFailureReason,
+    score_correlation: { high_scoring_booking_rate: highBookingRate, low_scoring_booking_rate: lowBookingRate },
+    archetype_drop_off_patterns: dropOffPatterns,
+  };
+
+  const insights = await generateInsights(client, metricsPayload);
+  if (correlationInsight) insights.push(`INSIGHT 6: ${correlationInsight}`);
+
+  // --- Assemble output files ---
+
+  const archetypeOutput: ArchetypePerformanceOutput = {
+    last_updated: now,
+    data_source: 'AI Transcript Review — Sheet1',
+    data_period: datePeriod,
+    sample_size: sampleSize,
+    filter_applied: 'outbound calls only',
+    by_archetype: {
+      social:      byArchetype['social'] as ArchetypeStats,
+      analytical:  byArchetype['analytical'] as ArchetypeStats,
+      supportive:  byArchetype['supportive'] as ArchetypeStats,
+      independent: byArchetype['independent'] as ArchetypeStats,
+      unknown:     { call_count: unknownArchetypeCount },
+    },
+    top_converting_archetype: topArchetype,
+    lowest_converting_archetype: lowestArchetype,
+    drop_off_patterns: dropOffPatterns,
+    insights,
+  };
+
+  const hookOutput: HookToConversionOutput = {
+    last_updated: now,
+    sample_size: sampleSize,
+    by_lead_source: byLeadSource,
+    top_performing_source: topSource,
+    lowest_performing_source: lowestSource,
+    insights,
+  };
+
+  const ltvOutput: OfferToLtvOutput = {
+    last_updated: now,
+    note: 'LTV data not yet available — populate when member revenue data exists',
+    active_offer: readCurrentOffer(),
+    insights: [],
+  };
+
+  // --- Write all files ---
+
+  writeArchetypeFile(archetypeOutput);
+  writeHookFile(hookOutput);
+  writeLtvFile(ltvOutput);
+  writeObjectionsFile(objectionCounts);
+  writeWinningPatternsFile(insights, topArchetype, topSource);
+  updateBrainState(insights, todayStr);
+  if (top3Objections.length > 0) updateBrainStateTopObjections(top3Objections);
+
+  console.log(chalk.gray('  intelligence-db/cross-brain/ updated.'));
+  console.log(chalk.gray('  intelligence-db/avatar/objections.json updated.'));
+
+  // --- Print report ---
+
+  printSyncReport(archetypeOutput, hookOutput, insights, topDropOff, topFailureReason);
+
+  return {
+    success: true,
+    sample_size: sampleSize,
+    top_converting_archetype: topArchetype,
+    top_performing_source: topSource,
+    insights,
+  };
+}
+
+// --- Report printer ---
+
+function printSyncReport(
+  arch: ArchetypePerformanceOutput,
+  hook: HookToConversionOutput,
+  insights: string[],
+  topDropOff: string,
+  topFailureReason: string
+): void {
   console.log('');
   console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
   console.log(chalk.bold.white('  CROSS-BRAIN SYNC REPORT'));
   console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
-  console.log(chalk.gray('  Sample size:     ') + chalk.white(arch.sample_size + ' leads'));
-  console.log(chalk.gray('  Data period:     ') + chalk.white(arch.data_period_days + ' days'));
+  console.log(chalk.gray('  Source:          ') + chalk.white('AI Transcript Review — Sheet1'));
+  console.log(chalk.gray('  Sample size:     ') + chalk.white(`${arch.sample_size} outbound calls`));
+  console.log(chalk.gray('  Data period:     ') + chalk.white(arch.data_period));
   console.log(chalk.gray('  Top archetype:   ') + chalk.green(arch.top_converting_archetype));
   console.log(chalk.gray('  Top source:      ') + chalk.green(hook.top_performing_source));
+  if (topDropOff && topDropOff !== 'none') {
+    console.log(chalk.gray('  Top drop-off:    ') + chalk.yellow(topDropOff));
+  }
+  if (topFailureReason && topFailureReason !== 'none') {
+    console.log(chalk.gray('  Top failure:     ') + chalk.yellow(topFailureReason));
+  }
 
-  console.log(chalk.gray('\n  Archetype conversion rates:'));
-  Object.entries(arch.by_archetype).forEach(([k, v]) => {
-    const bar = v.conversion_rate > 0 ? `${v.conversion_rate}% (n=${v.sample_size})` : 'no data';
+  console.log(chalk.gray('\n  Booking rates by archetype:'));
+  const archetypeKeys = ['social', 'analytical', 'supportive', 'independent'] as const;
+  for (const k of archetypeKeys) {
+    const s = arch.by_archetype[k];
+    const bar = s.call_count >= 3 ? `${s.booking_rate}%  (n=${s.call_count}, avg score ${s.avg_score})` : `n=${s.call_count} (below min sample)`;
     console.log(chalk.gray(`    ${k.padEnd(15)} `) + chalk.white(bar));
-  });
+  }
+
+  if (Object.keys(hook.by_lead_source).length > 0) {
+    console.log(chalk.gray('\n  Booking rates by source:'));
+    for (const [src, s] of Object.entries(hook.by_lead_source)) {
+      console.log(chalk.gray(`    ${src.padEnd(20)} `) + chalk.white(`${s.booking_rate}%  (n=${s.call_count})`));
+    }
+  }
 
   if (insights.length > 0) {
     console.log(chalk.cyan('\n  Insights:'));

@@ -1,10 +1,10 @@
 {
-  "last_updated": "2026-04-24T21:32:13.319Z",
-  "active_offer": "The No-Risk Comeback — 30 Days Coached, $1 to Start",
-  "avg_ltv_by_source": {},
+  "last_updated": "2026-04-24T22:12:38.819Z",
+  "status": "no_data",
+  "message": "GOOGLE_SHEETS_GYMSUITE_ID not set in .env. Add the spreadsheet ID of the AI Transcript Review sheet to enable cross-brain sync.",
+  "sample_size": 0,
   "insights": [
-    "No GymSuite AI data available yet — set GOOGLE_SHEETS_GYMSUITE_ID in .env to enable cross-brain sync.",
-    "Once connected, AHRI will automatically adjust content strategy based on archetype conversion rates.",
-    "High-converting archetypes will receive more content budget allocation when data is available."
-  ]
+    "Insufficient data for insights. Re-run sync after 20+ outbound calls are logged."
+  ],
+  "active_offer": "The No-Risk Comeback — 30 Days Coached, $1 to Start"
 }

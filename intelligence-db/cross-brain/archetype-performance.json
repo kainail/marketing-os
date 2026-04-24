@@ -1,41 +1,9 @@
 {
-  "last_updated": "2026-04-24T21:32:13.318Z",
-  "data_period_days": 0,
+  "last_updated": "2026-04-24T22:12:38.819Z",
+  "status": "no_data",
+  "message": "GOOGLE_SHEETS_GYMSUITE_ID not set in .env. Add the spreadsheet ID of the AI Transcript Review sheet to enable cross-brain sync.",
   "sample_size": 0,
-  "by_archetype": {
-    "social": {
-      "booking_rate": 0,
-      "conversion_rate": 0,
-      "show_rate": 0,
-      "avg_ltv": null,
-      "sample_size": 0
-    },
-    "analytical": {
-      "booking_rate": 0,
-      "conversion_rate": 0,
-      "show_rate": 0,
-      "avg_ltv": null,
-      "sample_size": 0
-    },
-    "supportive": {
-      "booking_rate": 0,
-      "conversion_rate": 0,
-      "show_rate": 0,
-      "avg_ltv": null,
-      "sample_size": 0
-    },
-    "independent": {
-      "booking_rate": 0,
-      "conversion_rate": 0,
-      "show_rate": 0,
-      "avg_ltv": null,
-      "sample_size": 0
-    }
-  },
-  "top_converting_archetype": "unknown",
   "insights": [
-    "No GymSuite AI data available yet — set GOOGLE_SHEETS_GYMSUITE_ID in .env to enable cross-brain sync.",
-    "Once connected, AHRI will automatically adjust content strategy based on archetype conversion rates.",
-    "High-converting archetypes will receive more content budget allocation when data is available."
+    "Insufficient data for insights. Re-run sync after 20+ outbound calls are logged."
   ]
 }

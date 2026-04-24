@@ -35,7 +35,8 @@ vsl-script, flyer-generator, image-generator, seo-content, google-ads, partnersh
 ## Next Session
 Wire up weekly automation routine. Build remaining skills. Consider vsl-script next as it supports paid ads channel.
 
-## Cross-Brain Insights
+
+## Cross-Brain Insights (updated 2026-04-24)
 - No GymSuite AI data available yet — set GOOGLE_SHEETS_GYMSUITE_ID in .env to enable cross-brain sync.
 - Once connected, AHRI will automatically adjust content strategy based on archetype conversion rates.
 - High-converting archetypes will receive more content budget allocation when data is available.
