@@ -6,7 +6,8 @@
   "scripts": {
     "generate": "tsx engine/generate.ts",
     "batch": "tsx engine/batch.ts",
-    "ahri": "tsx engine/ahri.ts"
+    "ahri": "tsx engine/ahri.ts",
+    "ahri:voice": "tsx engine/ahri.ts --voice"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
