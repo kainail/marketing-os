@@ -4,7 +4,7 @@ skill: hook-writer
 variant: B
 test_id: hook-writer-20260424-B9BJQ4
 date: 2026-04-24T20:07:47.021Z
-status: pending-review
+status: ready-to-post
 ---
 
 # Hook Library — The No-Risk Comeback — Variant B

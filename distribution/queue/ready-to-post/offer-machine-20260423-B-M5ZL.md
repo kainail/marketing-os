@@ -4,7 +4,7 @@ skill: offer-machine
 variant: B
 test_id: offer-machine-20260423-R63W1I
 date: 2026-04-23T22:51:02.140Z
-status: pending-review
+status: ready-to-post
 ---
 
 

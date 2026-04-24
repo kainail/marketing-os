@@ -27,13 +27,13 @@ Full package: nurture-sync-20260424-A-IO8L (Variant A) and nurture-sync-20260424
 Status: pending GHL and ElevenLabs implementation — Kai approval required before live
 
 ## Last Session Notes
-Session 4/24/2026: status check only.
+Session 11 complete (2026-04-24). Media intelligence live — Drive connected, first photo processed. Cross-brain sync live — 75 real calls analyzed, 5 insights generated. Key findings: 96% one-day-pass leads at 0% booking rate, 94.7% missing archetype tags, source attribution broken, Jarvis transcript pipeline not flowing. Priority 3 GHL field wiring deferred — reminder set for next session. Approval intent fix applied to ahri.ts. v1.4.2 committed.
 
 ## Pending Skills
 vsl-script, flyer-generator, image-generator, seo-content, google-ads, partnership-outreach — to be built in future sessions.
 
 ## Next Session
-Wire up weekly automation routine. Build remaining skills. Consider vsl-script next as it supports paid ads channel.
+Wire GHL archetype/source fields so cross-brain has clean data. Wire up weekly automation routine. Build remaining skills. Consider vsl-script next as it supports paid ads channel.
 
 
 
