@@ -27,7 +27,10 @@ Full package: nurture-sync-20260424-A-IO8L (Variant A) and nurture-sync-20260424
 Status: pending GHL and ElevenLabs implementation — Kai approval required before live
 
 ## Last Session Notes
-Sessions 1-9 complete. ahri.ts master conversational agent built: banner, session context, intent parser (claude-opus-4-6), 9 intent routes, session history persistence, queue management with approve flow. voice.ts built: ElevenLabs TTS + node-record-lpcm16/Whisper voice input. All 5 intents tested live: show_status, generate_skill (hook-writer ran + generated 2 assets), run_campaign (plan shown), review_queue (14 assets listed), switch_context. tsc clean. Tagged v1.2 in git.
+Session 10 complete. Built 4 new SKILL.md files: content-calendar (30-piece monthly system, Gary Vee model, Schwartz arc, 40/30/20/10 ratio, 5-step generation protocol), reactivation (4-sequence system at 60/90/180/365 days post-cancellation, warmth-first, no discount-first), referral-campaign (6-trigger system, "referral" word never used, 3 incentive models scored, GHL tracking brief, landing page brief), review-engine (5-moment acquisition system, 8 response templates, velocity strategy). All 4 skills ran successfully and generated A/B variants. Rate limiting required sequential execution. Content-calendar cornerstone grounded in winning hook #1 (parent/child spring moment). Referral incentive recommendation: Model A (free month to referrer) per Variant A; Model B (enhanced offer to friend) per Variant B. Tagged v1.3 in git.
+
+## Pending Skills
+vsl-script, flyer-generator, image-generator, seo-content, google-ads, partnership-outreach — to be built in future sessions.
 
 ## Next Session
-Build remaining skills: content-calendar, vsl-script, flyer-generator, image-generator, seo-content, google-ads, referral-campaign, reactivation, partnership-outreach, review-engine. Then wire up weekly automation routine.
+Wire up weekly automation routine. Build remaining skills. Consider vsl-script next as it supports paid ads channel.
