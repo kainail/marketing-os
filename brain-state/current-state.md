@@ -26,11 +26,23 @@ nurture-sync v1.1 — No-Risk Comeback (2026-04-24)
 Full package: nurture-sync-20260424-A-IO8L (Variant A) and nurture-sync-20260424-B-498R (Variant B)
 Status: pending GHL and ElevenLabs implementation — Kai approval required before live
 
+## Landing Page Status
+- Live at: kainail.github.io/no-risk-comeback-landing-page
+- Both forms built and wired to GHL API
+- Custom value placeholders still need manual replacement in index.html on GitHub
+- GHL API key needs regenerating before go-live
+- Real photos still needed for placeholder sections
+
 ## Last Session Notes
 Session 12 complete (2026-04-25). Full 15-skill library built — vsl-script, flyer-generator, image-generator, seo-content, google-ads, partnership-outreach. All skills encode active offer (No-Risk Comeback), lifestyle member avatar, cross-brain insights (no day-pass-only magnets, commitment objection pre-handled, appointment-embedded offers). Test run outputs generated and quality-checked — all passed. v1.5 tagged.
 
 ## Pending Skills
 None — all 15 skills complete as of Session 12 (2026-04-25).
+
+## Pending (Session 11 — still outstanding)
+1. Landing page form — add hidden UTM fields in GHL
+2. Workflow 1 — add archetype tagging actions
+3. Make scenario — pipe lead_source and archetype_detected to Sheet columns M and R
 
 ## Next Session
 Wire GHL archetype/source fields so cross-brain has clean data. Wire up weekly automation routine. Begin executing skills against active offer — recommend starting with google-ads (budget approval required from Kai) and partnership-outreach (zero budget, immediate action). VSL script is highest-leverage single asset — brief Kai on filming logistics.
