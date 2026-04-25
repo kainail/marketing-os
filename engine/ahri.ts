@@ -59,6 +59,9 @@ type IntentType =
   | 'sync_brains'
   | 'update_funnel'
   | 'update_workflows'
+  | 'run_manus_task'
+  | 'show_routines'
+  | 'run_routine_manually'
   | 'exit';
 
 interface SessionHistoryEntry {
@@ -212,6 +215,9 @@ Rules:
 - "sync brains" / "sync performance data" / "pull GymSuite data" / "cross-brain" / "sync the performance" → sync_brains
 - "update funnel" / "push landing page" / "update GHL funnel" / "funnel update" / "push the landing page" → update_funnel
 - "push scripts" / "update workflows" / "push SMS" / "push nurture" / "update GHL workflows" / "push the script updates" → update_workflows
+- "run manus" / "post content" / "manus post" / "run content posting" / "competitor research" / "run competitor" / "trend monitoring" / "run trend" / "run manus task" → run_manus_task
+- "show routines" / "list routines" / "what routines" / "what automations" / "automation schedule" / "show schedule" → show_routines
+- "run routine" / "run morning brief" / "run weekly content" / "run monthly campaign" / "manually run" / "trigger routine" → run_routine_manually
 - ad-copy, google-ads, image-generator are paid skills → set budget_required: true
 - Default context: ${ctx.activeBusiness}
 - Available skills: offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync, content-calendar, vsl-script, flyer-generator, image-generator, seo-content, google-ads, referral-campaign, reactivation, review-engine, funnel-updater, workflow-updater
@@ -1002,6 +1008,170 @@ async function handleExit(ctx: SessionContext, rl: RLInterface): Promise<void> {
   process.exit(0);
 }
 
+// --- Automation Handlers ---
+
+const MANUS_TASKS: Record<string, string> = {
+  'content-posting':     path.join(ROOT, 'manus-tasks', 'content-posting.md'),
+  'competitor-research': path.join(ROOT, 'manus-tasks', 'competitor-research.md'),
+  'trend-monitoring':    path.join(ROOT, 'manus-tasks', 'trend-monitoring.md'),
+};
+
+const ROUTINES: Record<string, { file: string; script: string; description: string }> = {
+  'morning-brief':      { file: path.join(ROOT, 'routines', 'ahri-morning-brief.md'), script: 'npm run morning-brief', description: 'Monday 7:00 AM — weekly status brief for Kai' },
+  'weekly-media':       { file: path.join(ROOT, 'routines', 'weekly-media-processing.md'), script: 'npm run analyze-media', description: 'Monday 5:45 AM — scan and index new Drive media' },
+  'weekly-content':     { file: path.join(ROOT, 'routines', 'weekly-content.md'), script: 'npm run weekly-content', description: 'Monday 7:00 AM — generate 30-piece content calendar' },
+  'monthly-campaign':   { file: path.join(ROOT, 'routines', 'monthly-campaign.md'), script: 'npm run monthly-campaign', description: 'First Monday 7:00 AM — full offer + campaign package' },
+  'funnel-check':       { file: path.join(ROOT, 'routines', 'funnel-performance-check.md'), script: 'npm run funnel-check', description: 'Triggered 72h after funnel update — CVR comparison' },
+  'cross-brain-sync':   { file: path.join(ROOT, 'routines', 'weekly-cross-brain-sync.md'), script: 'npm run sync-brains', description: 'Sunday 11:00 PM — read Stage Log, update intelligence-db' },
+};
+
+/** Display the Manus task instruction file for Kai/Manus to follow. */
+async function handleRunManusTask(parsed: ParsedIntent, rl: RLInterface): Promise<void> {
+  const taskNames = Object.keys(MANUS_TASKS);
+  const inputLower = parsed.message.toLowerCase() + ' ' + parsed.skills.join(' ').toLowerCase();
+
+  let taskKey = taskNames.find(k => inputLower.includes(k.replace(/-/g, ' ')) || inputLower.includes(k));
+  if (!taskKey && inputLower.includes('post')) taskKey = 'content-posting';
+  if (!taskKey && inputLower.includes('competitor')) taskKey = 'competitor-research';
+  if (!taskKey && inputLower.includes('trend')) taskKey = 'trend-monitoring';
+
+  if (!taskKey) {
+    console.log('');
+    console.log(chalk.bold.cyan('  MANUS TASKS AVAILABLE'));
+    console.log(chalk.gray('  ──────────────────────────────────────────────'));
+    taskNames.forEach(k => {
+      const taskFile = MANUS_TASKS[k];
+      const exists = fs.existsSync(taskFile);
+      console.log(chalk.gray(`  · ${k.padEnd(25)} `) + (exists ? chalk.green('ready') : chalk.red('file missing')));
+    });
+    console.log('');
+    console.log(chalk.white('  Which task should Manus run? (content-posting / competitor-research / trend-monitoring)'));
+    const answer = await ask(rl, chalk.green('  AHRI > '));
+    taskKey = taskNames.find(k => answer.toLowerCase().includes(k.replace(/-/g, ' ')) || answer.toLowerCase().includes(k));
+    if (!taskKey) {
+      console.log(chalk.red('  Task not recognized. No action taken.\n'));
+      return;
+    }
+  }
+
+  const taskFile = MANUS_TASKS[taskKey]!;
+  if (!fs.existsSync(taskFile)) {
+    console.log(chalk.red(`  Task file not found: ${taskFile}\n`));
+    return;
+  }
+
+  const content = readSafe(taskFile);
+  console.log('');
+  console.log(chalk.bold.cyan(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`));
+  console.log(chalk.bold.white(`  MANUS TASK — ${taskKey.toUpperCase()}`));
+  console.log(chalk.bold.cyan(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`));
+  console.log(chalk.yellow('\n  ⚠  Hand this file to Manus. Manus follows every step in order.'));
+  console.log(chalk.yellow('     Step 0 (account verification) is mandatory — never skip it.\n'));
+  console.log(chalk.white(content));
+  console.log('');
+  logAction('run_manus_task', [taskKey], 0, false, `Manus task displayed: ${taskKey}`);
+}
+
+/** List all routines with their schedule and status. */
+function handleShowRoutines(): void {
+  console.log('');
+  console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log(chalk.bold.white('  AHRI AUTOMATION ROUTINES'));
+  console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log('');
+
+  Object.entries(ROUTINES).forEach(([key, r]) => {
+    const exists = fs.existsSync(r.file);
+    const statusColor = exists ? chalk.green : chalk.red;
+    console.log(chalk.bold.white(`  ${key}`));
+    console.log(chalk.gray(`    Schedule:  `) + chalk.white(r.description));
+    console.log(chalk.gray(`    Script:    `) + chalk.cyan(r.script));
+    console.log(chalk.gray(`    File:      `) + statusColor(exists ? r.file.replace(ROOT, '.') : 'MISSING'));
+    console.log('');
+  });
+
+  console.log(chalk.gray('  Manus tasks:'));
+  Object.entries(MANUS_TASKS).forEach(([key, file]) => {
+    const exists = fs.existsSync(file);
+    console.log(chalk.gray(`    · ${key.padEnd(25)} `) + (exists ? chalk.green('ready') : chalk.red('missing')));
+  });
+
+  console.log('');
+  console.log(chalk.gray('  To trigger a routine: "run [routine name]"'));
+  console.log(chalk.gray('  To run a Manus task:  "run manus [task name]"\n'));
+
+  logAction('show_routines', [], 0, false, 'Routine list displayed');
+}
+
+/** Display a routine file and optionally run its npm script. */
+async function handleRunRoutineManually(parsed: ParsedIntent, ctx: SessionContext, rl: RLInterface): Promise<void> {
+  const routineKeys = Object.keys(ROUTINES);
+  const inputLower = parsed.message.toLowerCase() + ' ' + parsed.skills.join(' ').toLowerCase();
+
+  let routineKey = routineKeys.find(k =>
+    inputLower.includes(k.replace(/-/g, ' ')) || inputLower.includes(k)
+  );
+  if (!routineKey && inputLower.includes('morning')) routineKey = 'morning-brief';
+  if (!routineKey && inputLower.includes('media')) routineKey = 'weekly-media';
+  if (!routineKey && inputLower.includes('content')) routineKey = 'weekly-content';
+  if (!routineKey && inputLower.includes('monthly') || inputLower.includes('campaign')) routineKey = 'monthly-campaign';
+  if (!routineKey && inputLower.includes('funnel')) routineKey = 'funnel-check';
+  if (!routineKey && (inputLower.includes('sync') || inputLower.includes('cross'))) routineKey = 'cross-brain-sync';
+
+  if (!routineKey) {
+    console.log('');
+    console.log(chalk.white('  Which routine should I run manually?'));
+    routineKeys.forEach(k => console.log(chalk.gray(`    · ${k}`)));
+    console.log('');
+    const answer = await ask(rl, chalk.green('  AHRI > '));
+    routineKey = routineKeys.find(k => answer.toLowerCase().includes(k.replace(/-/g, ' ')) || answer.toLowerCase().includes(k));
+    if (!routineKey) {
+      console.log(chalk.red('  Routine not recognized. No action taken.\n'));
+      return;
+    }
+  }
+
+  const routine = ROUTINES[routineKey]!;
+
+  console.log('');
+  console.log(chalk.bold.cyan(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`));
+  console.log(chalk.bold.white(`  ROUTINE — ${routineKey.toUpperCase()}`));
+  console.log(chalk.bold.cyan(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`));
+  console.log(chalk.gray(`  Schedule: `) + chalk.white(routine.description));
+  console.log(chalk.gray(`  Script:   `) + chalk.cyan(routine.script));
+  console.log('');
+
+  console.log(chalk.white(`  Run ${routine.script} now? (yes / no)`));
+  const confirm = await ask(rl, chalk.green('  AHRI > '));
+
+  if (!/^y(es)?$/i.test(confirm.trim())) {
+    console.log(chalk.gray('  Cancelled — no action taken.\n'));
+    return;
+  }
+
+  const [cmd, ...args] = routine.script.split(' ');
+  console.log(chalk.cyan(`\n  Running: ${routine.script}\n`));
+
+  await new Promise<void>((resolve) => {
+    const proc = spawn(cmd!, args, { stdio: 'inherit', shell: true, cwd: ROOT });
+    proc.on('close', (code) => {
+      if (code === 0) {
+        console.log(chalk.green(`\n  Routine completed successfully.\n`));
+      } else {
+        console.log(chalk.red(`\n  Routine exited with code ${code}. Check logs/errors.csv.\n`));
+      }
+      resolve();
+    });
+    proc.on('error', (err) => {
+      console.log(chalk.red(`\n  Failed to start routine: ${err.message}\n`));
+      resolve();
+    });
+  });
+
+  ctx.sessionActions.push(`Manual routine: ${routineKey}`);
+  logAction('run_routine_manually', [routineKey], 0, false, `Manual run: ${routineKey}`);
+}
+
 // --- Voice stubs ---
 
 async function voiceInput(): Promise<string> {
@@ -1146,6 +1316,18 @@ async function main(): Promise<void> {
 
         case 'update_workflows':
           await handleUpdateWorkflows(ctx, rl);
+          break;
+
+        case 'run_manus_task':
+          await handleRunManusTask(parsed, rl);
+          break;
+
+        case 'show_routines':
+          handleShowRoutines();
+          break;
+
+        case 'run_routine_manually':
+          await handleRunRoutineManually(parsed, ctx, rl);
           break;
 
         case 'exit':
