@@ -27,13 +27,13 @@ Full package: nurture-sync-20260424-A-IO8L (Variant A) and nurture-sync-20260424
 Status: pending GHL and ElevenLabs implementation — Kai approval required before live
 
 ## Last Session Notes
-Session 11 complete (2026-04-24). Media intelligence live — Drive connected, first photo processed. Cross-brain sync live — 75 real calls analyzed, 5 insights generated. Key findings: 96% one-day-pass leads at 0% booking rate, 94.7% missing archetype tags, source attribution broken, Jarvis transcript pipeline not flowing. Priority 3 GHL field wiring deferred — reminder set for next session. Approval intent fix applied to ahri.ts. v1.4.2 committed.
+Session 12 complete (2026-04-25). Full 15-skill library built — vsl-script, flyer-generator, image-generator, seo-content, google-ads, partnership-outreach. All skills encode active offer (No-Risk Comeback), lifestyle member avatar, cross-brain insights (no day-pass-only magnets, commitment objection pre-handled, appointment-embedded offers). Test run outputs generated and quality-checked — all passed. v1.5 tagged.
 
 ## Pending Skills
-vsl-script, flyer-generator, image-generator, seo-content, google-ads, partnership-outreach — to be built in future sessions.
+None — all 15 skills complete as of Session 12 (2026-04-25).
 
 ## Next Session
-Wire GHL archetype/source fields so cross-brain has clean data. Wire up weekly automation routine. Build remaining skills. Consider vsl-script next as it supports paid ads channel.
+Wire GHL archetype/source fields so cross-brain has clean data. Wire up weekly automation routine. Begin executing skills against active offer — recommend starting with google-ads (budget approval required from Kai) and partnership-outreach (zero budget, immediate action). VSL script is highest-leverage single asset — brief Kai on filming logistics.
 
 
 
