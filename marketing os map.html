@@ -1,0 +1,1862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GymSuite AI — Complete Intelligence Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #03030A;
+  --surface: #08081A;
+  --card: #0E0E24;
+  --card-hover: #141430;
+  --border: rgba(124, 58, 237, 0.2);
+  --border-bright: rgba(124, 58, 237, 0.6);
+  --purple-deep: #4C1D95;
+  --purple: #7C3AED;
+  --purple-light: #A78BFA;
+  --purple-bright: #C4B5FD;
+  --purple-glow: rgba(124, 58, 237, 0.15);
+  --green: #10B981;
+  --green-light: #34D399;
+  --green-glow: rgba(16, 185, 129, 0.15);
+  --blue: #3B82F6;
+  --blue-light: #60A5FA;
+  --gold: #F59E0B;
+  --gold-light: #FCD34D;
+  --red: #EF4444;
+  --text: #F0F0FC;
+  --text-dim: #9CA3AF;
+  --text-muted: #6B7280;
+  --vision: #7C3AED;
+  --jarvis: #3B82F6;
+  --syndra: #10B981;
+  --shiro: #EC4899;
+  --jessica: #F59E0B;
+  --ahri: #8B5CF6;
+  --manus: #06B6D4;
+  --kai: #F0F0FC;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── BACKGROUND ────────────────────────────── */
+.bg-mesh {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(76,29,149,0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 80% at 80% 90%, rgba(124,58,237,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 40% at 50% 50%, rgba(139,92,246,0.04) 0%, transparent 70%);
+  animation: meshShift 20s ease-in-out infinite alternate;
+}
+@keyframes meshShift {
+  0% { opacity: 0.7; }
+  100% { opacity: 1; filter: hue-rotate(15deg); }
+}
+.stars {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 25% 40%, rgba(255,255,255,0.2) 0%, transparent 100%),
+    radial-gradient(1px 1px at 40% 20%, rgba(255,255,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 60% 60%, rgba(255,255,255,0.2) 0%, transparent 100%),
+    radial-gradient(1px 1px at 75% 30%, rgba(255,255,255,0.25) 0%, transparent 100%),
+    radial-gradient(1px 1px at 90% 80%, rgba(255,255,255,0.15) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 85%, rgba(200,180,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 35% 70%, rgba(200,180,255,0.2) 0%, transparent 100%);
+}
+
+/* ── HEADER ────────────────────────────────── */
+#header {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: 64px;
+  background: rgba(3,3,10,0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 32px;
+}
+.logo {
+  display: flex; align-items: center; gap: 12px;
+}
+.logo-mark {
+  width: 36px; height: 36px;
+  background: linear-gradient(135deg, var(--purple), var(--purple-light));
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Orbitron', monospace;
+  font-size: 14px; font-weight: 900;
+  color: white;
+  box-shadow: 0 0 20px rgba(124,58,237,0.4);
+}
+.logo-text {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text);
+}
+.logo-sub {
+  font-size: 10px; color: var(--text-muted);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin-top: 1px;
+}
+.nav {
+  display: flex; gap: 4px;
+}
+.nav-btn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.02em;
+}
+.nav-btn:hover { color: var(--text); background: rgba(124,58,237,0.08); }
+.nav-btn.active {
+  color: var(--purple-light);
+  background: rgba(124,58,237,0.15);
+  border-color: var(--border-bright);
+}
+.header-badge {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px; color: var(--purple-light);
+  background: rgba(124,58,237,0.1);
+  border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 20px;
+  letter-spacing: 0.05em;
+}
+
+/* ── MAIN ──────────────────────────────────── */
+#main { padding-top: 64px; position: relative; z-index: 1; }
+.view { display: none; min-height: calc(100vh - 64px); }
+.view.active { display: block; }
+
+/* ── SECTION HEADERS ───────────────────────── */
+.section-hero {
+  padding: 60px 60px 40px;
+  border-bottom: 1px solid var(--border);
+}
+.section-eyebrow {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px; letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--purple-light);
+  margin-bottom: 12px;
+}
+.section-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 32px; font-weight: 700;
+  letter-spacing: -0.01em;
+  background: linear-gradient(135deg, var(--text) 0%, var(--purple-light) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 12px;
+}
+.section-desc {
+  font-size: 15px; color: var(--text-dim);
+  line-height: 1.65; max-width: 680px;
+}
+.stats-row {
+  display: flex; gap: 32px; margin-top: 32px;
+  flex-wrap: wrap;
+}
+.stat {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.stat-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 28px; font-weight: 700;
+  color: var(--purple-light);
+}
+.stat-label {
+  font-size: 11px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+/* ── OVERVIEW VIEW ─────────────────────────── */
+#overview-canvas {
+  position: relative;
+  padding: 40px 60px 80px;
+  min-height: 900px;
+}
+.sys-col {
+  display: inline-block;
+  vertical-align: top;
+  width: calc(50% - 80px);
+}
+.sys-col.left { margin-right: 160px; }
+.sys-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 8px;
+}
+.sys-label::before {
+  content: '';
+  display: inline-block;
+  width: 28px; height: 2px;
+  border-radius: 2px;
+}
+.sys-label.gs::before { background: var(--blue); }
+.sys-label.ah::before { background: var(--purple); }
+.sys-label.gs { color: var(--blue-light); }
+.sys-label.ah { color: var(--purple-light); }
+
+/* SVG connections overlay */
+#connections-svg {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── AGENT CARDS ───────────────────────────── */
+.agent-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  transition: all 0.25s;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+.agent-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent, rgba(124,58,237,0.03));
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.agent-card:hover {
+  border-color: var(--border-bright);
+  transform: translateX(4px);
+  background: var(--card-hover);
+}
+.agent-card:hover::before { opacity: 1; }
+.agent-card.vision { border-left: 3px solid var(--vision); }
+.agent-card.jarvis { border-left: 3px solid var(--jarvis); }
+.agent-card.syndra { border-left: 3px solid var(--syndra); }
+.agent-card.shiro  { border-left: 3px solid var(--shiro); }
+.agent-card.jessica{ border-left: 3px solid var(--jessica); }
+.agent-card.ahri   { border-left: 3px solid var(--ahri); }
+.agent-card.manus  { border-left: 3px solid var(--manus); }
+.agent-card.kai    { border-left: 3px solid var(--kai); border-top: 2px solid rgba(240,240,252,0.3); }
+
+.agent-top {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 12px;
+  margin-bottom: 6px;
+}
+.agent-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.agent-model {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  padding: 2px 8px; border-radius: 10px;
+  color: var(--purple-light);
+  background: rgba(124,58,237,0.1);
+  border: 1px solid rgba(124,58,237,0.2);
+  white-space: nowrap;
+}
+.agent-role {
+  font-size: 12px; color: var(--text-dim);
+  line-height: 1.4;
+}
+.agent-chips {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px;
+}
+.chip {
+  font-size: 10px;
+  padding: 2px 8px; border-radius: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Connection center */
+.connections-center {
+  position: absolute;
+  left: calc(50% - 80px);
+  top: 100px;
+  width: 160px;
+  z-index: 2;
+}
+.conn-node {
+  background: var(--card);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.conn-node:hover {
+  background: rgba(124,58,237,0.15);
+  border-color: var(--purple);
+}
+.conn-node-label {
+  font-size: 10px;
+  font-family: 'Space Mono', monospace;
+  color: var(--purple-light);
+  display: block; margin-bottom: 2px;
+}
+.conn-node-desc {
+  font-size: 9px; color: var(--text-muted);
+}
+.pulse-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--purple);
+  display: inline-block;
+  margin-right: 5px;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.6); }
+}
+
+/* ── SESSIONS VIEW ─────────────────────────── */
+.sessions-grid {
+  padding: 40px 60px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+.session-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 22px;
+  cursor: pointer;
+  transition: all 0.25s;
+  position: relative;
+  overflow: hidden;
+}
+.session-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--purple), var(--purple-light));
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.session-card:hover {
+  border-color: var(--border-bright);
+  background: var(--card-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(124,58,237,0.12);
+}
+.session-card:hover::after { opacity: 1; }
+.session-card.complete { border-left: 3px solid var(--green); }
+.session-card.building { border-left: 3px solid var(--gold); }
+.session-card.planned  { border-left: 3px solid var(--border-bright); }
+
+.session-top {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 12px;
+  margin-bottom: 10px;
+}
+.session-num {
+  font-family: 'Orbitron', monospace;
+  font-size: 22px; font-weight: 900;
+  color: var(--purple-light);
+  line-height: 1;
+  flex-shrink: 0;
+}
+.session-status {
+  font-size: 9px; font-weight: 600;
+  padding: 3px 8px; border-radius: 8px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  flex-shrink: 0;
+}
+.session-status.complete { background: rgba(16,185,129,0.15); color: var(--green-light); border: 1px solid rgba(16,185,129,0.3); }
+.session-status.building { background: rgba(245,158,11,0.15); color: var(--gold-light); border: 1px solid rgba(245,158,11,0.3); }
+.session-status.planned  { background: rgba(124,58,237,0.1); color: var(--purple-light); border: 1px solid var(--border); }
+
+.session-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.session-desc {
+  font-size: 12px; color: var(--text-dim);
+  line-height: 1.55; margin-bottom: 12px;
+}
+.session-builds {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.build-tag {
+  font-size: 10px;
+  padding: 2px 8px; border-radius: 5px;
+  background: rgba(124,58,237,0.08);
+  border: 1px solid rgba(124,58,237,0.15);
+  color: var(--purple-light);
+  font-family: 'Space Mono', monospace;
+}
+.session-unlocks {
+  margin-top: 10px;
+  font-size: 11px; color: var(--text-muted);
+  font-style: italic;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.session-unlocks strong { color: var(--green-light); font-style: normal; }
+
+/* ── PHASES VIEW ───────────────────────────── */
+.phases-wrap { padding: 40px 60px; }
+.phase-layer {
+  margin-bottom: 40px;
+}
+.phase-layer-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.phase-layer-label::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--border), transparent);
+}
+.phase-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.phase-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.phase-card:hover {
+  border-color: var(--border-bright);
+  background: var(--card-hover);
+}
+.phase-num {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px; color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.phase-name {
+  font-size: 13px; font-weight: 600;
+  color: var(--text); margin-bottom: 5px;
+}
+.phase-desc {
+  font-size: 11px; color: var(--text-dim);
+  line-height: 1.55;
+}
+.phase-agent {
+  margin-top: 8px;
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  padding: 2px 8px; border-radius: 6px;
+  display: inline-block;
+}
+.phase-agent.vision { background: rgba(124,58,237,0.1); color: var(--vision); border: 1px solid rgba(124,58,237,0.2); }
+.phase-agent.jarvis { background: rgba(59,130,246,0.1); color: var(--jarvis); border: 1px solid rgba(59,130,246,0.2); }
+.phase-agent.syndra { background: rgba(16,185,129,0.1); color: var(--syndra); border: 1px solid rgba(16,185,129,0.2); }
+.phase-agent.make   { background: rgba(245,158,11,0.1); color: var(--gold); border: 1px solid rgba(245,158,11,0.2); }
+.phase-agent.railway{ background: rgba(139,92,246,0.1); color: var(--ahri); border: 1px solid rgba(139,92,246,0.2); }
+
+/* ── MANUS VIEW ────────────────────────────── */
+.manus-wrap { padding: 40px 60px; }
+.manus-section { margin-bottom: 48px; }
+.manus-section-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 13px; font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--manus);
+  margin-bottom: 6px;
+  display: flex; align-items: center; gap: 8px;
+}
+.manus-section-title::before {
+  content: '';
+  width: 20px; height: 2px;
+  background: var(--manus);
+  border-radius: 2px;
+}
+.manus-section-desc {
+  font-size: 13px; color: var(--text-muted);
+  margin-bottom: 16px;
+}
+.manus-tasks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.manus-task {
+  background: var(--card);
+  border: 1px solid rgba(6,182,212,0.15);
+  border-left: 3px solid var(--manus);
+  border-radius: 10px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.manus-task:hover {
+  border-color: rgba(6,182,212,0.5);
+  background: var(--card-hover);
+}
+.manus-task-top {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 8px;
+  margin-bottom: 8px;
+}
+.manus-task-name {
+  font-size: 13px; font-weight: 600; color: var(--text);
+}
+.manus-timing {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  padding: 2px 8px; border-radius: 6px;
+  background: rgba(6,182,212,0.1);
+  color: var(--manus);
+  border: 1px solid rgba(6,182,212,0.2);
+  white-space: nowrap;
+}
+.manus-task-desc {
+  font-size: 12px; color: var(--text-dim);
+  line-height: 1.6;
+}
+.manus-steps {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+}
+.manus-step {
+  font-size: 11px; color: var(--text-muted);
+  padding: 3px 0;
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.manus-step::before {
+  content: '→';
+  color: var(--manus);
+  flex-shrink: 0;
+  font-size: 10px;
+  margin-top: 1px;
+}
+.manus-serves {
+  margin-top: 8px;
+  font-size: 10px; color: var(--text-muted);
+  font-family: 'Space Mono', monospace;
+}
+.manus-serves span {
+  color: var(--purple-light);
+}
+
+/* ── FLOW VIEW ─────────────────────────────── */
+.flow-wrap { padding: 40px 60px; }
+.flow-step {
+  display: flex; gap: 28px;
+  margin-bottom: 8px;
+  position: relative;
+  cursor: pointer;
+}
+.flow-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: 50px;
+  bottom: -8px;
+  width: 2px;
+  background: linear-gradient(180deg, var(--border-bright), var(--border));
+}
+.flow-num {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-family: 'Orbitron', monospace;
+  font-size: 12px; font-weight: 700;
+  z-index: 1;
+  transition: all 0.2s;
+}
+.flow-step:hover .flow-num {
+  box-shadow: 0 0 20px rgba(124,58,237,0.5);
+}
+.flow-body {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 12px;
+  transition: all 0.2s;
+}
+.flow-step:hover .flow-body {
+  border-color: var(--border-bright);
+  background: var(--card-hover);
+}
+.flow-title {
+  font-size: 14px; font-weight: 600; color: var(--text);
+  margin-bottom: 4px;
+}
+.flow-detail {
+  font-size: 12px; color: var(--text-dim);
+  line-height: 1.65;
+}
+.flow-system {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  padding: 2px 8px; border-radius: 6px;
+  display: inline-block; margin-top: 8px;
+}
+.flow-data {
+  margin-top: 8px;
+  font-size: 11px; color: var(--text-muted);
+  font-family: 'Space Mono', monospace;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 6px;
+  border-left: 2px solid var(--border-bright);
+}
+
+/* ── DETAIL PANEL ──────────────────────────── */
+#detail-panel {
+  position: fixed;
+  top: 64px; right: 0;
+  width: 460px; height: calc(100vh - 64px);
+  background: rgba(8,8,26,0.97);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid var(--border-bright);
+  z-index: 200;
+  transform: translateX(100%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow-y: auto;
+  padding: 32px;
+}
+#detail-panel.open { transform: translateX(0); }
+#detail-close {
+  position: absolute; top: 20px; right: 20px;
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+#detail-close:hover { background: rgba(124,58,237,0.15); color: var(--text); }
+#detail-content { padding-top: 8px; }
+.detail-eyebrow {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px; letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--purple-light);
+  margin-bottom: 10px;
+}
+.detail-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 20px; font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+.detail-subtitle {
+  font-size: 13px; color: var(--text-dim);
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+.detail-section {
+  margin-bottom: 24px;
+}
+.detail-section-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.detail-list {
+  list-style: none;
+}
+.detail-list li {
+  font-size: 13px; color: var(--text-dim);
+  padding: 5px 0;
+  padding-left: 16px;
+  position: relative;
+  line-height: 1.55;
+}
+.detail-list li::before {
+  content: '·';
+  position: absolute; left: 0;
+  color: var(--purple-light);
+}
+.detail-chips {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.detail-chip {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  padding: 4px 10px; border-radius: 6px;
+  background: rgba(124,58,237,0.1);
+  border: 1px solid rgba(124,58,237,0.2);
+  color: var(--purple-light);
+}
+.detail-highlight {
+  background: rgba(124,58,237,0.08);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 13px; color: var(--text-dim);
+  line-height: 1.65;
+  margin-bottom: 16px;
+}
+.detail-highlight strong { color: var(--purple-light); }
+.detail-connection {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  font-size: 12px; color: var(--text-dim);
+}
+.detail-connection-arrow {
+  color: var(--purple-light);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* ── SCROLLBAR ─────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.6); }
+
+/* ── PARTICLE ANIMATION ────────────────────── */
+.particle-line {
+  stroke-dasharray: 4 6;
+  animation: flowParticle 3s linear infinite;
+}
+@keyframes flowParticle {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* ── RESPONSIVE ────────────────────────────── */
+@media (max-width: 768px) {
+  .section-hero { padding: 40px 24px 30px; }
+  .sessions-grid, .manus-tasks-grid, .phase-row { grid-template-columns: 1fr; padding: 24px; }
+  #overview-canvas { padding: 24px; }
+  .sys-col { width: 100%; display: block; margin-right: 0; }
+  .connections-center { display: none; }
+  #detail-panel { width: 100%; }
+  .flow-wrap, .manus-wrap, .phases-wrap { padding: 24px; }
+  .nav-btn { padding: 6px 10px; font-size: 11px; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-mesh"></div>
+<div class="stars"></div>
+
+<!-- HEADER -->
+<header id="header">
+  <div class="logo">
+    <div class="logo-mark">GS</div>
+    <div>
+      <div class="logo-text">GymSuite AI</div>
+      <div class="logo-sub">Intelligence Architecture</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <button class="nav-btn active" onclick="showView('overview',this)">Overview</button>
+    <button class="nav-btn" onclick="showView('sessions',this)">AHRI Sessions</button>
+    <button class="nav-btn" onclick="showView('phases',this)">GymSuite Phases</button>
+    <button class="nav-btn" onclick="showView('manus',this)">Manus Layer</button>
+    <button class="nav-btn" onclick="showView('flow',this)">Data Flow</button>
+  </nav>
+  <div class="header-badge">v1.4.2 · Live</div>
+</header>
+
+<main id="main">
+
+<!-- ════════════════════════════════════════════════════
+     VIEW 1: OVERVIEW
+════════════════════════════════════════════════════ -->
+<div class="view active" id="view-overview">
+  <div class="section-hero">
+    <div class="section-eyebrow">Neural Architecture · April 2026</div>
+    <div class="section-title">The Complete Intelligence System</div>
+    <div class="section-desc">Two AI brains operating in parallel — AHRI generates leads, GymSuite AI converts them. Every lead AHRI creates feeds into Jessica's nurture system. Every conversion Jessica closes feeds back into AHRI's intelligence. The loop tightens every month.</div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val">5</div><div class="stat-label">AI Agents</div></div>
+      <div class="stat"><div class="stat-val">17</div><div class="stat-label">Intelligence Phases</div></div>
+      <div class="stat"><div class="stat-val">18</div><div class="stat-label">AHRI Sessions</div></div>
+      <div class="stat"><div class="stat-val">15</div><div class="stat-label">Marketing Skills</div></div>
+      <div class="stat"><div class="stat-val">6</div><div class="stat-label">Connection Points</div></div>
+    </div>
+  </div>
+
+  <div id="overview-canvas">
+    <!-- Left: GymSuite AI -->
+    <div class="sys-col left">
+      <div class="sys-label gs">GymSuite AI — Nurture Intelligence</div>
+
+      <div class="agent-card kai" onclick="openDetail('kai')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--kai)">KAI</div>
+          <div class="agent-model">Human CEO</div>
+        </div>
+        <div class="agent-role">Final approvals on all initiatives, budgets, and strategic direction. Every agent holds for Kai's approval.</div>
+        <div class="agent-chips">
+          <span class="chip">Approves initiatives</span>
+          <span class="chip">Approves budgets</span>
+          <span class="chip">Strategic direction</span>
+        </div>
+      </div>
+
+      <div class="agent-card vision" onclick="openDetail('vision')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--vision)">VISION</div>
+          <div class="agent-model">claude-opus-4-6</div>
+        </div>
+        <div class="agent-role">Master AI Orchestrator. Reads all 9 data sources nightly at midnight. Generates health score 0–100, ranked initiatives, and executive summary. Emails Kai. Nothing executes without approval.</div>
+        <div class="agent-chips">
+          <span class="chip">Nightly synthesis</span>
+          <span class="chip">Health score</span>
+          <span class="chip">Railway · 12am</span>
+          <span class="chip">Phase 14–17</span>
+        </div>
+      </div>
+
+      <div class="agent-card jarvis" onclick="openDetail('jarvis')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--jarvis)">JARVIS</div>
+          <div class="agent-model">Manus + Sheets</div>
+        </div>
+        <div class="agent-role">Chief of Operations. Analyzes every call Jessica makes — audio quality, opener scores, human-feel scores, flow scores. Feeds structured data to Vision's nightly synthesis.</div>
+        <div class="agent-chips">
+          <span class="chip">Call analysis</span>
+          <span class="chip">Transcript scoring</span>
+          <span class="chip">Phase 4</span>
+        </div>
+      </div>
+
+      <div class="agent-card syndra" onclick="openDetail('syndra')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--syndra)">SYNDRA</div>
+          <div class="agent-model">claude-opus-4-6</div>
+        </div>
+        <div class="agent-role">Chief Intelligence Officer. Runs 7 intelligence phases — sentiment analysis, archetype performance, self-improving scripts, ICA profiling, network benchmarks, revenue attribution, and the 3D channel matrix.</div>
+        <div class="agent-chips">
+          <span class="chip">Phases 7–13</span>
+          <span class="chip">Channel matrix</span>
+          <span class="chip">Archetype scoring</span>
+          <span class="chip">Revenue attribution</span>
+        </div>
+      </div>
+
+      <div class="agent-card shiro" onclick="openDetail('shiro')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--shiro)">SHIRO</div>
+          <div class="agent-model">claude-haiku-4-5</div>
+        </div>
+        <div class="agent-role">Conversational AI — the dashboard voice interface. Ask it anything about live data. Answers in real time from the intelligence database.</div>
+        <div class="agent-chips">
+          <span class="chip">Dashboard Q&A</span>
+          <span class="chip">ElevenLabs TTS</span>
+          <span class="chip">Faceless mode</span>
+        </div>
+      </div>
+
+      <div class="agent-card jessica" onclick="openDetail('jessica')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--jessica)">JESSICA</div>
+          <div class="agent-model">ElevenLabs AI Voice</div>
+        </div>
+        <div class="agent-role">Execution Layer. 100% of outbound voice calls, SMS nurture, appointment booking. 8 GHL workflows routing by archetype. Calls every new lead within 60 seconds. Runs AHRI-generated scripts.</div>
+        <div class="agent-chips">
+          <span class="chip">8 GHL workflows</span>
+          <span class="chip">SMS nurture</span>
+          <span class="chip">60-sec call</span>
+          <span class="chip">Archetype routing</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: AHRI -->
+    <div class="sys-col right" style="display:inline-block; vertical-align:top; width:calc(50% - 80px);">
+      <div class="sys-label ah">AHRI — Acquisition Intelligence</div>
+
+      <div class="agent-card ahri" onclick="openDetail('ahri')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--ahri)">AHRI</div>
+          <div class="agent-model">opus-4-6 / sonnet-4-6</div>
+        </div>
+        <div class="agent-role">Acquisition Intelligence — Agent 5 of 7. The marketing brain that generates every lead entering GymSuite AI. 15 skills, 18-session build, self-improving via cross-brain sync.</div>
+        <div class="agent-chips">
+          <span class="chip">15 skills</span>
+          <span class="chip">A/B testing native</span>
+          <span class="chip">Drive connected</span>
+          <span class="chip">Session 11 ✓</span>
+        </div>
+      </div>
+
+      <div class="agent-card" style="border-left:3px solid var(--purple-light)" onclick="openDetail('skills')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--purple-light);font-size:11px">15 MARKETING SKILLS</div>
+          <div class="agent-model">All active</div>
+        </div>
+        <div class="agent-role">offer-machine · hook-writer · ad-copy · landing-page · email-sequence · nurture-sync · content-calendar · reactivation · referral-campaign · review-engine · funnel-updater · workflow-updater · vsl-script · flyer-generator · image-generator</div>
+      </div>
+
+      <div class="agent-card" style="border-left:3px solid var(--manus)" onclick="openDetail('drive')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--manus);font-size:11px">MEDIA INTELLIGENCE</div>
+          <div class="agent-model">Google Drive + Claude Vision</div>
+        </div>
+        <div class="agent-role">Real photos analyzed, tagged, and matched to ad creative automatically. Shot list maintained in Drive. Release verification before any public use. DALL-E 3 fills gaps when no real photo exists.</div>
+        <div class="agent-chips">
+          <span class="chip">Claude vision</span>
+          <span class="chip">Auto-tagging</span>
+          <span class="chip">Release guard</span>
+        </div>
+      </div>
+
+      <div class="agent-card" style="border-left:3px solid var(--blue)" onclick="openDetail('crossbrain')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--blue-light);font-size:11px">CROSS-BRAIN SYNC</div>
+          <div class="agent-model">Sunday 11pm · Auto</div>
+        </div>
+        <div class="agent-role">Reads GymSuite AI's AI Transcript Review sheet. Calculates booking rates, conversion rates, show rates by archetype and source. Generates 5 specific insights. Updates AHRI's generation behavior.</div>
+        <div class="agent-chips">
+          <span class="chip">75 calls analyzed</span>
+          <span class="chip">5 insights/sync</span>
+          <span class="chip">Live ✓</span>
+        </div>
+      </div>
+
+      <div class="agent-card manus" onclick="openDetail('manus_overview')">
+        <div class="agent-top">
+          <div class="agent-name" style="color:var(--manus)">MANUS</div>
+          <div class="agent-model">Browser Automation</div>
+        </div>
+        <div class="agent-role">Bridges both systems. Posts organic content to Facebook, Instagram, GBP. Sets up paid ads in Meta Ads Manager and Google Ads. Runs competitor research. Supports Jarvis call pipeline. Monitors trends.</div>
+        <div class="agent-chips">
+          <span class="chip">Content posting</span>
+          <span class="chip">Ad creation</span>
+          <span class="chip">Competitor research</span>
+          <span class="chip">Jarvis support</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Connection lines (SVG) -->
+    <div style="position:absolute;top:120px;left:calc(50% - 120px);width:240px;z-index:2">
+      <div style="text-align:center;margin-bottom:8px">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;color:var(--text-muted);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px">Connection Points</div>
+      </div>
+      <div class="conn-node" onclick="openDetail('conn1')">
+        <span class="pulse-dot" style="background:var(--green)"></span>
+        <span class="conn-node-label">Lead Handoff</span>
+        <span class="conn-node-desc">AHRI → GHL → Jessica (UTM tagged)</span>
+      </div>
+      <div class="conn-node" onclick="openDetail('conn2')">
+        <span class="pulse-dot" style="background:var(--blue)"></span>
+        <span class="conn-node-label">Performance Data</span>
+        <span class="conn-node-desc">Sheets → Cross-brain → AHRI</span>
+      </div>
+      <div class="conn-node" onclick="openDetail('conn3')">
+        <span class="pulse-dot" style="background:var(--syndra)"></span>
+        <span class="conn-node-label">Intelligence Feed</span>
+        <span class="conn-node-desc">Syndra → AHRI (channel matrix)</span>
+      </div>
+      <div class="conn-node" onclick="openDetail('conn4')">
+        <span class="pulse-dot" style="background:var(--vision)"></span>
+        <span class="conn-node-label">Vision Synthesis</span>
+        <span class="conn-node-desc">AHRI brief → nightly health score</span>
+      </div>
+      <div class="conn-node" onclick="openDetail('conn5')">
+        <span class="pulse-dot" style="background:var(--manus)"></span>
+        <span class="conn-node-label">Manus Bridge</span>
+        <span class="conn-node-desc">Serves both systems simultaneously</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     VIEW 2: AHRI SESSIONS
+════════════════════════════════════════════════════ -->
+<div class="view" id="view-sessions">
+  <div class="section-hero">
+    <div class="section-eyebrow">AHRI — Acquisition Intelligence</div>
+    <div class="section-title">18-Session Build Roadmap</div>
+    <div class="section-desc">From empty folder to fully autonomous marketing intelligence. Each session builds on the last. After Session 13 the system runs itself — you approve, AHRI executes. After Session 16, real money is moving and real members are joining.</div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val" style="color:var(--green)">11</div><div class="stat-label">Complete</div></div>
+      <div class="stat"><div class="stat-val" style="color:var(--gold)">1</div><div class="stat-label">In Progress</div></div>
+      <div class="stat"><div class="stat-val" style="color:var(--purple-light)">6</div><div class="stat-label">Planned</div></div>
+      <div class="stat"><div class="stat-val">15</div><div class="stat-label">Skills Built</div></div>
+    </div>
+  </div>
+  <div class="sessions-grid" id="sessions-grid"></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     VIEW 3: GYMSUITE AI PHASES
+════════════════════════════════════════════════════ -->
+<div class="view" id="view-phases">
+  <div class="section-hero">
+    <div class="section-eyebrow">GymSuite AI — Nurture Intelligence</div>
+    <div class="section-title">17-Phase Intelligence System</div>
+    <div class="section-desc">Five agents, six Make scenarios, Railway server, Google Sheets backbone. Every call Jessica makes flows through all 17 phases — from raw audio to Vision's nightly synthesis to Kai's inbox.</div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val">5</div><div class="stat-label">AI Agents</div></div>
+      <div class="stat"><div class="stat-val">6</div><div class="stat-label">Make Scenarios</div></div>
+      <div class="stat"><div class="stat-val">8</div><div class="stat-label">GHL Workflows</div></div>
+      <div class="stat"><div class="stat-val">75</div><div class="stat-label">Calls Analyzed</div></div>
+    </div>
+  </div>
+  <div class="phases-wrap" id="phases-wrap"></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     VIEW 4: MANUS LAYER
+════════════════════════════════════════════════════ -->
+<div class="view" id="view-manus">
+  <div class="section-hero">
+    <div class="section-eyebrow">Manus — Browser Automation Layer</div>
+    <div class="section-title">The Bridge Between Both Systems</div>
+    <div class="section-desc">Manus is the execution layer that handles everything requiring a browser. It serves both GymSuite AI and AHRI simultaneously — posting content, creating ad campaigns, researching competitors, and supporting Jarvis's call pipeline.</div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-val">3</div><div class="stat-label">Weekly Tasks</div></div>
+      <div class="stat"><div class="stat-val">3</div><div class="stat-label">Platforms Posted</div></div>
+      <div class="stat"><div class="stat-val">2</div><div class="stat-label">Ad Platforms</div></div>
+      <div class="stat"><div class="stat-val">Both</div><div class="stat-label">Systems Served</div></div>
+    </div>
+  </div>
+  <div class="manus-wrap" id="manus-wrap"></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     VIEW 5: DATA FLOW
+════════════════════════════════════════════════════ -->
+<div class="view" id="view-flow">
+  <div class="section-hero">
+    <div class="section-eyebrow">Complete Data Flow</div>
+    <div class="section-title">Stranger → Member → Intelligence</div>
+    <div class="section-desc">The complete journey from a cold Facebook scroll to a gym member to a data point that makes the next campaign smarter. Every step tracked, every handoff automated, every insight compounding.</div>
+  </div>
+  <div class="flow-wrap" id="flow-wrap"></div>
+</div>
+
+</main>
+
+<!-- DETAIL PANEL -->
+<div id="detail-panel">
+  <button id="detail-close" onclick="closeDetail()">×</button>
+  <div id="detail-content"></div>
+</div>
+
+<script>
+/* ══════════════════════════════════════════════════════════
+   DATA
+══════════════════════════════════════════════════════════ */
+
+const SESSIONS = [
+  {
+    num: 0, name: 'Context Sprint', status: 'complete',
+    desc: 'Foundation documents written before a single line of code. CLAUDE.md and AHRI.md define the entire system philosophy, agent hierarchy, autonomy model, and financial rules.',
+    builds: ['CLAUDE.md','AHRI.md'],
+    detail: {
+      what: ['CLAUDE.md — master project context read every session','AHRI.md — AHRI\'s identity, mission, beliefs, and autonomy rules','Hybrid autonomy model defined — AHRI generates freely, Kai approves live actions and budget','Multi-avatar system designed — dynamic, not hardcoded','Financial approval rules — every budget recommendation includes exact dollar amount'],
+      unlocks: 'Claude Code reads CLAUDE.md at the start of every session. Every decision flows from this document.',
+      connections: ['Sets the foundation for all 17 subsequent sessions']
+    }
+  },
+  {
+    num: 1, name: 'Repository Initialization', status: 'complete',
+    desc: 'Complete project structure created. TypeScript configured, all dependencies installed, folder hierarchy established. Zero errors on first compile.',
+    builds: ['package.json','tsconfig.json','Full folder structure','npm install clean'],
+    detail: {
+      what: ['Complete folder tree — 30+ directories including skills/, engine/, knowledge-base/, intelligence-db/, distribution/','All 9 npm packages installed: @anthropic-ai/sdk, openai, googleapis, sharp, axios, chalk, readline, csv-writer, fs-extra','TypeScript strict mode — zero errors','brain-state/current-state.md initialized','performance/ CSVs with correct headers','intelligence-db/ JSON files initialized as empty arrays'],
+      unlocks: 'The skeleton exists. Ready to build intelligence on top.',
+      connections: ['All future sessions build inside this structure']
+    }
+  },
+  {
+    num: 2, name: 'Knowledge Base', status: 'complete',
+    desc: '32,072 words of marketing intelligence across 10 framework files. The intellectual foundation AHRI reads before every generation — Hormozi, Schwartz, Gary Vee, StoryBrand, Cialdini, fitness industry context.',
+    builds: ['hormozi-offers.md','schwartz-awareness.md','cialdini-principles.md','garyvee-content.md','storybrand.md','objection-vault.md','seasonal-calendar.md','gym-industry-context.md','compliance-b2c.md'],
+    detail: {
+      what: ['knowledge-base/hormozi-offers.md — Grand Slam Offer framework, value equation, guarantee structures, 5 gym offer examples scored','knowledge-base/schwartz-awareness.md — 5 awareness levels with gym ad examples at each level','knowledge-base/cialdini-principles.md — all 7 principles applied to gym marketing with copy examples','knowledge-base/garyvee-content.md — 30-from-1 model, all 30 derivative formats listed','knowledge-base/storybrand.md — full SB7 framework for gyms, BrandScript template','knowledge-base/fitness/objection-vault.md — 8 major objections with 4 responses each and the emotion underneath','knowledge-base/fitness/seasonal-calendar.md — full 12-month calendar with surge playbooks','knowledge-base/compliance-b2c.md — FTC, Meta, TCPA, CAN-SPAM rules with compliance checklists'],
+      unlocks: 'AHRI now has the strategic intelligence to generate at a senior marketer level.',
+      connections: ['Every skill reads from this knowledge base before generating']
+    }
+  },
+  {
+    num: 3, name: 'Core Engine + Offer Machine', status: 'complete',
+    desc: 'The generation engine that powers all 15 skills. First real output: The No-Risk Comeback offer scored 35/40 on the Hormozi value equation. All 7 Cialdini principles present. Compliance: PASS.',
+    builds: ['engine/generate.ts','skills/offer-machine/SKILL.md','gym-profile.md','lifestyle-member.md'],
+    detail: {
+      what: ['engine/generate.ts — CLI runner accepting --skill --context --variants flags','YAML frontmatter parser reads model, knowledge-base, and awareness-level from each SKILL.md','Context injection — assembles gym profile + avatar + brain state + knowledge base files into one prompt','Claude API streaming — output streams to terminal in real time','A/B variants — every generation produces Variant A (control) and Variant B (challenger)','Asset IDs — every asset tagged: skill-date-variant-randomID','Output routing — outputs/ + distribution/queue/pending-review/ + performance/asset-log.csv','3-retry exponential backoff on all API calls','offer-machine/SKILL.md — 7-step Grand Slam Offer construction protocol','First output: Variant A (30-Day Kickstart, 36/40) + Variant B (No-Risk Comeback, 35/40)'],
+      unlocks: 'AHRI can generate real marketing assets. The engine runs everything from here forward.',
+      connections: ['All 14 remaining skills run through this engine','Every output auto-logs to performance/asset-log.csv']
+    }
+  },
+  {
+    num: 4, name: 'Hook Writer', status: 'complete',
+    desc: '40 hooks generated across 5 frameworks. Top cold hook: "The moment you realized you couldn\'t keep up with your own kids." Schwartz awareness level tagged on every hook.',
+    builds: ['skills/hook-writer/SKILL.md'],
+    detail: {
+      what: ['5 hook frameworks: Pain Point, Curiosity Gap, Bold Claim, Relatability, Pattern Interrupt','4 hooks per framework × 2 variants = 40 total hooks','Every hook: Schwartz awareness level tagged, why-it-works explanation included','Top 5 cold audience hooks ranked','Top 5 warm/retargeting audience hooks ranked','Character count verification — all under 15 words','Cold Facebook winner: "The moment you realized you couldn\'t keep up with your own kids"','Warm/retargeting winner: "We built this entire first month around the specific reason you quit last time"'],
+      unlocks: 'Every ad, every email, every content piece now has proven hooks to lead with.',
+      connections: ['Winning hooks written to brain-state — all future skills reference them','Ad copy skill uses these hooks directly']
+    }
+  },
+  {
+    num: 5, name: 'Ad Copy', status: 'complete',
+    desc: 'Three complete ad sets — cold, warm, retargeting — with full Meta creative briefs, compliance checks, targeting specifications, and an A/B testing matrix.',
+    builds: ['skills/ad-copy/SKILL.md'],
+    detail: {
+      what: ['3 ad sets: Cold (Level 2-3), Warm (Level 3), Retargeting (Level 5)','Each ad: hook, primary text (150 words max), headline (<40 chars), description (<25 words), CTA button, creative direction, compliance check, targeting brief','Variant A: parent/child moment hook (identity reframe)','Variant B: "The moment you realized you couldn\'t keep up" hook (memory trigger)','Creative direction: real people in real moments, no gym equipment in cold ads','Targeting briefs: interest clusters, custom audiences, website visitors','A/B testing matrix: one variable at a time, 72hr minimum, 1000 impression minimum','Budget flag: [BUDGET APPROVAL REQUIRED: $X] on every paid asset','Compliance: PASS on all Meta fitness advertising policies'],
+      unlocks: 'Real ads ready to upload to Meta Ads Manager pending budget approval.',
+      connections: ['Budget approval required before anything goes live','Hooks from Session 4 thread through all 3 ad sets consistently']
+    }
+  },
+  {
+    num: 6, name: 'Landing Page + UTM Attribution', status: 'complete',
+    desc: 'Three above-fold variants (cold-FB, warm-IG, search), 90-second VSL script, exit intent popup, full technical brief for GHL, and the UTM attribution engine that traces every lead back to the exact creative.',
+    builds: ['skills/landing-page/SKILL.md','engine/utm.ts'],
+    detail: {
+      what: ['3 page variants: COLD-FB (Level 2), WARM-IG (Level 3), SEARCH (Level 4)','16 page sections: above-fold, social proof bar, VSL, value stack, guarantee, this-is-for-you-if, testimonials (3), authority, full form, FAQ (5), final CTA, thank-you, exit intent, technical brief, measurement brief','2-field form above fold (name + phone only) — email captured post-submit','90-second VSL script: soccer game moment → I\'ve Quit Before mechanism → offer + CTA','Exit intent popup: 7-Day Gym Starter Guide lead magnet — email only, no Jessica call','GHL custom fields required: utm_string, lead_source_hook, lead_source_offer, lead_source_variant','engine/utm.ts: generateUTM(), parseUTM(), buildCampaignURLs() — traces lead to exact creative','Measurement targets: 60% scroll to guarantee, 40% form start, 25% form complete, 70% VSL play'],
+      unlocks: 'Every lead is tagged with the exact ad, hook, and offer that generated them.',
+      connections: ['UTM data flows into GHL → AI Transcript Review sheet → cross-brain sync → AHRI learns what converted']
+    }
+  },
+  {
+    num: 7, name: 'Email Sequence', status: 'complete',
+    desc: 'Four complete email sequences covering every lead state: no-book (7 emails), no-show (3), booking confirmation (3), post-visit nurture (4). 23 total emails, all compliance checked.',
+    builds: ['skills/email-sequence/SKILL.md'],
+    detail: {
+      what: ['Sequence 1 — No-Book (7 emails, 14 days): Day 0 immediate through Day 14 honest goodbye. Progressively increases urgency without aggression. Addresses one objection per email.','Sequence 2 — No-Show (3 emails, 5 days): 2hrs after missed appointment → Day 2 barrier removal → Day 5 final re-engagement. References their qualifying question answer.','Sequence 3 — Booking Confirmation (3 emails): Immediate confirmation → Day before → Morning of. Reduces no-show rate by setting expectations.','Sequence 4 — Post-Visit Nurture (4 emails, 7 days): Same day warmth → Day 2 objection-specific (3 versions) → Day 4 social proof → Day 7 simple honest ask','Every email: 3 subject line variations, preview text, full body, CTA with UTM tag, compliance status, GHL automation trigger note','All 4 sequences: TCPA compliant, CAN-SPAM compliant, unsubscribe placeholders included'],
+      unlocks: 'Every lead state is covered. Nobody falls through the cracks between Jessica\'s calls.',
+      connections: ['GHL automation triggers each email based on lead stage changes','Email UTM tags feed back into performance tracking']
+    }
+  },
+  {
+    num: 8, name: 'Nurture Sync', status: 'complete',
+    desc: 'The bridge between AHRI and GymSuite AI. Every new offer generates a complete script update package — all 5 GHL workflows, ElevenLabs outbound prompt, 15 offer-specific FAQs. Character counts on every SMS.',
+    builds: ['skills/nurture-sync/SKILL.md'],
+    detail: {
+      what: ['Reads active offer from brain-state, extracts: name, core promise, key differentiator, avatar\'s deepest fear, guarantee, urgency mechanism','Updates Workflow 1 openers (3 lead sources): Facebook ad, free pass, lost join — each gets offer-aligned A/B variants','Updates Workflows 2-5 (4 archetypes × 4 messages each = 16 messages): Day 0 Evening, Day 1 Morning, Day 4 Evening, Day 7 Morning','Updates ElevenLabs outbound prompt: opening lines (cold/warm/hot), visit suggestion framing, offer-specific objection handling','15 offer-specific FAQs: SMS response (<160 chars) + spoken call response per question','Voice rules enforced: no em dashes, no hyphens, no emojis, 3-sentence max, 1-2 segments (<306 chars)','Protected message NEVER changed: "Totally okay if now\'s not a great time, I just didn\'t want you to feel like this was one of those submit a form and never hear back situations"','Character count label on every SMS: [X chars — Y segment(s)]','Implementation checklist: 22 checkboxes, Kai works through it in one 15-minute session'],
+      unlocks: 'Every lead generated by a new offer gets nurtured with messaging congruent to the ad that acquired them.',
+      connections: ['GHL workflow SMS updater (Session 11) eventually automates the manual paste step','ElevenLabs prompt updates still manual — awaiting ElevenLabs agent management API']
+    }
+  },
+  {
+    num: 9, name: 'Master Agent + Voice Layer', status: 'complete',
+    desc: 'AHRI becomes conversational. Type natural language and she interprets, plans, executes. Say "build everything for next month" and she generates the full campaign. npm run ahri:voice for hands-free operation.',
+    builds: ['engine/ahri.ts','engine/voice.ts','logs/session-history.json','routines/ahri-morning-brief.md'],
+    detail: {
+      what: ['engine/ahri.ts — persistent terminal session with startup banner, session context object, readline loop','8 intents: generate_skill, batch_generate, review_queue, update_brain_state, show_status, run_campaign, switch_context, get_help, exit','Intent parser uses claude-opus-4-6 — returns JSON with intent, skills, context, budget_required flag','review_queue: lists all pending-review assets, approves by ID or skill name (space/hyphen normalized)','run_campaign: confirms plan, runs all 6 skills in sequence, offers to push to GHL after completion','Budget gate: any paid asset triggers [BUDGET APPROVAL REQUIRED: $X] — Kai confirms separately from creative','engine/voice.ts — Whisper API for speech-to-text, ElevenLabs for AHRI\'s response audio, non-blocking playback','Session persistence: logs/session-history.json — AHRI reads last 3 sessions on startup, references what was done before','Morning brief routine: 7am daily — reads brain-state, queue, A/B tests, seasonal context, prints one recommended action'],
+      unlocks: 'You talk to AHRI like a colleague. She remembers the last session. She knows what\'s pending. She executes autonomously.',
+      connections: ['All future sessions add new intents to this agent','Voice mode ready once ElevenLabs AHRI_VOICE_ID is set in .env']
+    }
+  },
+  {
+    num: 10, name: 'Retention & Compounding Skills', status: 'complete',
+    desc: 'The four skills that close the marketing lifecycle — content calendar (30 pieces/month from one cornerstone), reactivation (4-sequence lapsed member recovery), referral campaign (6 trigger-timed asks), review engine (5 request moments, 8 response templates).',
+    builds: ['skills/content-calendar/SKILL.md','skills/reactivation/SKILL.md','skills/referral-campaign/SKILL.md','skills/review-engine/SKILL.md'],
+    detail: {
+      what: ['content-calendar: Gary Vee 30-from-1 model. One cornerstone moment → 8 Facebook, 8 Instagram, 4 stories, 4 GBP posts, 3 reel scripts, 2 long-form posts, 1 newsletter. 40/30/20/10 content ratio enforced. Schwartz awareness arc across 4 weeks. Complete posting schedule with optimal times.','reactivation: 4 sequences — 60-day (soft no offer), 90-day (introduce offer), 6-month (seasonal fresh start), 12-month (anniversary frame). Never leads with a discount. StoryBrand — member is still the hero. Sounds like a friend reaching out, not a business chasing revenue.','referral-campaign: 6 triggers — first visible result, first month completion, PT milestone, positive Evolt scan, anniversary, spontaneous positive comment. In-person staff scripts, SMS follow-up, referral landing page brief. Incentive model scored: Model A recommended (free month to referrer doubles as retention tool for months 2-4).','review-engine: 5 request moments — after orientation, after month 1, after positive check-in, after Evolt scan, anniversaries. In-person scripts, SMS requests (<160 chars), email requests. 8 response templates (5-star enthusiastic, 5-star brief, 4-star, 3-star-below, fake review). Velocity strategy. Competitive brief template.'],
+      unlocks: 'The full member lifecycle is covered — acquire, retain, reactivate, refer, review. No agency does all five simultaneously.',
+      connections: ['content-calendar feeds Manus posting queue (Session 13)','referral-campaign connects to GHL referral tracking fields','review-engine connects to Google Business Profile API (future)']
+    }
+  },
+  {
+    num: 11, name: 'Media Intelligence + GHL Automation + Cross-Brain Sync', status: 'complete',
+    desc: 'Four connected builds: Google Drive media library with Claude vision analysis, GHL funnel read+diff, GHL workflow SMS validation, and the cross-brain sync that makes both systems learn from each other.',
+    builds: ['engine/drive.ts','engine/media-analyzer.ts','engine/ghl-funnel.ts','engine/ghl-workflows.ts','engine/cross-brain-sync.ts','skills/funnel-updater/SKILL.md','skills/workflow-updater/SKILL.md'],
+    detail: {
+      what: ['engine/drive.ts — 9 functions: listNewFiles, downloadForAnalysis, moveToFolder, readJsonFile, writeJsonFile, appendToDoc, getFolderIdByName, readSheet. JWT service account auth.','engine/media-analyzer.ts — processNewMedia(): scans Drive raw/, claude-opus-4-6 vision analysis, tags moment_type/emotional_tone/authenticity_score/schwartz_level_fit/ad_audience_fit, release verification, shot list updates, media-index.json maintenance. Tested: OIP.jpg → outdoor/energetic/auth:4 → moved to moments/ → RELEASE REQUIRED flagged.','engine/ghl-funnel.ts — getFunnelPage, updatePageElement, publishPage, getPageMetrics. View-only via Private Integration (GHL limitation at current plan).','engine/ghl-workflows.ts — validateSmsContent, getWorkflow, updateWorkflowStep. Protected message guard — never overwrites the 30-min follow-up. View-only API (GHL plan limitation).','engine/cross-brain-sync.ts — reads AI Transcript Review Sheet1, maps all 19 columns (A=timestamp through S=coaching_priority), calculates booking rates/archetype rates/show rates, claude-opus-4-6 insight generation, writes to intelligence-db/cross-brain/, updates brain-state. TESTED LIVE: 75 calls, 5 insights generated.','Real findings: 96% one-day-pass leads at 0% booking rate, 94.7% missing archetype tags, source attribution broken. System is working — surfaced real problems.','3 new routines: weekly-media-processing (Mon 5:45am), funnel-performance-check (72hrs post-publish), weekly-cross-brain-sync (Sun 11pm)'],
+      unlocks: 'AHRI is now fully connected to real-world assets and real performance data. The self-improvement loop has started.',
+      connections: ['Cross-brain sync reads AI Transcript Review sheet (GymSuite AI)','Media library in Google Drive, shared with service account','GHL connection via Private Integration (view-only currently)']
+    }
+  },
+  {
+    num: 12, name: 'Complete Skill Library', status: 'planned',
+    desc: 'The 6 remaining skills that complete AHRI\'s full 15-skill capability set. VSL script for the landing page hero, flyer generator for guerrilla marketing, image generator with DALL-E 3, SEO content for local search authority, Google Ads campaigns, and partnership outreach.',
+    builds: ['skills/vsl-script/SKILL.md','skills/flyer-generator/SKILL.md','skills/image-generator/SKILL.md','skills/seo-content/SKILL.md','skills/google-ads/SKILL.md','skills/partnership-outreach/SKILL.md'],
+    detail: {
+      what: ['vsl-script: 90-second talking-head script for landing page hero. Written for a real member to speak. Opens with the soccer game/parent moment. Explains the I\'ve Quit Before mechanism. Ends with offer + guarantee. Director\'s notes included.','flyer-generator: print-ready flyer copy for gym window, community boards, local business handouts. Each flyer for specific avatar and offer. Design brief for graphic team.','image-generator: DALL-E 3 fully wired into engine. AHRI selects image or generates when no approved Drive photo exists. Ad creative backgrounds, flyer backgrounds, social post imagery.','seo-content: long-form local SEO articles for gym-related search terms in your city. Structured for Google ranking. Compounds over time.','google-ads: complete Search campaign — 15 headlines, 4 descriptions, extensions, negative keywords, bidding strategy. Matches high-intent searchers with the active offer.','partnership-outreach: scripts and proposals for chiropractors, PTs, nutritionists, sports coaches. Template + personalization guidance.'],
+      unlocks: 'Every channel covered simultaneously. A complete campaign can be generated in one AHRI run.',
+      connections: ['VSL script feeds directly into landing page hero section','Google Ads pairs with Session 5 Meta ads for full paid media coverage','Flyers + partnership outreach handle guerrilla/local channels']
+    }
+  },
+  {
+    num: 13, name: 'Activate Routines + Manus Tasks', status: 'planned',
+    desc: 'The system starts running itself. Claude Code Routines activated on schedule. Manus wired to post organic content daily, set up paid ad campaigns, and run weekly competitor research.',
+    builds: ['Activate all 6 routines','manus-tasks/content-posting.md','manus-tasks/competitor-research.md','manus-tasks/trend-monitoring.md'],
+    detail: {
+      what: ['Monday 5:45am — media-processing: scans Drive raw/, processes new photos, updates shot list','Monday 7:00am — weekly-content: generates 30 content pieces, drops to pending-review/, emails morning brief','Wednesday — A/B test analysis: reads tests with 72hr+ data, declares winners, retires losers','First Monday — monthly-offer: runs offer-machine, hooks, ads, landing page, nurture-sync in sequence','Sunday 11pm — cross-brain-sync: reads GymSuite AI sheet, calculates conversion rates, generates insights','Daily 7am — morning-brief: brain state + queue count + one recommended action','Manus content-posting: reads ready-to-post/, posts to Facebook Page, Instagram Business, Google Business Profile on schedule. Moves to posted/ after confirmation.','Manus Meta Ads: opens Meta Ads Manager, creates campaign from AHRI brief, uploads creative, sets targeting and budget, publishes, returns campaign ID','Manus Google Ads: creates Search campaign from google-ads output, sets keywords, bids, budget, publishes','Manus competitor-research: weekly scan of Meta Ad Library for fitness/gym ads in your market. Classifies by hook type, offer structure, run duration. Writes to intelligence-db/market/'],
+      unlocks: 'You wake up Monday to 30 pieces of content already generated, a performance brief, and competitor intelligence — all without touching the system.',
+      connections: ['content-posting Manus task reads from distribution/queue/ready-to-post/','competitor-research writes to intelligence-db/market/competitor-ads.json','AHRI reads market intelligence before every generation cycle']
+    }
+  },
+  {
+    num: 14, name: 'Gym Suite AI Agency Context', status: 'planned',
+    desc: 'AHRI starts marketing the agency itself. A complete B2B context for selling Gym Suite AI to gym owners — offer machine generates the agency offer, all 15 skills run against the gym owner avatar.',
+    builds: ['business-context/gym-suite-ai/','knowledge-base/b2b-saas/','Gym owner avatar files'],
+    detail: {
+      what: ['business-context/gym-suite-ai/agency-profile.md — the agency offer, pricing, case studies, differentiation','Gym owner avatar: what they want (more members without more staff), what they fear (wasting money on tech that doesn\'t work), their objections','B2B knowledge base: SaaS sales frameworks, agency positioning, ROI articulation for gym owners','All 15 skills run against agency context — hooks for gym owners, ads on Facebook/LinkedIn targeting gym businesses, landing page for $697/month offer, email nurture for gym owner leads','Partnership outreach: gym franchise associations, fitness industry events, gym coaching programs','The combined agency offer positioned: "We get your leads AND we convert them" — unique in the industry'],
+      unlocks: 'AHRI generates leads for the agency the same way she generates leads for the gyms.',
+      connections: ['Agency leads enter GymSuite AI nurture system (the product becomes the proof)','Revenue from agency clients funds continued system development']
+    }
+  },
+  {
+    num: 15, name: 'Multi-Location Expansion', status: 'planned',
+    desc: 'Add the second gym location. Test complete isolation — AHRI never touches the wrong sub-account. Template established for scaling to all 9 locations and future agency clients.',
+    builds: ['business-context/anytime-fitness-[location2]/','Context switching in ahri.ts','Location isolation verification'],
+    detail: {
+      what: ['Each location gets its own context folder with gym-profile.md containing its own GHL credentials','Context switching: "Switch to Bloomington" → AHRI reads Bloomington context, all GHL calls use Bloomington sub-account only','Cross-location intelligence: when Session 10 skills produce results at Location 1, AHRI flags them as recommendations for Location 2','Agency API key handles all sub-accounts — Location ID in context file determines which sub-account is touched','Client onboarding template tested: new gym fills in context file, AHRI generates their first campaign','Syndra Phase 11 (Network Intelligence) connects — two locations benchmark against each other'],
+      unlocks: 'The template for scaling to all 9 locations is established and tested.',
+      connections: ['Gym Suite AI Phase 11 network benchmarking connects here','Client onboarding process defined and tested']
+    }
+  },
+  {
+    num: 16, name: 'First Real Campaign Launch', status: 'planned',
+    desc: 'Everything we\'ve built goes live with real budget behind it. The full campaign generated, reviewed, approved, and launched. Ads running, Jessica calling, content posting, the loop working for the first time with real money.',
+    builds: ['Full campaign generation','GHL setup complete','Budget approved','Ads live'],
+    detail: {
+      what: ['"Build everything for next month" in AHRI — generates full package across all 15 skills','Review session: every asset reviewed, variants selected, copy refined where needed','GHL setup complete: UTM custom fields live, archetype tagging firing, confirmed with a test submission','Budget approval: AHRI presents exact dollar recommendation with expected CPL, leads, members. Kai approves.','Funnel updater: landing page pushed live with new offer copy','Workflow updater: all 5 workflows updated with offer-aligned scripts','Organic content: Manus begins daily posting from content calendar','Paid ads: Manus creates campaigns in Meta Ads Manager and Google Ads','Jessica: running offer-aligned scripts, calls every new lead within 60 seconds','Cross-brain sync: first sync with real attributed data (UTM fields now capturing)'],
+      unlocks: 'Real leads. Real members. Real revenue. The system is generating return on investment.',
+      connections: ['Every lead flows through the complete AHRI → GHL → Jessica → Syndra → AHRI loop for the first time with real data']
+    }
+  },
+  {
+    num: 17, name: '30-Day Performance Review', status: 'planned',
+    desc: 'After 30 days of real data, the system optimizes itself. AHRI reads what actually worked, retires what didn\'t, adjusts her generation behavior, and produces a smarter Month 2 campaign automatically.',
+    builds: ['Performance analysis','Knowledge base updates','Month 2 campaign generation'],
+    detail: {
+      what: ['Cross-brain sync reads 30 days of fully attributed data — which hooks had best CTR, which ad sets lowest CPL, which archetype converting best, which SMS messages got best response rates','AHRI generates self-update report: what she believes differently now vs Day 1. Queued for Kai approval.','Hook library updated: winners promoted to control, losers retired, new hypotheses generated','Nurture-sync updated based on what actually moved people to book (not just click)','Month 2 offer recommended: based on what the Hormozi value equation score suggests needs strengthening','Budget reallocation: move spend toward highest-performing channels based on real CPL data','Vision integration: AHRI\'s 30-day performance data joins Vision\'s nightly health score. Marketing metrics now part of the overall business health dashboard.','Kai\'s monthly review: 45 minutes instead of hours. AHRI presents the full brief, Kai approves changes.'],
+      unlocks: 'Month 2 launches measurably smarter than Month 1. The compounding loop is visible.',
+      connections: ['Vision health score now includes AHRI marketing performance','The intelligence database has its first 30 days of real pattern data']
+    }
+  },
+  {
+    num: 18, name: 'Full API Automation', status: 'planned',
+    desc: 'The final manual steps automated. Meta Marketing API and Google Ads API replace Manus for paid ad creation. A budget approval triggers automatic campaign creation — no browser automation needed.',
+    builds: ['Meta Marketing API integration','Google Ads API integration','Full end-to-end automation'],
+    detail: {
+      what: ['Meta Marketing API: AHRI creates campaigns, ad sets, and ads programmatically. Uploads creative from Drive. Sets targeting from ad-copy output. Sets Kai-approved budget. Publishes. Returns campaign ID to asset log.','Google Ads API: creates Search campaigns with keywords, bids, and budget. Publishes automatically after approval.','The final flow: Kai approves creative + budget → AHRI calls Meta API and Google API → campaigns live within minutes → no Manus browser automation needed for paid ads','ElevenLabs agent management API (when released): AHRI updates Jessica\'s outbound prompt programmatically. The last remaining manual step eliminated.','System is fully autonomous: Kai approves, everything else executes automatically across all channels.'],
+      unlocks: 'True end-to-end automation. Kai\'s only job is approval. The system does everything else.',
+      connections: ['Manus is freed up for competitor research and content posting only — no more ad setup','Budget approval is the only remaining manual step in the entire system']
+    }
+  }
+];
+
+const PHASES = [
+  {
+    layer: 'Layer 1 — Data Collection', layerDesc: 'Raw inputs from the real world into the intelligence system',
+    phases: [
+      { num: 1, name: 'Webhook Receiver', agent: 'railway', agentLabel: 'Railway',
+        desc: 'GHL fires a webhook on every stage change — lead created, booked, showed, joined, churned. Railway receives and logs every event in real time.',
+        detail: { what: ['Node.js + Express server on Railway receiving GHL webhooks','Fires on every pipeline stage change — lead created, appointment booked, showed, no-showed, joined, churned','Timestamps every event, assigns session ID, routes to correct processor','24/7 uptime on Railway — never misses an event'], impact: 'Foundation of all intelligence — without this no data flows anywhere' }
+      },
+      { num: 2, name: 'Hourly SMS Pull', agent: 'railway', agentLabel: 'Railway',
+        desc: 'Every hour, the system pulls all new SMS conversations from GHL. Jessica\'s texts, lead responses, booking confirmations — all captured and logged.',
+        detail: { what: ['Cron job on Railway — fires every hour on the hour','GHL API pull: all conversations updated in the last 60 minutes','Extracts: message content, lead ID, timestamp, direction (inbound/outbound)','Writes structured data to Master Call Log tab in Google Sheets'], impact: 'SMS performance data for Syndra\'s pattern analysis' }
+      },
+      { num: 3, name: 'Call Recording Ingestion', agent: 'jarvis', agentLabel: 'Jarvis',
+        desc: 'Every completed Jessica call generates an audio recording. Manus downloads it, Jarvis transcribes and analyzes it.',
+        detail: { what: ['Jessica (ElevenLabs) generates call recording on every completed call','Manus downloads recording from call platform','Passes to Jarvis for transcription and analysis','Audio quality check before analysis — poor quality calls flagged'], impact: 'Without call recordings Jarvis cannot score performance or identify failure patterns' }
+      },
+    ]
+  },
+  {
+    layer: 'Layer 2 — Processing', layerDesc: 'Raw data transformed into structured intelligence',
+    phases: [
+      { num: 4, name: 'Jarvis — Call Analysis', agent: 'jarvis', agentLabel: 'Jarvis',
+        desc: 'Every transcript scored across 5 dimensions: opener quality, human-feel score, conversation flow, stage reached, objection handling. Results written to AI Transcript Review sheet.',
+        detail: { what: ['Reads transcript from Stage Log tab','Scores: opener_score (C), human_feel_score (D), flow_score (E) — each 0-10','Identifies: stage_reached (F), main_objection (G), drop_off_moment (H), failure_reason (I)','Generates: suggested_fix (J) — specific coaching recommendation','Tags: archetype_detected (R), coaching_priority (S — critical/high/medium)','Writes all 19 fields to AI Transcript Review Sheet1','Current reality: 75 calls processed, most missing transcripts — Jarvis pipeline needs debugging'], impact: 'Foundation of script optimization and coaching intelligence' }
+      },
+      { num: 5, name: 'Make Scenario 1 — Stage Logger', agent: 'make', agentLabel: 'Make',
+        desc: 'Captures every pipeline stage movement. When a lead moves from "new" to "booked" to "showed" to "joined", Make logs the transition with timestamp and source data.',
+        detail: { what: ['Triggers on GHL webhook for stage change','Writes to Stage Log tab: contact_id, from_stage, to_stage, timestamp, lead_source','Calculates time between stages — how long from lead to booking, booking to show','Flags stuck leads: 24hr+ without booking attempt, 48hr+ without booking','Routes alerts to staff via Slack'], impact: 'Booking rate, show rate, and conversion rate calculations all come from this log' }
+      },
+      { num: 6, name: 'Make Scenario 2 — Contact Rate Monitor', agent: 'make', agentLabel: 'Make',
+        desc: 'Monitors whether new leads are being contacted within the 60-second standard. Alerts if Jessica fails to call within the window.',
+        detail: { what: ['Triggers when new lead created in GHL','Starts a timer: 60 seconds','If call not initiated: fires Slack alert to manager with lead name and source','Tracks contact rate: what percentage of leads get a 60-second response','Logs to Master Call Log: contacted_within_60s boolean'], impact: 'Speed to lead is the highest-leverage metric in gym sales. This enforces the standard.' }
+      },
+    ]
+  },
+  {
+    layer: 'Layer 3 — Intelligence (Syndra)', layerDesc: 'Pattern recognition and predictive intelligence across all data',
+    phases: [
+      { num: 7, name: 'Sentiment Analysis', agent: 'syndra', agentLabel: 'Syndra',
+        desc: 'Reads SMS conversation transcripts and scores emotional tone across the conversation arc — cold open to warm close to booked/lost.',
+        detail: { what: ['Reads all SMS conversations from SMS Log tab','Scores sentiment arc: opening, middle, closing — each positive/neutral/negative','Identifies sentiment inflection points — where conversations shift','Correlates sentiment arc with booking outcome: do warmer arcs book more?'], impact: 'Identifies which conversation moments drive or kill bookings' }
+      },
+      { num: 8, name: 'Archetype Performance', agent: 'syndra', agentLabel: 'Syndra',
+        desc: 'Tracks how each of the four archetypes (Social, Analytical, Supportive, Independent) performs at every stage — booking rate, show rate, conversion rate.',
+        detail: { what: ['Reads archetype_detected from AI Transcript Review','Groups performance metrics by archetype','Calculates: booking rate, show rate, conversion rate, average score per archetype','Current finding: only 4 of 75 calls have archetype tags (94.7% untagged — GHL fix needed)','Feeds into AHRI cross-brain sync — adjusts which archetype content AHRI generates most'], impact: 'Tells AHRI which avatar to write more content for and which sequences to strengthen' }
+      },
+      { num: 9, name: 'Self-Improving Scripts', agent: 'syndra', agentLabel: 'Syndra',
+        desc: 'Compares script performance week over week. When a script change is made, measures whether booking rate improves. Promotes winners, flags underperformers.',
+        detail: { what: ['Reads Script Optimization Log tab','Compares booking rates before and after script changes','Identifies which specific script elements correlate with higher overall_score','Generates script improvement recommendations','Writes to Script Optimization Log: change made, baseline, post-change rate, verdict'], impact: 'Scripts get measurably better every month based on real conversion data' }
+      },
+      { num: 10, name: 'Predictive ICA Profiling', agent: 'syndra', agentLabel: 'Syndra',
+        desc: 'Builds the Ideal Customer Avatar profile from real member data. Who actually joined? What archetype, what lead source, what objection did they have, what time of day did they call in?',
+        detail: { what: ['Reads all converted leads from Stage Log','Cross-references: archetype, lead source, objection pattern, call time, day of week','Builds statistical ICA profile: highest-converting demographic and behavioral patterns','Updates ICA profile monthly as more members accumulate','Feeds ICA updates into AHRI avatar files via cross-brain sync'], impact: 'AHRI writes for the avatar who actually becomes a member, not a theoretical person' }
+      },
+      { num: 11, name: 'Network Intelligence', agent: 'syndra', agentLabel: 'Syndra',
+        desc: 'Benchmarks performance across all gym sub-accounts. Which location is converting best? What\'s different about their approach? Surfaces wins for cross-location diffusion.',
+        detail: { what: ['Reads data from all connected GHL sub-accounts','Calculates benchmarks: average booking rate, show rate, conversion rate across locations','Identifies outliers: which location is significantly above or below average and why','Surfaces winning patterns from high-performing locations as recommendations for others','Connects to AHRI Session 15 multi-location expansion'], impact: 'When something works at one location, the whole network benefits' }
+      },
+      { num: 12, name: 'Revenue Attribution', agent: 'syndra', agentLabel: 'Syndra',
+        desc: 'Traces every dollar of membership revenue back to its source. Which lead source generates the highest LTV members? Which ad creative produced the best-paying members?',
+        detail: { what: ['Reads UTM data from lead records (once GHL custom fields are wired)','Traces: ad creative → lead → booking → member → months retained → revenue generated','Calculates LTV by source: Facebook cold vs referral vs Google search vs one-day-pass','Feeds into AHRI cross-brain sync: offer-to-ltv.json','Current limitation: UTM fields not yet capturing — Priority 3 fix needed'], impact: 'Tells AHRI which channels to prioritize and which offers generate the most valuable members' }
+      },
+      { num: 13, name: '3D Channel Matrix', agent: 'syndra', agentLabel: 'Syndra',
+        desc: 'The most powerful intelligence output. A three-dimensional matrix showing: for each archetype, in each workflow, on each channel — what is the conversion rate? 64 data points updated weekly.',
+        detail: { what: ['Dimensions: archetype (4) × workflow (4) × channel (4) = 64 combinations','Each cell: booking rate, show rate, conversion rate','Updates weekly as new data accumulates','Example output: Analytical archetype + Workflow 3 + Google Search = 34% conversion (highest cell)','Feeds into AHRI: adjusts content generation toward high-performing combinations'], impact: 'The most precise data-driven marketing allocation available to any gym on earth' }
+      },
+    ]
+  },
+  {
+    layer: 'Layer 4 — Synthesis (Vision)', layerDesc: 'Everything distilled into one nightly intelligence brief for Kai',
+    phases: [
+      { num: 14, name: 'Vision — Data Pull', agent: 'vision', agentLabel: 'Vision',
+        desc: 'At midnight every night, Vision reads all 9 data sources simultaneously: Stage Log, Call Log, SMS Log, Transcript Review, Call Review, Script Optimization Log, Vision Queue, Vision Log, and AHRI\'s marketing brief.',
+        detail: { what: ['Runs at midnight on Railway every day','Reads: Stage Log, Master Call Log, SMS Log, AI Transcript Review, AI Call Review, Script Optimization Log, Vision Log, Vision Queue, AHRI marketing performance brief (Session 11+)','Processes: booking rates, show rates, conversion rates, call scores, script deviations, archetype performance, AHRI campaign results','Holds all data in context for synthesis'], impact: 'The integrated view no human could produce — all 9 sources in one analysis' }
+      },
+      { num: 15, name: 'Vision — Health Score', agent: 'vision', agentLabel: 'Vision',
+        desc: 'Vision calculates a single health score from 0 to 100 representing the overall business intelligence health. Each metric weighted and combined into one number Kai can track week over week.',
+        detail: { what: ['Health score components: booking rate (weighted 25%), show rate (20%), conversion rate (20%), call quality score (15%), script performance (10%), AHRI campaign performance (10%)','Score 80-100: healthy — no urgent action needed','Score 60-79: attention — one or two metrics need addressing','Score below 60: critical — immediate initiative required','Trend indicator: is the score improving or declining week over week?','Historical tracking: Vision Log tab stores every score with date'], impact: 'One number summarizing the entire business intelligence system\'s health' }
+      },
+      { num: 16, name: 'Vision — Ranked Initiatives', agent: 'vision', agentLabel: 'Vision',
+        desc: 'Vision generates a prioritized list of recommended actions — ranked by expected revenue impact. Each initiative has a clear rationale, assigned owner, and success metric.',
+        detail: { what: ['Identifies top 3-5 initiatives based on data patterns','Ranks by expected revenue impact','Each initiative: what to do, why (data supporting it), who does it, how to measure success','Examples: "Implement archetype tagging in Workflow 1 — 94.7% of leads untagged, fix would unlock conversion rate optimization"','Queues initiatives in Vision Queue tab for Kai review','Approved initiatives move to action, unapproved are held'], impact: 'Kai gets a prioritized to-do list every morning, ranked by revenue impact' }
+      },
+      { num: 17, name: 'Vision — Executive Brief', agent: 'vision', agentLabel: 'Vision',
+        desc: 'The final output: a clean executive email delivered to Kai every morning. Health score, key wins, key concerns, ranked initiatives, AHRI marketing summary. Nothing executes without Kai\'s approval.',
+        detail: { what: ['Emails Kai every morning (configurable time)','Format: health score trend → 3 wins from yesterday → 3 concerns → ranked initiatives → AHRI campaign summary → one recommended focus for today','All initiatives held in queue — nothing executes without Kai approval reply','Kai approves via email reply or dashboard button','Approved initiatives trigger automated actions or staff alerts'], impact: 'The complete intelligence system distilled to a 5-minute morning read' }
+      },
+    ]
+  }
+];
+
+const MANUS_DATA = [
+  {
+    section: 'AHRI Support — Content & Advertising',
+    desc: 'Manus executes AHRI\'s approved creative across all channels — organic social, paid Meta ads, and Google Ads.',
+    tasks: [
+      {
+        name: 'Organic Content Posting',
+        timing: 'Daily per schedule',
+        serves: 'AHRI',
+        desc: 'Reads distribution/queue/ready-to-post/ and posts approved content to Facebook Pages, Instagram Business, and Google Business Profile on the schedule AHRI generated.',
+        steps: ['Read ready-to-post/ folder for today\'s scheduled posts','Open Facebook Page — create post with caption + image/video from Drive link','Open Instagram Business — create post or reel per format specification','Open Google Business Profile — create GBP post with offer details','Confirm each post is live — copy URL back to AHRI\'s posted/ folder','Move asset from ready-to-post/ to posted/ with timestamp and URL']
+      },
+      {
+        name: 'Meta Ads Campaign Setup',
+        timing: 'Monthly (per new offer)',
+        serves: 'AHRI',
+        desc: 'Opens Meta Ads Manager and manually creates the campaign structure from AHRI\'s ad-copy output. Sets targeting, budget (after Kai approval), and publishes. Returns campaign ID to AHRI asset log.',
+        steps: ['Open Meta Ads Manager for the correct ad account','Create campaign — name from AHRI brief, objective: Lead Generation','Create ad set — targeting exactly as specified in AHRI targeting brief','Set daily budget — Kai-approved exact dollar amount','Create ad — upload creative from Google Drive link','Paste primary text, headline, description exactly from AHRI output','Set CTA and destination URL with UTM parameters','Review and publish — confirm campaign ID','Log campaign ID to AHRI performance/asset-log.csv']
+      },
+      {
+        name: 'Google Ads Campaign Setup',
+        timing: 'Monthly (per new offer)',
+        serves: 'AHRI',
+        desc: 'Creates Google Search campaigns from AHRI\'s google-ads skill output. Sets keywords with match types, bids, budget, and publishes.',
+        steps: ['Open Google Ads Manager','Create new Search campaign','Add all headlines (up to 15) from AHRI output','Add all descriptions (4) from AHRI output','Add keywords with exact match types from AHRI specification','Add negative keywords from AHRI list','Set daily budget — Kai-approved amount','Set bidding strategy as recommended by AHRI','Publish and return campaign details to AHRI']
+      }
+    ]
+  },
+  {
+    section: 'Market Intelligence — Weekly Automated Research',
+    desc: 'Every week Manus scans the competitive landscape and emerging trends so AHRI generates from real market intelligence, not assumptions.',
+    tasks: [
+      {
+        name: 'Meta Ad Library Competitor Research',
+        timing: 'Weekly (Monday)',
+        serves: 'AHRI',
+        desc: 'Scans Meta Ad Library for all fitness and gym ads running in your market. Captures creative, copy, and estimated run duration. Feeds into AHRI\'s intelligence-db/market/',
+        steps: ['Open Meta Ad Library (facebook.com/ads/library)','Search: category=All, location=your city, keywords=gym/fitness/workout','Filter: active ads only','For each competitor ad running 30+ days (profitable signal): screenshot creative, copy primary text, note hook structure, note offer type, note estimated spend level','For ads that disappeared in 7 days: log as failed test','Write structured data to intelligence-db/market/competitor-ads.json','Update hook-saturation.json: which hook formats are appearing in 20+ ads (signal to differentiate)','Update offer-landscape.json: what offers are competitors running']
+      },
+      {
+        name: 'Social Trend Monitoring',
+        timing: 'Weekly (Monday)',
+        serves: 'AHRI',
+        desc: 'Monitors what fitness content is performing on Instagram and Facebook this week. Identifies emerging hook formats and content types before they saturate.',
+        steps: ['Search Instagram explore for fitness/gym content — sort by recent, filter by engagement','Identify top 10 performing posts this week in fitness','Note: hook format, content type, engagement rate, follower count of account','Identify patterns: which types of posts are seeing unusually high engagement this week','Update intelligence-db/patterns/hypotheses.json with emerging formats to test','Flag any hook format appearing heavily for saturation tracking']
+      },
+      {
+        name: 'Shot List Distribution',
+        timing: 'Weekly (Monday)',
+        serves: 'AHRI + GymSuite AI',
+        desc: 'Reads the current shot list from Google Drive and distributes it to gym staff. Ensures the right photos and videos are being captured for next week\'s content.',
+        steps: ['Read shot-list.md from GymSuite AI Media Library in Drive','Format as a simple staff-readable checklist','Send to gym staff via text/email with specific guidance on capture technique','Follow up if P1 priority shots from last week are still missing','Log which shots were completed when new files appear in Drive raw/']
+      }
+    ]
+  },
+  {
+    section: 'GymSuite AI Support — Jarvis Pipeline',
+    desc: 'Manus supports Jarvis\'s call analysis pipeline by handling the audio file processing that Jarvis cannot do directly.',
+    tasks: [
+      {
+        name: 'Call Recording Processing',
+        timing: 'Per call completion',
+        serves: 'GymSuite AI / Jarvis',
+        desc: 'Downloads completed call recordings from Jessica\'s call platform and passes them to Jarvis for transcription and scoring analysis.',
+        steps: ['Receive trigger: new call recording available','Download audio file from call platform (ElevenLabs / call system)','Run basic quality check: minimum 30 seconds, audio level acceptable','Upload to Google Drive staging folder for Jarvis access','Trigger Jarvis analysis pipeline with file location','Confirm transcript generated and written to AI Transcript Review Sheet1','Archive original audio file']
+      }
+    ]
+  }
+];
+
+const FLOW_STEPS = [
+  { num: '01', title: 'Stranger Sees AHRI-Generated Ad', detail: 'A parent scrolling Facebook at 9pm sees the ad. The hook: "The moment you realized you couldn\'t keep up with your own kids." The image: a parent watching a child run ahead. AHRI generated the copy. Claude vision selected the photo from Drive. Meta Ads Manager is running it on Kai\'s approved $25/day budget.', system: 'AHRI + Manus', systemColor: '#8B5CF6', data: 'hook_id: hook-20260423-B-cold-parent-child | offer_id: no-risk-comeback | variant: COLD-FB' },
+  { num: '02', title: 'Click → Landing Page (UTM Tagged)', detail: 'Click goes to the GHL funnel page. URL carries: utm_source=facebook, utm_medium=paid_social, utm_campaign=no-risk-comeback, utm_content=hook-parent-child-v2, utm_term=level-2-cold. AHRI\'s UTM engine built this link.', system: 'AHRI', systemColor: '#8B5CF6', data: 'utm_string captured in hidden form field → GHL custom field utm_string populated on submit' },
+  { num: '03', title: 'Form Submit → GHL Contact Created', detail: 'Name and phone number submitted. Qualifying question answered: "I felt out of place." GHL creates the contact. Custom fields populated: utm_string, lead_source_offer=no-risk-comeback, lead_source_variant=COLD-FB. Tag applied: objection-social.', system: 'GHL + AHRI UTM', systemColor: '#3B82F6', data: 'Contact created → Workflow 1 fires → Hyperpersonalization Filter starts' },
+  { num: '04', title: 'Jessica Calls Within 60 Seconds', detail: 'Make Scenario 2 detects new lead. Railway logs the timestamp. Jessica\'s ElevenLabs voice calls within 60 seconds. Opening: "Hey [name], this is Jessica from Anytime Fitness — saw you checked out our No-Risk Comeback program on Facebook. Quick minute?" AHRI generated this opening line in Session 8.', system: 'Jessica + GymSuite AI', systemColor: '#F59E0B', data: 'Call initiated → Jarvis records → Manus downloads audio → Jarvis transcribes → AI Transcript Review updated' },
+  { num: '05', title: 'A/B/C/D Segmentation', detail: 'Jessica sends the segmentation SMS: "When you think about joining a gym now, what matters most? A) Community B) Clear plan C) Support D) Your own pace." Lead responds: C. AI detects Supportive archetype. GHL updates field: archetype_detected=Supportive. Workflow 1 routes to Workflow 4.', system: 'GymSuite AI', systemColor: '#F59E0B', data: 'archetype_detected=Supportive → written to contact field → Workflow 1 → Workflow 4 (Supportive Archetype Nurture)' },
+  { num: '06', title: 'Offer-Aligned Nurture Sequence', detail: 'Workflow 4 fires. Day 0 Evening SMS: "The right support changes everything — and the No-Risk Comeback is designed so you\'re never figuring it out alone. Your coach knows your name from day one. $1 to start. What would you most want support with?" This message was generated by AHRI\'s nurture-sync skill and aligned to the Supportive archetype.', system: 'GymSuite AI + AHRI Scripts', systemColor: '#F59E0B', data: '214 chars — 2 segments | Variant A (dream outcome angle) | character count verified by AHRI' },
+  { num: '07', title: '30-Minute Follow-Up (Protected Message)', detail: 'If no response in 30 minutes: "Totally okay if now\'s not a great time, I just didn\'t want you to feel like this was one of those submit a form and never hear back situations." This message is hardcoded. AHRI\'s workflow-updater can never overwrite it.', system: 'GymSuite AI', systemColor: '#F59E0B', data: 'PROTECTED_FOLLOWUP_MESSAGE — immutable across all offer updates' },
+  { num: '08', title: 'Appointment Booked', detail: 'Two-message booking system fires. "Honestly the easiest way to see if the gym fits is to stop by and check it out — would it make sense to swing by?" → "When you picture working out, what days/times work best?" → "Nice — would evenings or afternoons be better?" → Appointment confirmed. GHL books calendar slot.', system: 'GymSuite AI', systemColor: '#F59E0B', data: 'Stage: new_lead → booked | Stage Log updated | Make Scenario 1 fires | Booking Confirmation email sequence starts' },
+  { num: '09', title: 'Show, Consultation, Close', detail: 'Booking confirmation email sequence runs (3 emails — immediate, day before, morning of). Lead shows. Private orientation session. Coach conducts the "I\'ve Quit Before" intake. PT consultation follows. Member joins or doesn\'t.', system: 'GymSuite AI + Gym Staff', systemColor: '#10B981', data: 'Stage: booked → showed → joined (or lost) | Failure reason logged | Suggested fix generated by Jarvis' },
+  { num: '10', title: 'All Data Flows to Sheets', detail: 'Every data point captured: call transcript scored by Jarvis (opener, human-feel, flow, stage reached, main objection, drop-off moment, failure reason, overall score, script deviation, archetype, coaching priority). Stage movements logged by Make. UTM data in contact record links the member back to the exact ad creative.', system: 'Jarvis + Make + Syndra', systemColor: '#3B82F6', data: 'AI Transcript Review Sheet1 updated | Stage Log updated | Master Call Log updated | All 19 columns populated' },
+  { num: '11', title: 'Sunday Night — Cross-Brain Sync', detail: 'AHRI runs cross-brain-sync at 11pm. Reads all 19 columns across all rows in the AI Transcript Review sheet. Calculates: booking rates by source, conversion rates by archetype, show rates, drop-off patterns, script performance by rep. claude-opus-4-6 generates 5 specific insights. Writes to intelligence-db/cross-brain/. Updates brain-state.', system: 'AHRI', systemColor: '#8B5CF6', data: 'archetype-performance.json updated | hook-to-conversion.json updated | brain-state Cross-Brain Insights updated' },
+  { num: '12', title: 'Monday Morning — Vision Nightly Synthesis', detail: 'Vision reads all 9 data sources including AHRI\'s marketing performance brief. Calculates health score. Generates ranked initiatives. One insight from the last cycle: "96% of leads are one-day-pass at 0% booking rate — recommend restructuring the one-day-pass opening sequence." Queued for Kai approval.', system: 'GymSuite AI / Vision', systemColor: '#7C3AED', data: 'Health score calculated | Initiatives ranked | Executive email sent to Kai | Nothing executes without approval' },
+  { num: '13', title: 'AHRI Generates Smarter Next Month', detail: 'AHRI reads the cross-brain insights before generating Month 2 offer. She knows the Supportive archetype has the best booking rate. She knows the one-day-pass sequence needs rebuilding. She knows the parent/child hook outperformed the identity reframe. Month 2 campaign is materially different from Month 1 because real data informed it.', system: 'AHRI', systemColor: '#8B5CF6', data: 'Brain-state read → knowledge-base read → intelligence-db cross-brain read → generation informed by all three' },
+];
+
+/* ══════════════════════════════════════════════════════════
+   RENDER SESSIONS
+══════════════════════════════════════════════════════════ */
+function renderSessions() {
+  const grid = document.getElementById('sessions-grid');
+  grid.innerHTML = SESSIONS.map(s => `
+    <div class="session-card ${s.status}" onclick="openSessionDetail(${s.num})">
+      <div class="session-top">
+        <div class="session-num">${String(s.num).padStart(2,'0')}</div>
+        <div class="session-status ${s.status}">${s.status.toUpperCase()}</div>
+      </div>
+      <div class="session-name">${s.name}</div>
+      <div class="session-desc">${s.desc}</div>
+      <div class="session-builds">
+        ${s.builds.map(b => `<span class="build-tag">${b}</span>`).join('')}
+      </div>
+      <div class="session-unlocks">
+        <strong>Unlocks:</strong> ${s.detail.unlocks}
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENDER PHASES
+══════════════════════════════════════════════════════════ */
+function renderPhases() {
+  const wrap = document.getElementById('phases-wrap');
+  wrap.innerHTML = PHASES.map(layer => `
+    <div class="phase-layer">
+      <div class="phase-layer-label">${layer.layer} — ${layer.layerDesc}</div>
+      <div class="phase-row">
+        ${layer.phases.map(p => `
+          <div class="phase-card" onclick="openPhaseDetail(${p.num - 1}, '${layer.layer}')">
+            <div class="phase-num">PHASE ${p.num}</div>
+            <div class="phase-name">${p.name}</div>
+            <div class="phase-desc">${p.desc}</div>
+            <span class="phase-agent ${p.agent}">${p.agentLabel}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENDER MANUS
+══════════════════════════════════════════════════════════ */
+function renderManus() {
+  const wrap = document.getElementById('manus-wrap');
+  wrap.innerHTML = MANUS_DATA.map(section => `
+    <div class="manus-section">
+      <div class="manus-section-title">${section.section}</div>
+      <div class="manus-section-desc">${section.desc}</div>
+      <div class="manus-tasks-grid">
+        ${section.tasks.map(task => `
+          <div class="manus-task" onclick="openManusDetail('${task.name}')">
+            <div class="manus-task-top">
+              <div class="manus-task-name">${task.name}</div>
+              <div class="manus-timing">${task.timing}</div>
+            </div>
+            <div class="manus-task-desc">${task.desc}</div>
+            <div class="manus-steps">
+              ${task.steps.slice(0,4).map(step => `
+                <div class="manus-step">${step}</div>
+              `).join('')}
+              ${task.steps.length > 4 ? `<div class="manus-step" style="color:var(--purple-light)">+${task.steps.length-4} more steps</div>` : ''}
+            </div>
+            <div class="manus-serves">Serves: <span>${task.serves}</span></div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENDER FLOW
+══════════════════════════════════════════════════════════ */
+function renderFlow() {
+  const wrap = document.getElementById('flow-wrap');
+  const colors = ['#8B5CF6','#8B5CF6','#3B82F6','#F59E0B','#F59E0B','#F59E0B','#F59E0B','#F59E0B','#10B981','#3B82F6','#8B5CF6','#7C3AED','#8B5CF6'];
+  wrap.innerHTML = FLOW_STEPS.map((step, i) => `
+    <div class="flow-step" onclick="openFlowDetail(${i})">
+      <div class="flow-num" style="background:${step.systemColor}22;border:2px solid ${step.systemColor};color:${step.systemColor}">
+        ${step.num}
+      </div>
+      <div class="flow-body">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+          <div class="flow-title">${step.title}</div>
+          <span class="flow-system" style="background:${step.systemColor}15;color:${step.systemColor};border:1px solid ${step.systemColor}30;flex-shrink:0">${step.system}</span>
+        </div>
+        <div class="flow-detail">${step.detail}</div>
+        <div class="flow-data">${step.data}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ══════════════════════════════════════════════════════════
+   DETAIL PANEL
+══════════════════════════════════════════════════════════ */
+function openDetail(id) {
+  const panel = document.getElementById('detail-panel');
+  const content = document.getElementById('detail-content');
+  
+  const details = {
+    kai: {
+      eyebrow: 'Human Layer',
+      title: 'KAI — Human CEO',
+      subtitle: 'Final authority on every initiative, budget, and strategic decision. Both AHRI and GymSuite AI hold all pending actions for Kai\'s explicit approval.',
+      sections: [
+        { label: 'Approval Authority', items: ['Every Vision initiative holds in queue until Kai approves','Every AHRI budget recommendation requires separate Kai approval from creative approval','Avatar changes require Kai approval','Knowledge base updates require Kai approval','GHL funnel and workflow updates require Kai approval'] },
+        { label: 'Daily Touchpoints', items: ['Monday 15 minutes: review AHRI weekly brief, approve pending initiatives, approve content queue','First Monday of month: 45 minutes for monthly offer, ad package, budget, avatar recommendation','Morning: read Vision executive email with health score and ranked initiatives'] },
+        { label: 'What Never Happens Without Kai', items: ['Any ad spending or budget commitment','Any content going live on any platform','Any script update in Jessica\'s workflows','Any offer change in the active marketing system','Any avatar switch as primary audience'] }
+      ]
+    },
+    vision: {
+      eyebrow: 'GymSuite AI — Agent 1',
+      title: 'VISION',
+      subtitle: 'Master AI Orchestrator. Runs every night at midnight on Railway. The CEO-level brain that synthesizes everything into one actionable brief.',
+      sections: [
+        { label: 'What Vision Reads Nightly', items: ['Stage Log — all pipeline stage movements','Master Call Log — every Jessica call','SMS Log — all conversation data','AI Transcript Review — all Jarvis scores','AI Call Review — additional call quality data','Script Optimization Log — script performance history','Vision Queue — pending initiatives','AHRI marketing performance brief (Session 11+)'] },
+        { label: 'What Vision Produces', items: ['Health score 0-100 (composite of all metrics)','Ranked initiatives list (top 3-5 by revenue impact)','Week-over-week trend indicators','Executive email to Kai with full brief','Nothing executes — everything queued for approval'] }
+      ]
+    },
+    ahri: {
+      eyebrow: 'AHRI — Agent 5 of 7',
+      title: 'AHRI — Acquisition Intelligence',
+      subtitle: 'The marketing brain. Generates every lead that enters GymSuite AI. 15 skills, self-improving via cross-brain sync, fully connected to Drive, GHL, and GymSuite AI data.',
+      sections: [
+        { label: 'Current Status', items: ['v1.4.2 — fully live','11 sessions complete, 7 remaining','26 assets in pending-review queue','75 real calls analyzed via cross-brain sync','1 photo processed in media library','Active offer: The No-Risk Comeback — 30 Days Coached, $1 to Start'] },
+        { label: '15 Active Skills', items: ['offer-machine, hook-writer, ad-copy','landing-page, email-sequence, nurture-sync','content-calendar, reactivation, referral-campaign','review-engine, funnel-updater, workflow-updater','vsl-script (S12), flyer-generator (S12)','image-generator (S12), seo-content (S12)','google-ads (S12), partnership-outreach (S12)'] },
+        { label: 'Autonomy Rules', items: ['Generates and queues automatically — no approval needed','Posting anything live: Kai approval required','Any budget: Kai approval required (separate from creative)','Avatar changes: Kai approval required','Knowledge base updates: queued for Kai review'] }
+      ]
+    },
+    crossbrain: {
+      eyebrow: 'Cross-Brain Intelligence',
+      title: 'Cross-Brain Sync',
+      subtitle: 'The neural connection between both systems. AHRI reads GymSuite AI\'s real performance data every Sunday night and adjusts her generation accordingly.',
+      sections: [
+        { label: 'What It Reads (AI Transcript Review Sheet1)', items: ['Column F: stage_reached — booking detection','Column G: main_objection — top objections feeding into AHRI objection vault','Column H: drop_off_moment — where conversations die','Column M: lead_source — which channels generate leads','Column O: call_direction — filters outbound only','Column P: overall_score — script quality by rep','Column R: archetype_detected — which archetypes are being found','Column S: coaching_priority — who needs coaching'] },
+        { label: 'What It Calculates', items: ['Booking rate by lead source and archetype','Show rate by source','Conversion rate by archetype','Script performance by rep (coaching alerts for avg below 6.0)','Top 3 objections (updates brain-state)','Drop-off pattern by archetype (updates nurture-sync recommendations)'] },
+        { label: 'Current Findings (75 calls)', items: ['96% one-day-pass leads at 0% booking rate','94.7% missing archetype classification (GHL fix needed)','Source attribution broken (UTM fields not yet wired)','Top failure: transcript unavailable (Jarvis pipeline issue)','Top objection pattern: commitment resistance to scheduling'] }
+      ]
+    },
+    conn1: {
+      eyebrow: 'Connection Point 1',
+      title: 'Lead Handoff',
+      subtitle: 'Every lead AHRI generates enters GHL with full attribution data — the exact ad, hook, offer, and landing page variant that generated them.',
+      sections: [
+        { label: 'Data Passed to GHL', items: ['utm_string: full UTM parameter chain from ad click','lead_source_hook: which hook generated the click','lead_source_offer: which offer was active','lead_source_variant: COLD-FB / WARM-IG / SEARCH / REFERRAL','Qualifying question answer: what stopped them last time (routes Jessica\'s opening)'] },
+        { label: 'What Happens Next', items: ['GHL contact created within seconds of form submission','Jessica called within 60 seconds (Make Scenario 2 monitors)','A/B/C/D segmentation SMS fires','Archetype detected, tagged in contact field','Correct archetype workflow activated'] }
+      ]
+    },
+    conn2: {
+      eyebrow: 'Connection Point 2',
+      title: 'Performance Data Return',
+      subtitle: 'What GymSuite AI learns from every call flows back to AHRI every Sunday night, making her generation smarter each month.',
+      sections: [
+        { label: 'Data Flowing from GymSuite AI to AHRI', items: ['Booking rates by lead source and archetype','Show rates by source','Conversion rates by archetype','Top objections from real calls (updates objection-vault)','Drop-off moments (strengthens nurture sequence at that point)','Script quality scores (influences nurture-sync generation)'] },
+        { label: 'How AHRI Changes Based on This', items: ['If Supportive archetype books at 2x Independent: generate more Supportive-toned hooks','If referral leads convert at 3x Facebook: increase referral-campaign priority in batch runs','If show rate low for Facebook cold: flag in nurture-sync that confirmation sequence needs strengthening','If specific drop-off moment at Day 14: adjust Day 14 message in all archetype workflows'] }
+      ]
+    },
+    conn3: {
+      eyebrow: 'Connection Point 3',
+      title: 'Syndra Intelligence Feed',
+      subtitle: 'Syndra\'s 3D channel matrix — archetype × workflow × channel — feeds into AHRI\'s intelligence-db and changes what she generates.',
+      sections: [
+        { label: 'What Syndra Provides to AHRI', items: ['archetype-performance.json: conversion rates per archetype','channel-matrix.json: which archetype + channel combination converts best','hook-to-conversion.json: which lead sources generate bookings','offer-to-ltv.json: which offers generate highest-LTV members (future)'] },
+        { label: 'Impact on AHRI\'s Generation', items: ['AHRI reads intelligence-db/cross-brain/ before every generation','If Analytical archetype + Google Search = highest conversion: AHRI generates more analytical-tone search content','Content calendar shifts toward archetypes that are actually converting','Offer machine scores offers partly based on which avatar historically converts best'] }
+      ]
+    },
+    conn4: {
+      eyebrow: 'Connection Point 4',
+      title: 'Vision Synthesis',
+      subtitle: 'AHRI\'s marketing performance joins Vision\'s nightly synthesis. Marketing metrics become part of the overall business health score.',
+      sections: [
+        { label: 'What AHRI Sends to Vision', items: ['Monthly marketing performance brief: leads generated, CPL, booking rate from ads, show rate from ad leads, conversion rate','Which offer is active and how it\'s performing','Which channels are generating the most leads','A/B test results: which hooks and ads are winning','Budget spent vs results achieved'] },
+        { label: 'How Vision Uses It', items: ['Marketing CPL and conversion rate included in health score','If AHRI campaign underperforms: Vision flags it as an initiative for Kai','If AHRI campaign outperforms: Vision recommends increasing budget','Marketing performance compared to industry benchmarks in Vision brief'] }
+      ]
+    },
+    conn5: {
+      eyebrow: 'Connection Point 5',
+      title: 'Manus Bridge',
+      subtitle: 'Manus is the only agent that serves both systems simultaneously. Jarvis support on the GymSuite AI side, content posting and ad creation on the AHRI side.',
+      sections: [
+        { label: 'Manus Serving GymSuite AI', items: ['Downloads Jessica call recordings and passes to Jarvis','Supports transcript processing pipeline','Distributes coaching alerts to staff'] },
+        { label: 'Manus Serving AHRI', items: ['Posts approved organic content to Facebook, Instagram, GBP','Creates Meta ad campaigns from AHRI briefs','Creates Google Ads campaigns from AHRI outputs','Runs weekly Meta Ad Library competitor research','Monitors social trends and feeds to intelligence-db'] }
+      ]
+    },
+    skills: {
+      eyebrow: 'AHRI Skill Library',
+      title: '15 Marketing Skills',
+      subtitle: 'Every skill runs through the same engine (generate.ts), produces two A/B variants, logs to asset-log.csv, and moves to pending-review. AHRI selects the right model per skill.',
+      sections: [
+        { label: 'Offer & Strategy (claude-opus-4-6)', items: ['offer-machine: Grand Slam Offer construction, Hormozi scoring, Cialdini audit, compliance check','nurture-sync: GHL + ElevenLabs script update package per offer'] },
+        { label: 'Acquisition (claude-sonnet-4-6)', items: ['hook-writer: 20 hooks × 5 frameworks, awareness level tagged','ad-copy: 3 ad sets (cold/warm/retargeting), full creative briefs','landing-page: 16 sections, 3 variants, VSL script, technical brief','email-sequence: 4 sequences (no-book/no-show/confirmation/post-visit)','google-ads: Search campaigns with full keyword sets'] },
+        { label: 'Retention & Compounding (claude-sonnet-4-6)', items: ['content-calendar: 30 pieces from one cornerstone, posting schedule','reactivation: 4 sequences for lapsed members (60-day to 12-month)','referral-campaign: 6 trigger-timed asks, staff scripts, incentive model','review-engine: 5 request moments, 8 response templates'] },
+        { label: 'Operations (claude-sonnet-4-6)', items: ['funnel-updater: GHL funnel read + diff + guided update','workflow-updater: GHL SMS validation + update manifest','flyer-generator: print-ready guerrilla marketing','seo-content: local search authority articles','partnership-outreach: local B2B referral network','image-generator: DALL-E 3 for creative gaps'] }
+      ]
+    },
+    drive: {
+      eyebrow: 'AHRI Media Intelligence',
+      title: 'Google Drive Media Library',
+      subtitle: 'Real photos analyzed by Claude vision, tagged for awareness level and ad audience fit, release-verified, and matched to content automatically.',
+      sections: [
+        { label: 'Drive Folder Structure', items: ['raw/ — staff drops everything here','approved/members/ — real member photos with releases','approved/staff/ — coaching and team','approved/gym/ — facility and atmosphere','approved/moments/ — candid real moments','approved/seasonal/ — holiday, summer, etc','ad-ready/ — AHRI-selected for specific campaigns','releases/ — signed release per person','shot-list.md — AHRI updates weekly with what\'s missing'] },
+        { label: 'What Claude Vision Tags', items: ['moment_type: coaching/member_solo/member_group/staff/facility/atmosphere/outdoor/candid','emotional_tone: warm/energetic/quiet/proud/authentic','approximate_age_range: under_30/30_to_45/45_plus','authenticity_score: 1-10 (10=completely candid)','schwartz_level_fit: which awareness levels work','ad_audience_fit: cold/warm/retargeting','quality_pass: boolean','release_status: CLEARED/REQUIRED/NO_FACES'] },
+        { label: 'Current Shot List P1 Priorities', items: ['Coaching moment — coach + member mid-conversation, warm light','Member aged 30-45 — any authentic gym moment (with release)','Two+ members in natural conversation','Early morning empty gym — 5:30-6am atmospheric','Parent doing something active — outdoor lifestyle'] }
+      ]
+    },
+    manus_overview: {
+      eyebrow: 'Manus Layer',
+      title: 'MANUS — Browser Automation',
+      subtitle: 'The execution agent that bridges both systems. Posts content, creates ad campaigns, researches competitors, and supports Jarvis\'s call pipeline.',
+      sections: [
+        { label: 'Serving AHRI', items: ['Daily: posts approved organic content to Facebook, Instagram, Google Business Profile','Monthly: creates Meta ad campaigns from AHRI creative briefs','Monthly: creates Google Ads Search campaigns','Weekly: scans Meta Ad Library for competitor research','Weekly: monitors social trends, feeds to intelligence-db'] },
+        { label: 'Serving GymSuite AI', items: ['Per call: downloads Jessica call recordings','Passes recordings to Jarvis transcription pipeline','Confirms transcript written to AI Transcript Review sheet'] },
+        { label: 'Future (Session 18)', items: ['Meta Marketing API replaces Manus for paid ads','Google Ads API replaces Manus for search campaigns','Manus focus shifts entirely to research and content posting'] }
+      ]
+    }
+  };
+
+  const d = details[id];
+  if (!d) return;
+
+  content.innerHTML = `
+    <div class="detail-eyebrow">${d.eyebrow}</div>
+    <div class="detail-title">${d.title}</div>
+    <div class="detail-subtitle">${d.subtitle}</div>
+    ${d.sections.map(s => `
+      <div class="detail-section">
+        <div class="detail-section-label">${s.label}</div>
+        <ul class="detail-list">
+          ${s.items.map(item => `<li>${item}</li>`).join('')}
+        </ul>
+      </div>
+    `).join('')}
+  `;
+  panel.classList.add('open');
+}
+
+function openSessionDetail(num) {
+  const s = SESSIONS[num];
+  const panel = document.getElementById('detail-panel');
+  const content = document.getElementById('detail-content');
+  
+  const statusColors = { complete: '#10B981', building: '#F59E0B', planned: '#A78BFA' };
+  const color = statusColors[s.status];
+
+  content.innerHTML = `
+    <div class="detail-eyebrow">Session ${String(s.num).padStart(2,'0')} · ${s.status.toUpperCase()}</div>
+    <div class="detail-title">${s.name}</div>
+    <div class="detail-subtitle">${s.desc}</div>
+    
+    <div class="detail-section">
+      <div class="detail-section-label">What Gets Built</div>
+      <ul class="detail-list">
+        ${s.detail.what.map(w => `<li>${w}</li>`).join('')}
+      </ul>
+    </div>
+    
+    <div class="detail-section">
+      <div class="detail-section-label">Files Created</div>
+      <div class="detail-chips">
+        ${s.builds.map(b => `<span class="detail-chip">${b}</span>`).join('')}
+      </div>
+    </div>
+    
+    <div class="detail-highlight">
+      <strong>Unlocks:</strong> ${s.detail.unlocks}
+    </div>
+    
+    <div class="detail-section">
+      <div class="detail-section-label">Connections</div>
+      <ul class="detail-list">
+        ${s.detail.connections.map(c => `<li>${c}</li>`).join('')}
+      </ul>
+    </div>
+  `;
+  panel.classList.add('open');
+}
+
+function openPhaseDetail(idx, layer) {
+  const layerData = PHASES.find(l => l.layer === layer);
+  if (!layerData) return;
+  const p = layerData.phases[idx - layerData.phases[0].num + 1] || layerData.phases[idx];
+  if (!p) return;
+
+  // Find actual phase in all layers
+  let phase = null;
+  for (const l of PHASES) {
+    const found = l.phases.find(ph => ph.name === p.name);
+    if (found) { phase = found; break; }
+  }
+  if (!phase) return;
+
+  const panel = document.getElementById('detail-panel');
+  const content = document.getElementById('detail-content');
+
+  content.innerHTML = `
+    <div class="detail-eyebrow">Phase ${phase.num} · ${phase.agentLabel}</div>
+    <div class="detail-title">${phase.name}</div>
+    <div class="detail-subtitle">${phase.desc}</div>
+    <div class="detail-section">
+      <div class="detail-section-label">How It Works</div>
+      <ul class="detail-list">
+        ${phase.detail.what.map(w => `<li>${w}</li>`).join('')}
+      </ul>
+    </div>
+    <div class="detail-highlight">
+      <strong>Intelligence Impact:</strong> ${phase.detail.impact}
+    </div>
+  `;
+  panel.classList.add('open');
+}
+
+function openManusDetail(taskName) {
+  let task = null;
+  for (const section of MANUS_DATA) {
+    const found = section.tasks.find(t => t.name === taskName);
+    if (found) { task = found; break; }
+  }
+  if (!task) return;
+
+  const panel = document.getElementById('detail-panel');
+  const content = document.getElementById('detail-content');
+
+  content.innerHTML = `
+    <div class="detail-eyebrow">Manus Task · ${task.timing}</div>
+    <div class="detail-title">${task.name}</div>
+    <div class="detail-subtitle">${task.desc}</div>
+    <div class="detail-section">
+      <div class="detail-section-label">Step-by-Step Process</div>
+      <ul class="detail-list">
+        ${task.steps.map((step, i) => `<li><strong>Step ${i+1}:</strong> ${step}</li>`).join('')}
+      </ul>
+    </div>
+    <div class="detail-highlight">
+      <strong>Serves:</strong> ${task.serves}
+    </div>
+  `;
+  panel.classList.add('open');
+}
+
+function openFlowDetail(idx) {
+  const step = FLOW_STEPS[idx];
+  const panel = document.getElementById('detail-panel');
+  const content = document.getElementById('detail-content');
+
+  content.innerHTML = `
+    <div class="detail-eyebrow">Data Flow Step ${step.num} · ${step.system}</div>
+    <div class="detail-title">${step.title}</div>
+    <div class="detail-subtitle">${step.detail}</div>
+    <div class="detail-section">
+      <div class="detail-section-label">Data Payload</div>
+      <div class="flow-data">${step.data}</div>
+    </div>
+  `;
+  panel.classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+/* ══════════════════════════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════════════════════════ */
+function showView(viewId, btn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + viewId).classList.add('active');
+  btn.classList.add('active');
+  closeDetail();
+}
+
+/* ══════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  renderSessions();
+  renderPhases();
+  renderManus();
+  renderFlow();
+});
+
+// Close panel on escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDetail();
+});
+
+// Close panel on outside click
+document.getElementById('detail-panel').addEventListener('click', e => {
+  if (e.target === document.getElementById('detail-panel')) closeDetail();
+});
+</script>
+</body>
+</html>

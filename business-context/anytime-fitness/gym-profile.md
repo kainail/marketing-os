@@ -149,3 +149,16 @@ See knowledge-base/fitness/seasonal-calendar.md for full monthly breakdown.
 4. **GHL is live.** Jessica is already nurturing leads. AHRI's job is to get leads INTO GHL with enough pre-qualification that Jessica's nurture converts efficiently.
 
 5. **Never run budget without Kai's approval.** Creative approved ≠ budget approved. Always separate. Always explicit. Always with exact numbers.
+## GHL Configuration
+
+location_id: h4FkKJzyBbX0vR71RJFI
+
+funnel_page_id: Ml6EngdmKN5SeHGojUJB
+
+
+workflow_ids:
+  hyperpersonalization: a3243787e-6255-4c56-b304-a4c674ce835b
+  social: e6537994-f6fa-47dd-b9de-021caf4fce60
+  analytical: 9eea102d-d51b-47d6-a7bc-4159fbabc637
+  supportive: 065ebe1b-e92f-42fd-988e-b69ee24f7f62
+  independent: 0b642e76-edcf-4dd9-b3ee-7dffdb9f62de
