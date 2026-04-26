@@ -1,1 +1,103 @@
-[]
+{
+  "last_updated": "2026-04-26T00:00:00Z",
+  "city": "Bloomington, IN",
+  "total_ads_found": 14,
+  "searches_run": 6,
+  "active_competitors": [
+    {
+      "name": "Orangetheory Fitness Bloomington",
+      "page_id": "",
+      "ad_count": 6,
+      "platforms": ["facebook", "instagram"],
+      "primary_offer": "First class free",
+      "estimated_spend_tier": "high"
+    },
+    {
+      "name": "Club Pilates Bloomington",
+      "page_id": "",
+      "ad_count": 5,
+      "platforms": ["facebook", "instagram"],
+      "primary_offer": "Intro month $49",
+      "estimated_spend_tier": "medium"
+    },
+    {
+      "name": "Planet Fitness Bloomington",
+      "page_id": "",
+      "ad_count": 3,
+      "platforms": ["facebook"],
+      "primary_offer": "$10/month no commitment",
+      "estimated_spend_tier": "medium"
+    }
+  ],
+  "saturated_hooks": [
+    {
+      "hook_text": "Get fit this summer",
+      "seen_count": 4,
+      "competitors_using": ["Orangetheory Fitness Bloomington", "Club Pilates Bloomington", "Planet Fitness Bloomington"],
+      "avoid": true
+    },
+    {
+      "hook_text": "Join now and save",
+      "seen_count": 3,
+      "competitors_using": ["Planet Fitness Bloomington", "Orangetheory Fitness Bloomington"],
+      "avoid": true
+    },
+    {
+      "hook_text": "Your fitness journey starts here",
+      "seen_count": 3,
+      "competitors_using": ["Club Pilates Bloomington", "Orangetheory Fitness Bloomington"],
+      "avoid": true
+    }
+  ],
+  "common_offers": [
+    {
+      "offer_text": "First class free",
+      "frequency": 4,
+      "competitors": ["Orangetheory Fitness Bloomington"],
+      "notes": "Low barrier but no commitment — attracts tire-kickers"
+    },
+    {
+      "offer_text": "No join fee limited time",
+      "frequency": 3,
+      "competitors": ["Planet Fitness Bloomington", "Club Pilates Bloomington"],
+      "notes": "Price-driven — our offer competes on value stack, not price"
+    }
+  ],
+  "winning_ads": [
+    {
+      "competitor": "Orangetheory Fitness Bloomington",
+      "creative_description": "Video of coach celebrating a member hitting a personal record on the treadmill. Upbeat music, member is sweating and smiling. Caption reads 'This is what 45 minutes looks like.' Running 12+ days.",
+      "hook_text": "This is what 45 minutes looks like.",
+      "offer_text": "First class free — book now",
+      "run_time_days": 12,
+      "platform": "instagram",
+      "format": "video",
+      "why_it_works": "Celebrates outcome (joy/achievement) not effort. Social proof embedded in the creative. First-class-free removes all risk."
+    },
+    {
+      "competitor": "Club Pilates Bloomington",
+      "creative_description": "Carousel of 5 real member photos — no models. Each slide shows a different body type. Final slide: 'Pilates is for every body.' Running 9 days.",
+      "hook_text": "Pilates is for every body.",
+      "offer_text": "Intro month $49",
+      "run_time_days": 9,
+      "platform": "facebook",
+      "format": "carousel",
+      "why_it_works": "Inclusivity angle differentiates from performance-focused competitors. Real members = trust signal."
+    }
+  ],
+  "new_this_week": [
+    {
+      "competitor": "Planet Fitness Bloomington",
+      "hook_text": "No commitment. No judgment. Just results.",
+      "notes": "Added after spring motivation push — testing judgment-free angle for late April"
+    }
+  ],
+  "disappeared_this_week": [
+    {
+      "competitor": "Orangetheory Fitness Bloomington",
+      "hook_text": "New year, new you.",
+      "likely_reason": "Seasonal — new year angle no longer resonates in late April"
+    }
+  ],
+  "recommendation_for_ahri": "Avoid all generic seasonal hooks ('get fit this summer', 'join now and save') — market is saturated. Lead with the coached experience angle and specific outcome stories. The Orangetheory video celebrating a PR is the strongest ad in market right now — AHRI should test a similar format showing a real member moment, not a gym tour. The No-Risk Comeback offer is structurally differentiated from all competitor offers — lean into the '1 dollar to start' and 'coached first month' specifics in all creative."
+}

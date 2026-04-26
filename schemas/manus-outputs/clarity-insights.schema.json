@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/clarity-insights.schema.json",
+  "version": "1.0.0",
+  "title": "Microsoft Clarity Landing Page Insights",
+  "description": "Output of clarity-analyzer task. Written to intelligence-db/clarity/heatmap-insights.json.",
+  "type": "object",
+  "required": ["last_updated", "period", "sessions_analyzed", "scroll_depth", "click_data", "form_analytics", "session_insights"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "period": {
+      "type": "object",
+      "required": ["start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "sessions_analyzed": { "type": "integer", "minimum": 0 },
+    "scroll_depth": {
+      "type": "array",
+      "description": "% of sessions that reached each page section",
+      "items": {
+        "type": "object",
+        "required": ["section_name", "pct_reached"],
+        "additionalProperties": false,
+        "properties": {
+          "section_name": { "type": "string" },
+          "pct_reached": { "type": "number", "minimum": 0, "maximum": 100 },
+          "avg_time_spent_seconds": { "type": "number" }
+        }
+      }
+    },
+    "click_data": {
+      "type": "object",
+      "required": ["top_cta_click_rate", "rage_click_count", "dead_click_count"],
+      "additionalProperties": false,
+      "properties": {
+        "top_cta_click_rate": { "type": "number" },
+        "rage_click_count": { "type": "integer" },
+        "dead_click_count": { "type": "integer" },
+        "top_clicked_elements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["element", "click_count"],
+            "additionalProperties": false,
+            "properties": {
+              "element": { "type": "string" },
+              "click_count": { "type": "integer" }
+            }
+          }
+        }
+      }
+    },
+    "form_analytics": {
+      "type": "object",
+      "required": ["form_start_rate", "form_completion_rate", "highest_abandonment_field"],
+      "additionalProperties": false,
+      "properties": {
+        "form_start_rate": { "type": "number" },
+        "form_completion_rate": { "type": "number" },
+        "highest_abandonment_field": { "type": "string" },
+        "mobile_completion_rate": { "type": ["number", "null"] },
+        "desktop_completion_rate": { "type": ["number", "null"] }
+      }
+    },
+    "session_insights": {
+      "type": "object",
+      "required": ["avg_session_duration_seconds", "bounce_rate", "top_exit_point"],
+      "additionalProperties": false,
+      "properties": {
+        "avg_session_duration_seconds": { "type": "number" },
+        "bounce_rate": { "type": "number" },
+        "top_exit_point": { "type": "string" },
+        "mobile_pct": { "type": "number" },
+        "desktop_pct": { "type": "number" },
+        "non_converting_session_patterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Patterns from 5 non-converting session recordings"
+        }
+      }
+    },
+    "recommendation_for_ahri": {
+      "type": "string",
+      "description": "The single highest-impact landing page change based on this data"
+    }
+  }
+}

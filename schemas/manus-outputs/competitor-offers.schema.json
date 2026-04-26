@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/competitor-offers.schema.json",
+  "version": "1.0.0",
+  "title": "Competitor Offers Intelligence",
+  "description": "Output of competitor-research task. Written to intelligence-db/market/competitor-offers.json.",
+  "type": "object",
+  "required": ["last_updated", "city", "competitors"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "city": { "type": "string" },
+    "competitors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "current_offer", "price_point"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "current_offer": { "type": "string", "description": "Their current join offer / promotion" },
+          "price_point": { "type": "string", "description": "Monthly membership price if visible" },
+          "join_fee": { "type": "string" },
+          "free_trial": { "type": ["boolean", "null"] },
+          "trial_length_days": { "type": ["integer", "null"] },
+          "contract_required": { "type": ["boolean", "null"] },
+          "vs_last_month": { "type": "string", "enum": ["same", "changed", "new", "unknown"] },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "market_summary": {
+      "type": "string",
+      "description": "1–2 sentence summary of the competitive offer landscape this month"
+    },
+    "pricing_pressure": {
+      "type": "string",
+      "enum": ["low", "moderate", "high"],
+      "description": "Are competitors undercutting or offering aggressive promotions?"
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

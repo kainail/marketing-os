@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/nurture-performance.schema.json",
+  "version": "1.0.0",
+  "title": "Nurture Sequence Performance",
+  "description": "Output of nurture-performance-analyzer task. Written to intelligence-db/nurture/sequence-performance.json.",
+  "type": "object",
+  "required": ["last_updated", "sequence_name", "sequence_version", "messages", "overall_health", "weak_links"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "sequence_name": { "type": "string" },
+    "sequence_version": { "type": "string" },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["step", "channel", "sent_count", "reply_count", "reply_rate", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "step": { "type": "integer", "minimum": 1 },
+          "channel": { "type": "string", "enum": ["sms", "email", "call"] },
+          "sent_count": { "type": "integer", "minimum": 0 },
+          "reply_count": { "type": "integer", "minimum": 0 },
+          "reply_rate": { "type": "number", "minimum": 0, "maximum": 100 },
+          "booking_conversions": { "type": "integer", "minimum": 0 },
+          "message_preview": { "type": "string" },
+          "status": { "type": "string", "enum": ["strong", "acceptable", "weak", "dead"] },
+          "vs_prev_step_delta_pct": { "type": ["number", "null"] }
+        }
+      }
+    },
+    "overall_health": {
+      "type": "string",
+      "enum": ["strong", "needs-work", "broken"]
+    },
+    "weak_links": {
+      "type": "array",
+      "items": { "type": "integer" },
+      "description": "Step numbers with reply_rate < 5% or >50% drop vs previous step"
+    },
+    "booking_trigger_message": {
+      "type": ["integer", "null"],
+      "description": "Which step drives the most bookings"
+    },
+    "avg_touches_before_booking": { "type": ["number", "null"] },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

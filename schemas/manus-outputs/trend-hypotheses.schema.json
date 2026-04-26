@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/trend-hypotheses.schema.json",
+  "version": "1.0.0",
+  "title": "Trend Hypotheses",
+  "description": "Output of trend-monitoring task. Written to intelligence-db/patterns/trend-hypotheses.json.",
+  "type": "object",
+  "required": ["last_updated", "platform_trends", "search_trends", "seasonal_signals", "hypotheses"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "platform_trends": {
+      "type": "array",
+      "description": "Trending content formats and themes on Instagram/Facebook/TikTok this week",
+      "items": {
+        "type": "object",
+        "required": ["platform", "trend", "relevance"],
+        "additionalProperties": false,
+        "properties": {
+          "platform": { "type": "string", "enum": ["instagram", "facebook", "tiktok", "youtube", "google"] },
+          "trend": { "type": "string" },
+          "relevance": { "type": "string", "enum": ["high", "medium", "low"] },
+          "adaptation_idea": { "type": "string" }
+        }
+      }
+    },
+    "search_trends": {
+      "type": "array",
+      "description": "Google Trends signals relevant to fitness/gym in the local market",
+      "items": {
+        "type": "object",
+        "required": ["keyword", "trend_direction"],
+        "additionalProperties": false,
+        "properties": {
+          "keyword": { "type": "string" },
+          "trend_direction": { "type": "string", "enum": ["rising", "stable", "declining"] },
+          "search_volume_tier": { "type": "string", "enum": ["low", "medium", "high"] },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "seasonal_signals": {
+      "type": "array",
+      "description": "Time-sensitive opportunities (holidays, local events, weather, etc.)",
+      "items": {
+        "type": "object",
+        "required": ["signal", "window_days", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "signal": { "type": "string" },
+          "window_days": { "type": "integer", "description": "How many days until this window closes" },
+          "action": { "type": "string" }
+        }
+      }
+    },
+    "hypotheses": {
+      "type": "array",
+      "description": "Specific content/offer hypotheses AHRI should test based on the trends",
+      "items": {
+        "type": "object",
+        "required": ["hypothesis", "rationale", "urgency"],
+        "additionalProperties": false,
+        "properties": {
+          "hypothesis": { "type": "string" },
+          "rationale": { "type": "string" },
+          "urgency": { "type": "string", "enum": ["this-week", "this-month", "next-month"] },
+          "suggested_skill": { "type": "string" }
+        }
+      }
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

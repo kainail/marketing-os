@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/crm-hygiene.schema.json",
+  "version": "1.0.0",
+  "title": "CRM Hygiene Report",
+  "description": "Output of crm-hygiene task. Written to logs/crm-hygiene-log.json.",
+  "type": "object",
+  "required": ["last_updated", "month", "crm_health_score", "total_contacts", "issues"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "month": { "type": "string", "pattern": "^\\d{4}-\\d{2}$" },
+    "crm_health_score": {
+      "type": "string",
+      "enum": ["clean", "needs-work", "critical"]
+    },
+    "total_contacts": { "type": "integer", "minimum": 0 },
+    "issues": {
+      "type": "object",
+      "required": ["untagged_leads", "duplicate_contacts", "stale_pipeline_contacts", "missing_phone", "missing_email"],
+      "additionalProperties": false,
+      "properties": {
+        "untagged_leads": { "type": "integer", "minimum": 0 },
+        "duplicate_contacts": { "type": "integer", "minimum": 0 },
+        "stale_pipeline_contacts": { "type": "integer", "minimum": 0, "description": "Leads in active pipeline with no activity in 30+ days" },
+        "missing_phone": { "type": "integer", "minimum": 0 },
+        "missing_email": { "type": "integer", "minimum": 0 },
+        "missing_source_tag": { "type": "integer", "minimum": 0 },
+        "missing_archetype_tag": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "pipeline_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "active_leads": { "type": "integer" },
+        "stalled_leads": { "type": "integer" },
+        "avg_days_in_pipeline": { "type": "number" },
+        "pipeline_health": { "type": "string", "enum": ["healthy", "stalling", "clogged"] }
+      }
+    },
+    "actions_taken": {
+      "type": "array",
+      "description": "Cleanup actions Manus completed (tagging, merging duplicates, archiving)",
+      "items": {
+        "type": "object",
+        "required": ["action", "count"],
+        "additionalProperties": false,
+        "properties": {
+          "action": { "type": "string" },
+          "count": { "type": "integer" }
+        }
+      }
+    },
+    "actions_for_kai": {
+      "type": "array",
+      "description": "Issues that require Kai's manual review",
+      "items": { "type": "string" }
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

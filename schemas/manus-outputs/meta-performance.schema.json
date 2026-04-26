@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/meta-performance.schema.json",
+  "version": "1.0.0",
+  "title": "Meta (Facebook/Instagram) Ad Performance",
+  "description": "Output of paid-ads-analyzer task. Written to intelligence-db/paid/meta-performance.json.",
+  "type": "object",
+  "required": ["last_updated", "period", "account_id", "campaigns", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "period": {
+      "type": "object",
+      "required": ["start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "account_id": { "type": "string" },
+    "campaigns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["campaign_name", "status", "spend", "leads", "cpl", "signal"],
+        "additionalProperties": false,
+        "properties": {
+          "campaign_name": { "type": "string" },
+          "campaign_id": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "paused", "completed"] },
+          "spend": { "type": "number", "minimum": 0 },
+          "impressions": { "type": "integer", "minimum": 0 },
+          "clicks": { "type": "integer", "minimum": 0 },
+          "ctr": { "type": "number" },
+          "cpm": { "type": "number" },
+          "leads": { "type": "integer", "minimum": 0 },
+          "cpl": { "type": "number", "minimum": 0 },
+          "bookings": { "type": "integer", "minimum": 0 },
+          "members": { "type": "integer", "minimum": 0 },
+          "frequency": { "type": "number", "minimum": 0 },
+          "signal": { "type": "string", "enum": ["kill", "scale", "double-down", "watch", "ok"] },
+          "top_performing_ad": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total_spend", "total_leads", "blended_cpl", "total_bookings"],
+      "additionalProperties": false,
+      "properties": {
+        "total_spend": { "type": "number" },
+        "total_leads": { "type": "integer" },
+        "blended_cpl": { "type": "number" },
+        "total_bookings": { "type": "integer" },
+        "kill_signals": { "type": "integer" },
+        "scale_signals": { "type": "integer" },
+        "best_campaign": { "type": "string" },
+        "worst_campaign": { "type": "string" }
+      }
+    },
+    "weekly_trend": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["week", "spend", "leads", "cpl"],
+        "additionalProperties": false,
+        "properties": {
+          "week": { "type": "string" },
+          "spend": { "type": "number" },
+          "leads": { "type": "integer" },
+          "cpl": { "type": "number" }
+        }
+      }
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

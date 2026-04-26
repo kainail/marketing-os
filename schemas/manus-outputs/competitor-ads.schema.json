@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/competitor-ads.schema.json",
+  "version": "1.0.0",
+  "title": "Competitor Ads Intelligence",
+  "description": "Output of competitor-research task. Written to intelligence-db/market/competitor-ads.json.",
+  "type": "object",
+  "required": ["last_updated", "city", "total_ads_found", "searches_run", "active_competitors", "saturated_hooks", "common_offers", "winning_ads", "new_this_week", "disappeared_this_week", "recommendation_for_ahri"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "city": { "type": "string", "description": "Primary market city (e.g. Bloomington, IN)" },
+    "total_ads_found": { "type": "integer", "minimum": 0 },
+    "searches_run": { "type": "integer", "minimum": 0 },
+    "active_competitors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "ad_count"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "page_id": { "type": "string" },
+          "ad_count": { "type": "integer", "minimum": 0 },
+          "platforms": { "type": "array", "items": { "type": "string" } },
+          "primary_offer": { "type": "string" },
+          "estimated_spend_tier": { "type": "string", "enum": ["low", "medium", "high", "unknown"] }
+        }
+      }
+    },
+    "saturated_hooks": {
+      "type": "array",
+      "description": "Hooks seen across 3+ competitor ads — avoid these",
+      "items": {
+        "type": "object",
+        "required": ["hook_text", "seen_count", "avoid"],
+        "additionalProperties": false,
+        "properties": {
+          "hook_text": { "type": "string" },
+          "seen_count": { "type": "integer", "minimum": 1 },
+          "competitors_using": { "type": "array", "items": { "type": "string" } },
+          "avoid": { "type": "boolean" }
+        }
+      }
+    },
+    "common_offers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["offer_text", "frequency"],
+        "additionalProperties": false,
+        "properties": {
+          "offer_text": { "type": "string" },
+          "frequency": { "type": "integer", "minimum": 1 },
+          "competitors": { "type": "array", "items": { "type": "string" } },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "winning_ads": {
+      "type": "array",
+      "description": "Ads running 7+ days — likely profitable",
+      "items": {
+        "type": "object",
+        "required": ["competitor", "creative_description", "hook_text", "run_time_days"],
+        "additionalProperties": false,
+        "properties": {
+          "competitor": { "type": "string" },
+          "creative_description": { "type": "string" },
+          "hook_text": { "type": "string" },
+          "offer_text": { "type": "string" },
+          "run_time_days": { "type": "integer", "minimum": 0 },
+          "platform": { "type": "string" },
+          "format": { "type": "string", "enum": ["image", "video", "carousel", "story", "unknown"] },
+          "why_it_works": { "type": "string" }
+        }
+      }
+    },
+    "new_this_week": {
+      "type": "array",
+      "description": "Ads that appeared this week (0–6 days old)",
+      "items": {
+        "type": "object",
+        "required": ["competitor", "hook_text"],
+        "additionalProperties": false,
+        "properties": {
+          "competitor": { "type": "string" },
+          "hook_text": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "disappeared_this_week": {
+      "type": "array",
+      "description": "Ads seen last week that are now gone — likely paused losers",
+      "items": {
+        "type": "object",
+        "required": ["competitor", "hook_text"],
+        "additionalProperties": false,
+        "properties": {
+          "competitor": { "type": "string" },
+          "hook_text": { "type": "string" },
+          "likely_reason": { "type": "string" }
+        }
+      }
+    },
+    "recommendation_for_ahri": {
+      "type": "string",
+      "description": "1–3 sentences: what AHRI should do differently based on this data"
+    }
+  }
+}

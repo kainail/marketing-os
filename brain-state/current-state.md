@@ -2,7 +2,7 @@
 # AHRI reads this file before every generation. Keep it current.
 
 ## Sessions Complete
-Sessions 0–15 | Version: v1.8 | Last updated: 2026-04-26
+Sessions 0–16 | Version: v1.9 | Last updated: 2026-04-26
 
 ## Active Offer
 The No-Risk Comeback — 30 Days Coached, $1 to Start
@@ -87,10 +87,22 @@ Manus tasks (on-demand):
 - manus-tasks/monthly-report.md
 
 ## Last Session Notes
-Sessions 0–15 complete (2026-04-26). AHRI Marketing Command Center (portal) built and tested.
-Session 15: Full 6-file marketing portal, 19 API endpoints, 11-section SPA, AHRI chat panel,
-agentic rules engine, Chart.js analytics, voice input, notification center. All endpoints verified.
-v1.8 tagged.
+Sessions 0–16 complete (2026-04-26). Manus Autonomous Intelligence Loop built and tested.
+Session 16: 16 JSON Schema files, OUTPUT CONTRACT added to all 15 manus task files,
+4 new server.js endpoints (trigger/status/callback/recent-runs), 6-state LAUNCH button in portal,
+Recent Runs panel, ahri.ts portal API integration, seed data for competitor-ads + hook-saturation.
+v1.9 tagged.
+
+## Session 16 — What Was Built
+- schemas/manus-outputs/ — 16 JSON Schema Draft 2020-12 files (1 meta + 15 task-specific)
+- manus-tasks/ — OUTPUT CONTRACT section added to all 15 task files (JSON-only, no PDF/prose)
+- marketing-portal/server.js — 4 new Manus endpoints: POST /api/manus/trigger, GET /api/manus/status/:id, POST /api/manus/callback (full: atomic write + schema routing + defensive parsing), GET /api/manus/recent-runs
+- marketing-portal/data/task-runs.json — persistent task run tracking (atomic writes)
+- marketing-portal/public/index.html — 6-state LAUNCH button (idle/launching/running/complete/failed/fallback), Recent Runs panel, polling on active tasks
+- engine/ahri.ts — handleRunManusTask now calls MARKETING_PORTAL_URL/api/manus/trigger; falls back to copy/paste display if API key absent
+- .env.example — MARKETING_PORTAL_URL, MANUS_API_KEY, MANUS_API_BASE, MANUS_WEBHOOK_SECRET added
+- intelligence-db/market/competitor-ads.json — seeded with Bloomington IN market data (Orangetheory, Club Pilates, Planet Fitness)
+- intelligence-db/market/hook-saturation.json — seeded with 5 saturated hooks + 3 opportunity gaps
 
 ## Session 15 — What Was Built
 - marketing-portal/server.js — Express backend, 19 API endpoints, placeholder perf data
@@ -131,9 +143,9 @@ v1.8 tagged.
 11. Deploy marketing-portal/ as new Railway service → set env vars: GYM_NAME, OPS_URL, NEURAL_URL, ELEVENLABS_AGENT_ID, ANTHROPIC_API_KEY
 
 ## Next Session
-Session 16 — first campaign launch.
-Pre-launch checklist (items 1–11 above) must be cleared first.
-Portal is ready to deploy to Railway as a new service once env vars are set.
+Session 17 — first campaign launch.
+Pre-launch checklist (items 1–11 below) must be cleared first.
+Portal is ready to deploy to Railway. Add MANUS_API_KEY + MANUS_WEBHOOK_SECRET to Railway env vars when deploying portal.
 
 ## Cross-Brain Insights (updated 2026-04-24 — 75 calls analyzed)
 - INSIGHT 1: Source attribution is null for 3 of 75 calls (4%). AHRI enforces UTM injection on all assets. Default source value "direct_untagged" appended to all untagged leads.

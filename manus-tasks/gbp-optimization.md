@@ -13,6 +13,35 @@ to catch drift and flag what needs updating.
 
 ---
 
+## ⚠ OUTPUT CONTRACT — MACHINE-READABLE JSON REQUIRED
+
+**CRITICAL: When this task is complete, your ONLY response must be a single JSON object. No PDF. No prose. No intro text. No markdown explanation. JSON only.**
+
+Schema for the `data` field: `schemas/manus-outputs/gbp-audit.schema.json`
+
+Also write the payload to disk:
+- `logs/gbp-audit-log.json` — full gbp-audit payload
+- `intelligence-db/market/gbp-audit-report.csv` — row-level issues (separate from JSON response)
+
+Return this exact structure:
+
+```json
+{
+  "task_id": "TASK_ID_FROM_TRIGGER",
+  "task_type": "gbp-optimization",
+  "status": "completed",
+  "started_at": "ISO timestamp when task started",
+  "completed_at": "ISO timestamp now",
+  "data": {},
+  "errors": []
+}
+```
+
+If a step fails: set `status` to `"partial"`, log the reason in `errors[]`, continue with remaining steps.
+If task cannot run: set `status` to `"failed"` with all errors logged.
+
+---
+
 ## STEP 0 — ACCOUNT VERIFICATION (REQUIRED — DO NOT SKIP)
 
 Open business.google.com.

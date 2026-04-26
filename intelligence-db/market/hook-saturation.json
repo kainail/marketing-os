@@ -1,1 +1,60 @@
-[]
+{
+  "last_updated": "2026-04-26T00:00:00Z",
+  "saturated": [
+    {
+      "angle": "Generic seasonal fitness motivation",
+      "example_hook": "Get fit this summer.",
+      "saturation_score": 9,
+      "competitors_using": ["Orangetheory Fitness Bloomington", "Club Pilates Bloomington", "Planet Fitness Bloomington"]
+    },
+    {
+      "angle": "Price/savings first hook",
+      "example_hook": "Join now and save — no join fee this month only.",
+      "saturation_score": 8,
+      "competitors_using": ["Planet Fitness Bloomington", "Club Pilates Bloomington"]
+    },
+    {
+      "angle": "Journey start generic",
+      "example_hook": "Your fitness journey starts here.",
+      "saturation_score": 8,
+      "competitors_using": ["Orangetheory Fitness Bloomington", "Club Pilates Bloomington"]
+    },
+    {
+      "angle": "New year reframe in off-season",
+      "example_hook": "New year, new you.",
+      "saturation_score": 6,
+      "competitors_using": ["Orangetheory Fitness Bloomington"]
+    },
+    {
+      "angle": "Generic community belonging",
+      "example_hook": "Join our community today.",
+      "saturation_score": 7,
+      "competitors_using": ["Club Pilates Bloomington", "Planet Fitness Bloomington"]
+    }
+  ],
+  "avoid_themes": [
+    "seasonal urgency without specificity",
+    "price-first hooks",
+    "journey start without a specific problem",
+    "generic 'no judgment' positioning",
+    "facility tour as the primary creative"
+  ],
+  "opportunity_gaps": [
+    {
+      "angle": "Specific moment of re-entry after a gap",
+      "rationale": "No competitor is speaking to people who already tried the gym and stopped. This is the largest segment in Bloomington based on one-day-pass call data.",
+      "suggested_hook": "The moment you realized you couldn't keep up with your own kids."
+    },
+    {
+      "angle": "Coached accountability as the differentiator",
+      "rationale": "Every competitor sells the facility. Nobody is selling the experience of having someone notice when you stop showing up.",
+      "suggested_hook": "We built this entire first month around the specific reason you quit last time."
+    },
+    {
+      "angle": "Identity reframe for commitment resistance",
+      "rationale": "Top objection is commitment resistance. Frame the gym as the solution to a mindset problem, not a fitness problem.",
+      "suggested_hook": "You're not lazy. You've just never had anyone notice when you stopped showing up."
+    }
+  ],
+  "recommendation_for_ahri": "The three winning hooks already declared in brain-state are the right direction — none of them appear in competitor ads. Continue leading with the re-entry/coached angle. Do not test any hook that leads with price, season, or generic community. The identity reframe hook is the biggest whitespace opportunity in the Bloomington market."
+}

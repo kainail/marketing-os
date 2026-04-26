@@ -7,6 +7,40 @@
 
 ---
 
+## ⚠ OUTPUT CONTRACT — MACHINE-READABLE JSON REQUIRED
+
+**CRITICAL: When this task is complete, your ONLY response must be a single JSON object. No PDF. No prose. No intro text. No markdown explanation. JSON only.**
+
+Schema for the `data` field: `schemas/manus-outputs/competitor-ads.schema.json`, `competitor-offers.schema.json`, `hook-saturation.schema.json`
+
+Also write the payloads to disk:
+- `intelligence-db/market/competitor-ads.json` — competitor-ads payload
+- `intelligence-db/market/competitor-offers.json` — competitor-offers payload
+- `intelligence-db/market/hook-saturation.json` — hook-saturation payload
+
+Return this exact structure:
+
+```json
+{
+  "task_id": "TASK_ID_FROM_TRIGGER",
+  "task_type": "competitor-research",
+  "status": "completed",
+  "started_at": "ISO timestamp when task started",
+  "completed_at": "ISO timestamp now",
+  "data": {
+    "competitor_ads": {},
+    "competitor_offers": {},
+    "hook_saturation": {}
+  },
+  "errors": []
+}
+```
+
+If a step fails: set `status` to `"partial"`, log the reason in `errors[]`, continue with remaining steps.
+If task cannot run: set `status` to `"failed"` with all errors logged.
+
+---
+
 ## STEP 0 — ACCOUNT VERIFICATION (REQUIRED — DO NOT SKIP)
 
 Before researching anything, verify your browsing environment is clean.

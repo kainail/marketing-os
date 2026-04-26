@@ -14,3 +14,4 @@ timestamp,intent,skills_run,assets_generated,budget_flagged,notes
 "2026-04-24T22:37:02.427Z","review_queue","","0","false","Approved 4 asset(s)"
 "2026-04-24T22:37:02.428Z","exit","","0","false","Session 4/24/2026: Approved: hook-writer-20260423-A-1JZO, Approved: hook-writer-20260423-B-FOE2, Approved: hook-writer-20260424-A-T2NG +1 more."
 "2026-04-24T22:37:05.640Z","exit","","0","false","Session 4/24/2026: status check only."
+"2026-04-26T16:47:44.169Z","manus_callback","portal","0","false","Callback: review-monitoring task_id=local-1777222048435 status=completed"

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/review-log.schema.json",
+  "version": "1.0.0",
+  "title": "Review Log",
+  "description": "Output of review-monitoring task. Written to intelligence-db/market/review-log.json.",
+  "type": "object",
+  "required": ["last_updated", "period", "platforms", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "period": {
+      "type": "object",
+      "required": ["start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "platforms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["platform", "new_review_count", "avg_rating", "five_star", "four_star", "three_star", "two_star", "one_star"],
+        "additionalProperties": false,
+        "properties": {
+          "platform": { "type": "string", "enum": ["google", "facebook", "yelp", "trustpilot"] },
+          "new_review_count": { "type": "integer", "minimum": 0 },
+          "avg_rating": { "type": "number", "minimum": 1, "maximum": 5 },
+          "five_star": { "type": "integer" },
+          "four_star": { "type": "integer" },
+          "three_star": { "type": "integer" },
+          "two_star": { "type": "integer" },
+          "one_star": { "type": "integer" },
+          "unresponded_negative": { "type": "integer" }
+        }
+      }
+    },
+    "new_reviews": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["platform", "rating", "snippet", "responded"],
+        "additionalProperties": false,
+        "properties": {
+          "platform": { "type": "string" },
+          "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "snippet": { "type": "string" },
+          "reviewer_name": { "type": "string" },
+          "date": { "type": "string", "format": "date" },
+          "responded": { "type": "boolean" },
+          "response_draft": { "type": "string" },
+          "flag_for_kai": { "type": "boolean" }
+        }
+      }
+    },
+    "praise_themes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Top recurring themes in positive reviews"
+    },
+    "complaint_themes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Top recurring themes in negative reviews"
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total_new_reviews", "reputation_trend"],
+      "additionalProperties": false,
+      "properties": {
+        "total_new_reviews": { "type": "integer" },
+        "reputation_trend": { "type": "string", "enum": ["improving", "stable", "declining"] },
+        "unresponded_negatives": { "type": "integer" },
+        "review_velocity": { "type": "string", "enum": ["increasing", "stable", "decreasing"] }
+      }
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

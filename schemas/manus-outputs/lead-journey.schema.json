@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/lead-journey.schema.json",
+  "version": "1.0.0",
+  "title": "Lead Journey Attribution Report",
+  "description": "Output of lead-journey-tracker task. Written to intelligence-db/lead-journey/attribution-report.json.",
+  "type": "object",
+  "required": ["last_updated", "period", "total_leads", "source_breakdown", "tracking_coverage", "multi_touch"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "period": {
+      "type": "object",
+      "required": ["start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "total_leads": { "type": "integer", "minimum": 0 },
+    "source_breakdown": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source", "lead_count", "pct_of_total"],
+        "additionalProperties": false,
+        "properties": {
+          "source": { "type": "string" },
+          "lead_count": { "type": "integer" },
+          "pct_of_total": { "type": "number" },
+          "bookings": { "type": "integer" },
+          "members": { "type": "integer" },
+          "avg_score": { "type": "number" }
+        }
+      }
+    },
+    "tracking_coverage": {
+      "type": "object",
+      "required": ["pct_attributed", "pct_unattributed", "untagged_count"],
+      "additionalProperties": false,
+      "properties": {
+        "pct_attributed": { "type": "number" },
+        "pct_unattributed": { "type": "number" },
+        "untagged_count": { "type": "integer" },
+        "default_source_applied": { "type": "string" }
+      }
+    },
+    "multi_touch": {
+      "type": "object",
+      "required": ["multi_touch_pct", "avg_touches_before_conversion", "avg_days_to_conversion"],
+      "additionalProperties": false,
+      "properties": {
+        "multi_touch_pct": { "type": "number" },
+        "avg_touches_before_conversion": { "type": "number" },
+        "avg_days_to_conversion": { "type": "number" },
+        "top_converting_path": { "type": "string" }
+      }
+    },
+    "reported_vs_true_cpl": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "meta_reported_cpl": { "type": "number" },
+        "true_blended_cpl": { "type": "number" },
+        "delta_explanation": { "type": "string" }
+      }
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/pacing-log.schema.json",
+  "version": "1.0.0",
+  "title": "Budget Pacing Log",
+  "description": "Output of budget-pacing-tracker task. Written to intelligence-db/paid/pacing-log.json.",
+  "type": "object",
+  "required": ["last_updated", "month", "meta_pacing", "google_pacing", "total_pacing", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "month": { "type": "string", "pattern": "^\\d{4}-\\d{2}$" },
+    "days_elapsed": { "type": "integer", "minimum": 0 },
+    "days_remaining": { "type": "integer", "minimum": 0 },
+    "meta_pacing": {
+      "type": "object",
+      "required": ["monthly_budget", "spent_to_date", "pct_budget_used", "pct_month_elapsed", "daily_spend_avg", "daily_spend_target", "on_pace"],
+      "additionalProperties": false,
+      "properties": {
+        "monthly_budget": { "type": "number" },
+        "spent_to_date": { "type": "number" },
+        "pct_budget_used": { "type": "number" },
+        "pct_month_elapsed": { "type": "number" },
+        "daily_spend_avg": { "type": "number" },
+        "daily_spend_target": { "type": "number" },
+        "on_pace": { "type": "boolean" },
+        "variance_pct": { "type": "number", "description": "positive = overpacing, negative = underpacing" }
+      }
+    },
+    "google_pacing": {
+      "type": "object",
+      "required": ["monthly_budget", "spent_to_date", "pct_budget_used", "pct_month_elapsed", "daily_spend_avg", "daily_spend_target", "on_pace"],
+      "additionalProperties": false,
+      "properties": {
+        "monthly_budget": { "type": "number" },
+        "spent_to_date": { "type": "number" },
+        "pct_budget_used": { "type": "number" },
+        "pct_month_elapsed": { "type": "number" },
+        "daily_spend_avg": { "type": "number" },
+        "daily_spend_target": { "type": "number" },
+        "on_pace": { "type": "boolean" },
+        "variance_pct": { "type": "number" }
+      }
+    },
+    "total_pacing": {
+      "type": "object",
+      "required": ["total_budget", "total_spent", "total_remaining"],
+      "additionalProperties": false,
+      "properties": {
+        "total_budget": { "type": "number" },
+        "total_spent": { "type": "number" },
+        "total_remaining": { "type": "number" },
+        "projected_month_end_spend": { "type": "number" }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["on-pace", "underpacing", "overpacing", "critical-overspend"],
+      "description": "on-pace = within 10%; underpacing/overpacing = 10-25% variance; critical = >25% overspend"
+    },
+    "alerts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

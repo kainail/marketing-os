@@ -9,6 +9,34 @@
 
 ---
 
+## ⚠ OUTPUT CONTRACT — MACHINE-READABLE JSON REQUIRED
+
+**CRITICAL: When this task is complete, your ONLY response must be a single JSON object. No PDF. No prose. No intro text. No markdown explanation. JSON only.**
+
+Schema for the `data` field: `schemas/manus-outputs/pacing-log.schema.json`
+
+Also write the payload to disk:
+- `intelligence-db/paid/pacing-log.json` — full pacing-log payload
+
+Return this exact structure:
+
+```json
+{
+  "task_id": "TASK_ID_FROM_TRIGGER",
+  "task_type": "budget-pacing-tracker",
+  "status": "completed",
+  "started_at": "ISO timestamp when task started",
+  "completed_at": "ISO timestamp now",
+  "data": {},
+  "errors": []
+}
+```
+
+If a step fails: set `status` to `"partial"`, log the reason in `errors[]`, continue with remaining steps.
+If task cannot run: set `status` to `"failed"` with all errors logged.
+
+---
+
 ## STEP 0 — ACCOUNT VERIFICATION (REQUIRED — DO NOT SKIP)
 
 Open Meta Ads Manager and Google Ads.

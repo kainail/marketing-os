@@ -1134,6 +1134,7 @@ async function handleRunManusTask(parsed: ParsedIntent, rl: RLInterface): Promis
     }
   }
 
+  const taskFilename = taskKey + '.md';
   const taskFile = MANUS_TASKS[taskKey]!;
   if (!fs.existsSync(taskFile)) {
     console.log(chalk.red(`  Task file not found: ${taskFile}\n`));
@@ -1141,6 +1142,36 @@ async function handleRunManusTask(parsed: ParsedIntent, rl: RLInterface): Promis
   }
 
   const content = readSafe(taskFile);
+  const portalUrl = process.env.MARKETING_PORTAL_URL;
+
+  if (portalUrl) {
+    // Try to trigger via marketing portal API
+    console.log('');
+    console.log(chalk.bold.cyan(`  Triggering ${taskKey} via marketing portal...`));
+    try {
+      const resp = await fetch(`${portalUrl}/api/manus/trigger`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: taskFilename }),
+      });
+      const result = await resp.json() as { success?: boolean; fallback?: boolean; task_id?: string; task_url?: string; error?: string; task_content?: string };
+      if (result.success && result.task_id) {
+        console.log(chalk.bold.green(`\n  ✓ Task triggered — task_id: ${result.task_id}`));
+        if (result.task_url) console.log(chalk.gray(`    Track at: ${result.task_url}`));
+        console.log('');
+        logAction('run_manus_task', [taskKey], 0, false, `Manus task triggered via portal: ${taskKey} id=${result.task_id}`);
+        return;
+      } else if (result.fallback) {
+        console.log(chalk.yellow(`  No Manus API key set in portal — showing task for manual copy/paste.\n`));
+      } else {
+        console.log(chalk.yellow(`  Portal trigger failed (${result.error || 'unknown'}) — showing task for manual copy/paste.\n`));
+      }
+    } catch (e) {
+      console.log(chalk.yellow(`  Could not reach portal at ${portalUrl} — showing task for manual copy/paste.\n`));
+    }
+  }
+
+  // Fallback: display content for manual Manus copy/paste
   console.log('');
   console.log(chalk.bold.cyan(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`));
   console.log(chalk.bold.white(`  MANUS TASK — ${taskKey.toUpperCase()}`));

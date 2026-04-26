@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/dropout-alerts.schema.json",
+  "version": "1.0.0",
+  "title": "Retention Early Warning — Dropout Alerts",
+  "description": "Output of retention-early-warning task. Written to intelligence-db/retention/dropout-alerts.json.",
+  "type": "object",
+  "required": ["last_updated", "run_date", "new_members_30d", "retention_rate_30d", "critical_members", "at_risk_members", "high_risk_members"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "run_date": { "type": "string", "format": "date" },
+    "new_members_30d": { "type": "integer", "minimum": 0 },
+    "retention_rate_30d": { "type": "number", "minimum": 0, "maximum": 100 },
+    "vs_last_month": { "type": "string", "enum": ["improving", "stable", "declining", "unknown"] },
+    "critical_members": {
+      "type": "array",
+      "description": "Members 14+ days inactive — call today",
+      "items": {
+        "type": "object",
+        "required": ["name", "days_inactive", "join_date"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "member_id": { "type": "string" },
+          "days_inactive": { "type": "integer", "minimum": 14 },
+          "join_date": { "type": "string", "format": "date" },
+          "archetype": { "type": "string" },
+          "last_checkin": { "type": "string", "format": "date" },
+          "recommended_opener": { "type": "string" }
+        }
+      }
+    },
+    "at_risk_members": {
+      "type": "array",
+      "description": "Members 7–13 days inactive — send SMS",
+      "items": {
+        "type": "object",
+        "required": ["name", "days_inactive"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "member_id": { "type": "string" },
+          "days_inactive": { "type": "integer", "minimum": 7 },
+          "archetype": { "type": "string" },
+          "recommended_opener": { "type": "string" }
+        }
+      }
+    },
+    "high_risk_members": {
+      "type": "array",
+      "description": "Members 4–6 days inactive who joined in last 30 days — vulnerable new members",
+      "items": {
+        "type": "object",
+        "required": ["name", "days_inactive"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "member_id": { "type": "string" },
+          "days_inactive": { "type": "integer" },
+          "days_since_joined": { "type": "integer" }
+        }
+      }
+    },
+    "coaching_alerts": {
+      "type": "array",
+      "description": "Members whose pattern matches a known dropout risk profile",
+      "items": {
+        "type": "object",
+        "required": ["name", "alert_type", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "alert_type": { "type": "string" },
+          "action": { "type": "string" }
+        }
+      }
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

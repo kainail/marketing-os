@@ -12,6 +12,34 @@ before they have mentally quit — early enough to intervene.
 
 ---
 
+## ⚠ OUTPUT CONTRACT — MACHINE-READABLE JSON REQUIRED
+
+**CRITICAL: When this task is complete, your ONLY response must be a single JSON object. No PDF. No prose. No intro text. No markdown explanation. JSON only.**
+
+Schema for the `data` field: `schemas/manus-outputs/dropout-alerts.schema.json`
+
+Also write the payload to disk:
+- `intelligence-db/retention/dropout-alerts.json` — full dropout-alerts payload
+
+Return this exact structure:
+
+```json
+{
+  "task_id": "TASK_ID_FROM_TRIGGER",
+  "task_type": "retention-early-warning",
+  "status": "completed",
+  "started_at": "ISO timestamp when task started",
+  "completed_at": "ISO timestamp now",
+  "data": {},
+  "errors": []
+}
+```
+
+If a step fails: set `status` to `"partial"`, log the reason in `errors[]`, continue with remaining steps.
+If task cannot run: set `status` to `"failed"` with all errors logged.
+
+---
+
 ## STEP 0 — ACCOUNT VERIFICATION (REQUIRED — DO NOT SKIP)
 
 Open GHL.

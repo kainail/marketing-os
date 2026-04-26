@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/_meta.schema.json",
+  "version": "1.0.0",
+  "title": "Manus Output Meta Wrapper",
+  "description": "Required top-level wrapper for every Manus task JSON response. Manus must return ONLY this object — no prose, no markdown.",
+  "type": "object",
+  "required": ["task_id", "task_type", "status", "started_at", "completed_at", "data", "errors"],
+  "additionalProperties": false,
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "description": "The task_id returned by the /api/manus/trigger call that launched this task"
+    },
+    "task_type": {
+      "type": "string",
+      "enum": [
+        "competitor-research",
+        "trend-monitoring",
+        "paid-ads-analyzer",
+        "google-ads-analyzer",
+        "budget-pacing-tracker",
+        "lead-journey-tracker",
+        "clarity-analyzer",
+        "nurture-performance-analyzer",
+        "retention-early-warning",
+        "review-monitoring",
+        "crm-hygiene",
+        "referral-tracker",
+        "gbp-optimization",
+        "monthly-report",
+        "content-posting"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "partial", "failed"],
+      "description": "completed = all steps done; partial = some steps skipped or failed; failed = task could not run at all"
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "data": {
+      "type": "object",
+      "description": "Task-specific payload. Must conform to the relevant task schema (e.g. competitor-ads.schema.json)."
+    },
+    "errors": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Empty array on full success. Log step failures here — do not stop on partial failures."
+    }
+  },
+  "examples": [
+    {
+      "task_id": "manus-abc123",
+      "task_type": "competitor-research",
+      "status": "completed",
+      "started_at": "2026-04-28T08:00:00Z",
+      "completed_at": "2026-04-28T08:25:00Z",
+      "data": {},
+      "errors": []
+    }
+  ]
+}

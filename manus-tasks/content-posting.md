@@ -7,6 +7,39 @@
 
 ---
 
+## ⚠ OUTPUT CONTRACT — MACHINE-READABLE JSON REQUIRED
+
+**CRITICAL: When this task is complete, your ONLY response must be a single JSON object. No PDF. No prose. No intro text. No markdown explanation. JSON only.**
+
+Also write the posting log to disk:
+- `distribution/queue/posted/posting-log-YYYY-MM-DD.md` — full posting log (as specified in STEP 5)
+
+Return this exact structure:
+
+```json
+{
+  "task_id": "TASK_ID_FROM_TRIGGER",
+  "task_type": "content-posting",
+  "status": "completed",
+  "started_at": "ISO timestamp when task started",
+  "completed_at": "ISO timestamp now",
+  "data": {
+    "accounts_verified": true,
+    "total_scheduled": 0,
+    "total_posted": 0,
+    "total_skipped": 0,
+    "pieces_posted": [],
+    "pieces_skipped": []
+  },
+  "errors": []
+}
+```
+
+If account verification fails: set `status` to `"failed"` and log the specific block reason in `errors[]`.
+If any piece is skipped: add it to `pieces_skipped` with the reason.
+
+---
+
 ## STEP 0 — ACCOUNT VERIFICATION (REQUIRED — DO NOT SKIP)
 
 Before posting anything, verify which accounts you have access to.

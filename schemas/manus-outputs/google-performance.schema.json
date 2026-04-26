@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/google-performance.schema.json",
+  "version": "1.0.0",
+  "title": "Google Ads Performance",
+  "description": "Output of google-ads-analyzer task. Written to intelligence-db/paid/google-performance.json.",
+  "type": "object",
+  "required": ["last_updated", "period", "campaigns", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "period": {
+      "type": "object",
+      "required": ["start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "campaigns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["campaign_name", "status", "spend", "clicks", "conversions", "cpa", "signal"],
+        "additionalProperties": false,
+        "properties": {
+          "campaign_name": { "type": "string" },
+          "campaign_id": { "type": "string" },
+          "status": { "type": "string", "enum": ["active", "paused", "completed"] },
+          "spend": { "type": "number", "minimum": 0 },
+          "impressions": { "type": "integer", "minimum": 0 },
+          "clicks": { "type": "integer", "minimum": 0 },
+          "ctr": { "type": "number" },
+          "avg_cpc": { "type": "number" },
+          "conversions": { "type": "integer", "minimum": 0 },
+          "cpa": { "type": "number" },
+          "quality_score_avg": { "type": "number" },
+          "signal": { "type": "string", "enum": ["kill", "scale", "double-down", "watch", "ok"] },
+          "top_keyword": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "top_keywords": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["keyword", "clicks", "conversions", "avg_cpc"],
+        "additionalProperties": false,
+        "properties": {
+          "keyword": { "type": "string" },
+          "match_type": { "type": "string" },
+          "clicks": { "type": "integer" },
+          "impressions": { "type": "integer" },
+          "conversions": { "type": "integer" },
+          "avg_cpc": { "type": "number" },
+          "quality_score": { "type": "integer", "minimum": 1, "maximum": 10 }
+        }
+      }
+    },
+    "search_terms_new": {
+      "type": "array",
+      "description": "New high-potential search terms to add as exact-match keywords",
+      "items": { "type": "string" }
+    },
+    "negative_keywords_to_add": {
+      "type": "array",
+      "description": "Wasteful search terms to add as negatives",
+      "items": { "type": "string" }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["total_spend", "total_clicks", "total_conversions", "blended_cpa"],
+      "additionalProperties": false,
+      "properties": {
+        "total_spend": { "type": "number" },
+        "total_clicks": { "type": "integer" },
+        "total_conversions": { "type": "integer" },
+        "blended_cpa": { "type": "number" },
+        "kill_signals": { "type": "integer" },
+        "scale_signals": { "type": "integer" }
+      }
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

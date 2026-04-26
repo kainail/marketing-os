@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/hook-saturation.schema.json",
+  "version": "1.0.0",
+  "title": "Hook Saturation Intelligence",
+  "description": "Output of competitor-research task. Written to intelligence-db/market/hook-saturation.json.",
+  "type": "object",
+  "required": ["last_updated", "saturated", "avoid_themes", "opportunity_gaps"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "saturated": {
+      "type": "array",
+      "description": "Hook angles seen across 3+ competitor ads — market-worn",
+      "items": {
+        "type": "object",
+        "required": ["angle", "example_hook", "saturation_score"],
+        "additionalProperties": false,
+        "properties": {
+          "angle": { "type": "string" },
+          "example_hook": { "type": "string" },
+          "saturation_score": { "type": "integer", "minimum": 1, "maximum": 10, "description": "1=rare, 10=every competitor is running it" },
+          "competitors_using": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "avoid_themes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Copy themes AHRI should avoid — audience has seen these too many times"
+    },
+    "opportunity_gaps": {
+      "type": "array",
+      "description": "Hook angles nobody in the market is running — whitespace",
+      "items": {
+        "type": "object",
+        "required": ["angle", "rationale"],
+        "additionalProperties": false,
+        "properties": {
+          "angle": { "type": "string" },
+          "rationale": { "type": "string" },
+          "suggested_hook": { "type": "string" }
+        }
+      }
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}

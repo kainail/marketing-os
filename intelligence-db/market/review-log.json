@@ -1,0 +1,32 @@
+{
+  "last_updated": "2026-04-26T16:25:00Z",
+  "period": {
+    "start": "2026-04-19",
+    "end": "2026-04-26"
+  },
+  "platforms": [
+    {
+      "platform": "google",
+      "new_review_count": 3,
+      "avg_rating": 4.7,
+      "five_star": 2,
+      "four_star": 1,
+      "three_star": 0,
+      "two_star": 0,
+      "one_star": 0,
+      "unresponded_negative": 0
+    }
+  ],
+  "new_reviews": [],
+  "praise_themes": [
+    "clean equipment"
+  ],
+  "complaint_themes": [],
+  "summary": {
+    "total_new_reviews": 3,
+    "reputation_trend": "improving",
+    "unresponded_negatives": 0,
+    "review_velocity": "stable"
+  },
+  "recommendation_for_ahri": "Reputation strong."
+}

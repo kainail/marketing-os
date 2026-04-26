@@ -23,6 +23,11 @@ const THRESHOLDS = path.join(ROOT, 'knowledge-base', 'paid-media', 'thresholds.m
 const ASSET_LOG = path.join(ROOT, 'performance', 'asset-log.csv');
 const SESSION_LOG = path.join(LOGS, 'session-log.csv');
 const RULES_FILE = path.join(__dirname, 'config', 'agentic-rules.json');
+const MANUS_API_BASE = process.env.MANUS_API_BASE || 'https://api.manus.ai/v2';
+const MANUS_API_KEY = process.env.MANUS_API_KEY || '';
+const DATA_DIR = path.join(__dirname, 'data');
+const TASK_RUNS_FILE = path.join(DATA_DIR, 'task-runs.json');
+const SCHEMAS_DIR = path.join(ROOT, 'schemas', 'manus-outputs');
 
 // --- Helpers ---
 
@@ -71,6 +76,115 @@ function logToSession(intent, notes) {
     const row = `"${new Date().toISOString()}","${intent}","portal","0","false","${notes.replace(/"/g, "'")}"\n`;
     fs.appendFileSync(SESSION_LOG, row);
   } catch {}
+}
+
+// --- Manus task helpers ---
+
+const TASK_TYPE_MAP = {
+  'competitor-research.md': 'competitor-research',
+  'trend-monitoring.md': 'trend-monitoring',
+  'paid-ads-analyzer.md': 'paid-ads-analyzer',
+  'google-ads-analyzer.md': 'google-ads-analyzer',
+  'budget-pacing-tracker.md': 'budget-pacing-tracker',
+  'lead-journey-tracker.md': 'lead-journey-tracker',
+  'clarity-analyzer.md': 'clarity-analyzer',
+  'nurture-performance-analyzer.md': 'nurture-performance-analyzer',
+  'retention-early-warning.md': 'retention-early-warning',
+  'review-monitoring.md': 'review-monitoring',
+  'crm-hygiene.md': 'crm-hygiene',
+  'referral-tracker.md': 'referral-tracker',
+  'gbp-optimization.md': 'gbp-optimization',
+  'monthly-report.md': 'monthly-report',
+  'content-posting.md': 'content-posting',
+};
+
+const TASK_OUTPUT_PATHS = {
+  'competitor-research': [
+    { key: 'competitor_ads', path: path.join(INTEL, 'market', 'competitor-ads.json') },
+    { key: 'competitor_offers', path: path.join(INTEL, 'market', 'competitor-offers.json') },
+    { key: 'hook_saturation', path: path.join(INTEL, 'market', 'hook-saturation.json') },
+  ],
+  'trend-monitoring': [{ key: null, path: path.join(ROOT, 'intelligence-db', 'patterns', 'trend-hypotheses.json') }],
+  'paid-ads-analyzer': [{ key: null, path: path.join(INTEL, 'paid', 'meta-performance.json') }],
+  'google-ads-analyzer': [{ key: null, path: path.join(INTEL, 'paid', 'google-performance.json') }],
+  'budget-pacing-tracker': [{ key: null, path: path.join(INTEL, 'paid', 'pacing-log.json') }],
+  'lead-journey-tracker': [{ key: null, path: path.join(INTEL, 'lead-journey', 'attribution-report.json') }],
+  'clarity-analyzer': [{ key: null, path: path.join(INTEL, 'clarity', 'heatmap-insights.json') }],
+  'nurture-performance-analyzer': [{ key: null, path: path.join(INTEL, 'nurture', 'sequence-performance.json') }],
+  'retention-early-warning': [{ key: null, path: path.join(INTEL, 'retention', 'dropout-alerts.json') }],
+  'review-monitoring': [{ key: null, path: path.join(INTEL, 'market', 'review-log.json') }],
+  'crm-hygiene': [{ key: null, path: path.join(ROOT, 'logs', 'crm-hygiene-log.json') }],
+  'referral-tracker': [{ key: null, path: path.join(INTEL, 'market', 'referral-log.json') }],
+  'gbp-optimization': [{ key: null, path: path.join(ROOT, 'logs', 'gbp-audit-log.json') }],
+  'monthly-report': [], // written by Manus directly to outputs/anytime-fitness/monthly-reports/
+  'content-posting': [], // posting log written by Manus directly
+};
+
+function loadTaskRuns() {
+  try {
+    const raw = fs.readFileSync(TASK_RUNS_FILE, 'utf-8');
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function saveTaskRun(taskId, data) {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const runs = loadTaskRuns();
+    runs[taskId] = { ...data, updated_at: new Date().toISOString() };
+    const tmp = TASK_RUNS_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(runs, null, 2));
+    fs.renameSync(tmp, TASK_RUNS_FILE);
+  } catch (err) {
+    console.error('[task-runs] save failed:', err.message);
+  }
+}
+
+function updateTaskRun(taskId, updates) {
+  try {
+    const runs = loadTaskRuns();
+    if (!runs[taskId]) return;
+    runs[taskId] = { ...runs[taskId], ...updates, updated_at: new Date().toISOString() };
+    const tmp = TASK_RUNS_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(runs, null, 2));
+    fs.renameSync(tmp, TASK_RUNS_FILE);
+  } catch (err) {
+    console.error('[task-runs] update failed:', err.message);
+  }
+}
+
+function getTaskType(filename) {
+  return TASK_TYPE_MAP[filename] || filename.replace('.md', '');
+}
+
+function stripMarkdownFences(text) {
+  return text.replace(/^```(?:json)?\n?/gm, '').replace(/^```\s*$/gm, '').trim();
+}
+
+function findJsonBlock(text) {
+  const match = text.match(/\{[\s\S]*\}/);
+  return match ? match[0] : null;
+}
+
+function verifyWebhookSignature(req, secret) {
+  const sig = req.headers['x-manus-signature'] || req.headers['x-webhook-signature'] || '';
+  if (!sig) return false;
+  const body = JSON.stringify(req.body);
+  const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(body).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
+
+function atomicWriteJSON(filePath, data) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.renameSync(tmp, filePath);
 }
 
 // Placeholder performance data — used when intelligence-db/paid/ files are empty
@@ -673,14 +787,185 @@ app.get('/api/competitor-intel', (req, res) => {
   res.json({ competitor_ads: competitorAds, review_log: reviewLog, competitor_offers: offers });
 });
 
+// POST /api/manus/trigger — launch a Manus task via API
+app.post('/api/manus/trigger', async (req, res) => {
+  const { filename, task_id_override } = req.body;
+  if (!filename || !filename.endsWith('.md')) {
+    return res.status(400).json({ success: false, error: 'filename (.md) required' });
+  }
+  const taskContent = safeRead(path.join(MANUS, filename));
+  if (!taskContent) {
+    return res.status(404).json({ success: false, error: 'task file not found' });
+  }
+  const task_type = getTaskType(filename);
+
+  if (!MANUS_API_KEY) {
+    // No API key — return fallback with task content for copy/paste
+    const fallbackId = task_id_override || `local-${Date.now()}`;
+    saveTaskRun(fallbackId, { task_type, task_filename: filename, started_at: new Date().toISOString(), status: 'fallback' });
+    return res.json({
+      success: false,
+      fallback: true,
+      task_id: fallbackId,
+      task_type,
+      task_content: taskContent,
+      error: 'MANUS_API_KEY not set — copy task content to Manus manually'
+    });
+  }
+
+  try {
+    const webhookUrl = process.env.PORTAL_WEBHOOK_URL
+      ? `${process.env.PORTAL_WEBHOOK_URL}/api/manus/callback`
+      : null;
+
+    const body = {
+      task_type,
+      task_content: taskContent,
+      metadata: { source: 'ahri-marketing-portal', filename },
+      ...(webhookUrl ? { webhook_url: webhookUrl } : {}),
+    };
+
+    const response = await fetch(`${MANUS_API_BASE}/task.create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-manus-api-key': MANUS_API_KEY,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Manus API ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const task_id = data.task_id || data.id || `manus-${Date.now()}`;
+
+    saveTaskRun(task_id, {
+      task_type,
+      task_filename: filename,
+      started_at: new Date().toISOString(),
+      status: 'running',
+      task_url: data.task_url || null,
+    });
+
+    logToSession('manus_trigger', `Triggered: ${filename} → task_id: ${task_id}`);
+    res.json({ success: true, task_id, task_type, task_url: data.task_url || null });
+  } catch (err) {
+    console.error('[manus/trigger]', err.message);
+    res.json({
+      success: false,
+      fallback: true,
+      task_type,
+      task_content: taskContent,
+      error: err.message
+    });
+  }
+});
+
+// GET /api/manus/status/:task_id — poll task status from Manus
+app.get('/api/manus/status/:task_id', async (req, res) => {
+  const { task_id } = req.params;
+  const runs = loadTaskRuns();
+  const local = runs[task_id] || null;
+
+  if (!MANUS_API_KEY) {
+    return res.json({ task_id, status: local ? local.status : 'unknown', local });
+  }
+
+  try {
+    const response = await fetch(`${MANUS_API_BASE}/task.detail?task_id=${encodeURIComponent(task_id)}`, {
+      headers: { 'x-manus-api-key': MANUS_API_KEY },
+    });
+    if (!response.ok) throw new Error(`Manus API ${response.status}`);
+    const data = await response.json();
+    const status = data.status || 'unknown';
+    updateTaskRun(task_id, { status, manus_status: data });
+    res.json({ task_id, status, manus_status: data, local });
+  } catch (err) {
+    res.json({ task_id, status: local ? local.status : 'unknown', error: err.message, local });
+  }
+});
+
+// POST /api/manus/callback — receive completed task output from Manus webhook
+app.post('/api/manus/callback', (req, res) => {
+  // Verify signature if secret is configured — don't error if absent (optional)
+  const secret = process.env.MANUS_WEBHOOK_SECRET;
+  if (secret && !verifyWebhookSignature(req, secret)) {
+    console.warn('[manus/callback] signature mismatch — rejecting');
+    return res.status(401).json({ ok: false, error: 'invalid signature' });
+  }
+
+  // Always respond 200 immediately — never cause Manus to retry on parse errors
+  res.json({ ok: true, received: true });
+
+  // Async processing after response sent
+  setImmediate(() => {
+    try {
+      const raw = req.body;
+      let parsed = null;
+
+      // Defensive JSON parsing — try direct, then strip fences, then find block
+      if (typeof raw === 'object' && raw !== null && raw.task_type) {
+        parsed = raw;
+      } else {
+        const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
+        try { parsed = JSON.parse(stripMarkdownFences(text)); } catch {
+          const block = findJsonBlock(text);
+          if (block) { try { parsed = JSON.parse(block); } catch {} }
+        }
+      }
+
+      if (!parsed || !parsed.task_type || !parsed.task_id) {
+        console.error('[manus/callback] could not parse valid payload — skipping write', JSON.stringify(raw).slice(0, 200));
+        return;
+      }
+
+      const { task_id, task_type, status, data } = parsed;
+      console.log(`[manus/callback] received task_id=${task_id} task_type=${task_type} status=${status}`);
+
+      // Update task-runs tracking
+      updateTaskRun(task_id, {
+        status: status || 'completed',
+        completed_at: parsed.completed_at || new Date().toISOString(),
+        errors: parsed.errors || [],
+      });
+
+      // Write intelligence data to disk
+      const outputs = TASK_OUTPUT_PATHS[task_type] || [];
+      for (const output of outputs) {
+        try {
+          const payload = output.key ? (data || {})[output.key] : data;
+          if (payload && typeof payload === 'object') {
+            atomicWriteJSON(output.path, payload);
+            console.log(`[manus/callback] wrote ${output.path}`);
+          }
+        } catch (writeErr) {
+          console.error(`[manus/callback] write failed for ${output.path}:`, writeErr.message);
+        }
+      }
+
+      logToSession('manus_callback', `Callback: ${task_type} task_id=${task_id} status=${status}`);
+    } catch (err) {
+      console.error('[manus/callback] processing error:', err.message);
+    }
+  });
+});
+
+// GET /api/manus/recent-runs — last 20 task runs with status
+app.get('/api/manus/recent-runs', (req, res) => {
+  const runs = loadTaskRuns();
+  const sorted = Object.entries(runs)
+    .map(([task_id, run]) => ({ task_id, ...run }))
+    .sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''))
+    .slice(0, 20);
+  res.json({ runs: sorted, total: Object.keys(runs).length });
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-app.post('/api/manus/callback', (req, res) => {
-  console.log('[Manus Callback received]', JSON.stringify(req.body, null, 2));
-  res.json({ ok: true, received: true });
 });
 
 app.listen(PORT, () => {

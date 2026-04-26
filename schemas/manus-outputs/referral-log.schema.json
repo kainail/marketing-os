@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketing-os.internal/schemas/manus-outputs/referral-log.schema.json",
+  "version": "1.0.0",
+  "title": "Referral Tracker Log",
+  "description": "Output of referral-tracker task. Written to intelligence-db/market/referral-log.json.",
+  "type": "object",
+  "required": ["last_updated", "period", "total_referrals", "referral_program_health", "referrers"],
+  "additionalProperties": false,
+  "properties": {
+    "last_updated": { "type": "string", "format": "date-time" },
+    "period": {
+      "type": "object",
+      "required": ["start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "total_referrals": { "type": "integer", "minimum": 0 },
+    "referral_program_health": {
+      "type": "string",
+      "enum": ["strong", "moderate", "weak"]
+    },
+    "referrers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "referral_count_90d"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "member_id": { "type": "string" },
+          "referral_count_90d": { "type": "integer", "minimum": 0 },
+          "referral_count_all_time": { "type": "integer", "minimum": 0 },
+          "is_vip": { "type": "boolean", "description": "3+ referrals in 90 days" },
+          "last_thanked": { "type": ["string", "null"], "format": "date" },
+          "needs_recognition": { "type": "boolean" }
+        }
+      }
+    },
+    "new_referrals_this_period": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["referred_by", "referred_name", "date"],
+        "additionalProperties": false,
+        "properties": {
+          "referred_by": { "type": "string" },
+          "referred_name": { "type": "string" },
+          "date": { "type": "string", "format": "date" },
+          "status": { "type": "string", "enum": ["joined", "pending", "no-show"] }
+        }
+      }
+    },
+    "vip_referrers_needing_recognition": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Names of VIP referrers who have not been thanked this month"
+    },
+    "recommendation_for_ahri": { "type": "string" }
+  }
+}
