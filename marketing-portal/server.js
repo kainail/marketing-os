@@ -17,7 +17,11 @@ const POSTED    = path.join(ROOT, 'distribution', 'queue', 'posted');
 const READY     = path.join(ROOT, 'distribution', 'queue', 'ready-to-post');
 const LOGS      = path.join(ROOT, 'logs');
 const OUTPUTS   = path.join(ROOT, 'outputs');
-const MANUS     = path.join(ROOT, 'manus-tasks');
+const MANUS     = (() => {
+  const rel = path.join(ROOT, 'manus-tasks');
+  if (fs.existsSync(rel)) return rel;
+  return process.env.MANUS_TASKS_DIR || rel;
+})();
 const BRIEFS    = path.join(OUTPUTS, 'anytime-fitness', 'morning-briefs');
 const THRESHOLDS = path.join(ROOT, 'knowledge-base', 'paid-media', 'thresholds.md');
 const ASSET_LOG = path.join(ROOT, 'performance', 'asset-log.csv');
@@ -79,6 +83,24 @@ function logToSession(intent, notes) {
 }
 
 // --- Manus task helpers ---
+
+const KNOWN_TASK_FILES = [
+  'competitor-research.md',
+  'trend-monitoring.md',
+  'paid-ads-analyzer.md',
+  'google-ads-analyzer.md',
+  'budget-pacing-tracker.md',
+  'lead-journey-tracker.md',
+  'clarity-analyzer.md',
+  'nurture-performance-analyzer.md',
+  'retention-early-warning.md',
+  'review-monitoring.md',
+  'crm-hygiene.md',
+  'referral-tracker.md',
+  'gbp-optimization.md',
+  'monthly-report.md',
+  'content-posting.md',
+];
 
 const TASK_TYPE_MAP = {
   'competitor-research.md': 'competitor-research',
@@ -600,7 +622,8 @@ app.get('/api/morning-brief', (req, res) => {
 });
 
 app.get('/api/manus-tasks', (req, res) => {
-  const files = safeReadDir(MANUS).filter(f => f.endsWith('.md'));
+  const discovered = safeReadDir(MANUS).filter(f => f.endsWith('.md'));
+  const files = discovered.length > 0 ? discovered : KNOWN_TASK_FILES;
   const sessionLog = parseCsvRows(safeRead(SESSION_LOG));
 
   const tasks = files.map(filename => {
