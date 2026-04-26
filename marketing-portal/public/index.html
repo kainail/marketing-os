@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AHRI Marketing Command Center</title>
+<link rel="stylesheet" href="/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Pacing Bar -->
+<div id="pacing-bar" onclick="navigate('performance')">
+  <div class="bar-fill"></div>
+  <div class="bar-tooltip" id="pacing-tooltip">Loading pacing data...</div>
+</div>
+
+<!-- Header -->
+<header id="header">
+  <div class="header-logo">
+    <div class="dot"></div>
+    <div>
+      <div>AHRI</div>
+      <div class="sub">MARKETING OS</div>
+    </div>
+  </div>
+  <div class="header-center">
+    <select class="location-select" id="location-select">
+      <option>All Locations</option>
+    </select>
+  </div>
+  <div class="header-right">
+    <a id="ops-link" class="nav-toggle" href="#" target="_blank">OPS</a>
+    <span class="nav-toggle active">MARKETING <span class="dot-badge"></span></span>
+    <a id="neural-link" class="nav-toggle" href="#" target="_blank">NEURAL</a>
+    <button id="bell-btn" onclick="toggleNotifications()">🔔<span class="bell-badge" id="bell-badge">0</span></button>
+    <button id="ahri-toggle" onclick="toggleAhriPanel()">AHRI ›</button>
+  </div>
+</header>
+
+<!-- Sidebar -->
+<nav id="sidebar">
+  <div class="nav-section-label">Dashboard</div>
+  <div class="nav-item active" onclick="navigate('overview')" data-section="overview">
+    <span class="nav-icon">⊙</span> Overview
+  </div>
+  <div class="nav-item" onclick="navigate('queue')" data-section="queue">
+    <span class="nav-icon">✓</span> Approval Queue
+    <span class="nav-badge" id="queue-badge">0</span>
+  </div>
+  <div class="nav-item" onclick="navigate('calendar')" data-section="calendar">
+    <span class="nav-icon">📅</span> Content Calendar
+  </div>
+  <div class="nav-section-label">Intelligence</div>
+  <div class="nav-item" onclick="navigate('performance')" data-section="performance">
+    <span class="nav-icon">📊</span> Performance
+  </div>
+  <div class="nav-item" onclick="navigate('decision')" data-section="decision">
+    <span class="nav-icon">⚡</span> Decision Layer
+  </div>
+  <div class="nav-item" onclick="navigate('hooks')" data-section="hooks">
+    <span class="nav-icon">🔗</span> Hook Library
+  </div>
+  <div class="nav-item" onclick="navigate('journey')" data-section="journey">
+    <span class="nav-icon">🗺</span> Lead Journey
+  </div>
+  <div class="nav-item" onclick="navigate('landing')" data-section="landing">
+    <span class="nav-icon">📍</span> Landing Page Intel
+  </div>
+  <div class="nav-item" onclick="navigate('nurture')" data-section="nurture">
+    <span class="nav-icon">💬</span> Nurture & Retention
+  </div>
+  <div class="nav-section-label">Operations</div>
+  <div class="nav-item" onclick="navigate('manus')" data-section="manus">
+    <span class="nav-icon">🤖</span> Manus Tasks
+  </div>
+  <div class="nav-item" onclick="navigate('archive')" data-section="archive">
+    <span class="nav-icon">📁</span> Campaign Archive
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main id="main">
+
+  <!-- Section: Overview -->
+  <div id="section-overview" class="section active">
+    <div id="overview-metrics" class="metrics-row"></div>
+    <div id="overview-brief" class="card mb-24"></div>
+    <div class="section-title">ACTIVE ALERTS</div>
+    <div id="overview-alerts"></div>
+    <div class="section-title" style="margin-top:24px">SUGGESTED ACTIONS</div>
+    <div id="overview-suggestions" class="flex gap-8"></div>
+  </div>
+
+  <!-- Section: Queue -->
+  <div id="section-queue" class="section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="section-title" style="margin-bottom:0">APPROVAL QUEUE</div>
+      <div class="flex gap-8">
+        <button class="btn" onclick="selectAllAssets()">☑ Select All</button>
+        <button class="btn green" onclick="approveSelected()">✓ Approve Selected</button>
+        <button class="btn red" onclick="rejectSelected()">✗ Reject Selected</button>
+      </div>
+    </div>
+    <div class="filter-bar">
+      <button class="filter-chip active" onclick="filterQueue('all',this)">All</button>
+      <button class="filter-chip" onclick="filterQueue('content',this)">Content</button>
+      <button class="filter-chip" onclick="filterQueue('hook',this)">Hooks</button>
+      <button class="filter-chip" onclick="filterQueue('ad',this)">Ad Copy $</button>
+      <button class="filter-chip" onclick="filterQueue('email',this)">Email</button>
+      <button class="filter-chip" onclick="filterQueue('nurture',this)">Nurture</button>
+    </div>
+    <div id="queue-list"></div>
+  </div>
+
+  <!-- Section: Calendar -->
+  <div id="section-calendar" class="section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div class="section-title" style="margin-bottom:0">CONTENT CALENDAR</div>
+      <div class="flex gap-8">
+        <button class="filter-chip active">Week</button>
+        <button class="filter-chip">Month</button>
+      </div>
+    </div>
+    <div id="calendar-grid"></div>
+  </div>
+
+  <!-- Section: Performance -->
+  <div id="section-performance" class="section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="section-title" style="margin-bottom:0">PERFORMANCE ANALYTICS</div>
+      <div class="filter-bar" style="margin-bottom:0">
+        <button class="filter-chip active" onclick="setPerfRange('7d',this)">7D</button>
+        <button class="filter-chip" onclick="setPerfRange('30d',this)">30D</button>
+        <button class="filter-chip" onclick="setPerfRange('90d',this)">90D</button>
+        <button class="filter-chip" onclick="setPerfRange('mtd',this)">MTD</button>
+      </div>
+    </div>
+    <div id="perf-placeholder-notice"></div>
+    <div class="metrics-row" id="perf-metrics"></div>
+    <div class="card mb-16">
+      <div class="section-title">FULL FUNNEL</div>
+      <div id="funnel-chart"></div>
+      <div id="funnel-insight" style="margin-top:12px;padding:10px;background:rgba(249,115,22,0.08);border-radius:8px;font-size:12px;color:var(--gold)"></div>
+    </div>
+    <div class="section-grid-2 mb-16">
+      <div class="card">
+        <div class="section-title">CPL TREND</div>
+        <canvas id="cpl-chart" height="160"></canvas>
+      </div>
+      <div class="card">
+        <div class="section-title">SPEND vs LEADS</div>
+        <canvas id="spend-chart" height="160"></canvas>
+      </div>
+    </div>
+    <div class="card mb-16">
+      <div class="section-title">PER CHANNEL</div>
+      <div id="channel-table"></div>
+    </div>
+    <div class="card">
+      <div class="section-title">BUDGET EFFICIENCY</div>
+      <div id="efficiency-note"></div>
+    </div>
+  </div>
+
+  <!-- Section: Decision Layer -->
+  <div id="section-decision" class="section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <div class="section-title" style="margin-bottom:0">DECISION LAYER</div>
+      <div class="agentic-toggle">
+        <button class="agentic-mode-btn active" onclick="setAgenticMode('supervised',this)">SUPERVISED</button>
+        <button class="agentic-mode-btn" onclick="setAgenticMode('autonomous',this)">AUTONOMOUS</button>
+      </div>
+    </div>
+    <div class="section-title">ACTIVE SIGNALS</div>
+    <div id="signals-list"></div>
+    <div class="section-title" style="margin-top:24px">A/B TEST DASHBOARD</div>
+    <div id="ab-tests-list"></div>
+    <div class="section-title" style="margin-top:24px">AGENTIC ACTIVITY LOG</div>
+    <div id="agentic-log" class="card"><div class="text-muted">No autonomous actions taken yet. System is in supervised mode.</div></div>
+  </div>
+
+  <!-- Section: Hook Library -->
+  <div id="section-hooks" class="section">
+    <div class="section-title">HOOK & CREATIVE LIBRARY</div>
+    <div class="filter-bar">
+      <input type="text" id="hook-search" placeholder="Search hooks..." style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:6px 12px;color:#fff;font-size:13px;flex:1;max-width:300px">
+      <button class="filter-chip active" onclick="filterHooks('all',this)">All</button>
+      <button class="filter-chip" onclick="filterHooks('winner',this)">Winners</button>
+      <button class="filter-chip" onclick="filterHooks('testing',this)">Testing</button>
+      <button class="filter-chip" onclick="filterHooks('pending',this)">Pending</button>
+    </div>
+    <div id="hooks-summary" style="margin-bottom:16px" class="text-muted"></div>
+    <div id="hooks-list"></div>
+  </div>
+
+  <!-- Section: Lead Journey -->
+  <div id="section-journey" class="section">
+    <div class="section-title">LEAD JOURNEY & ATTRIBUTION</div>
+    <div id="journey-attribution" class="card mb-16"></div>
+    <div class="section-grid-2 mb-16">
+      <div class="card">
+        <div class="section-title">SOURCE ATTRIBUTION</div>
+        <canvas id="attribution-pie" height="200"></canvas>
+      </div>
+      <div class="card">
+        <div class="section-title">MULTI-TOUCH STATS</div>
+        <div id="multitouch-stats"></div>
+      </div>
+    </div>
+    <div class="card mb-16">
+      <div class="section-title">TRACKING GAP</div>
+      <div id="tracking-gap"></div>
+    </div>
+    <div class="card">
+      <div class="section-title">TRACKING REDIRECT STATUS</div>
+      <div id="tracking-status"></div>
+    </div>
+  </div>
+
+  <!-- Section: Landing Page Intel -->
+  <div id="section-landing" class="section">
+    <div class="section-title">LANDING PAGE INTELLIGENCE</div>
+    <div id="clarity-status-notice" style="margin-bottom:16px"></div>
+    <div class="section-grid-2 mb-16">
+      <div class="card">
+        <div class="section-title">SCROLL DEPTH</div>
+        <div id="scroll-depth"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">CLICK METRICS</div>
+        <div id="click-metrics" class="metrics-row" style="margin-bottom:0;grid-template-columns:1fr 1fr"></div>
+      </div>
+    </div>
+    <div class="section-grid-2 mb-16">
+      <div class="card">
+        <div class="section-title">FORM ANALYTICS</div>
+        <div id="form-analytics"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">SESSION INSIGHTS</div>
+        <div id="session-insights"></div>
+      </div>
+    </div>
+    <div class="card" id="ahri-landing-rec" style="border-color:var(--violet)">
+      <div class="section-title">AHRI RECOMMENDATION</div>
+      <div id="landing-rec-text"></div>
+    </div>
+  </div>
+
+  <!-- Section: Nurture & Retention -->
+  <div id="section-nurture" class="section">
+    <div id="critical-members-section"></div>
+    <div id="at-risk-section"></div>
+    <div class="section-title" style="margin-top:20px">NURTURE SEQUENCE HEALTH</div>
+    <div id="nurture-sequence"></div>
+    <div class="card mt-16" style="margin-top:16px">
+      <div class="section-title">RETENTION RATE</div>
+      <div id="retention-stats"></div>
+    </div>
+  </div>
+
+  <!-- Section: Manus Tasks -->
+  <div id="section-manus" class="section">
+    <div class="section-title">MANUS INTELLIGENCE TASKS</div>
+    <p class="text-muted mb-24">Click any task to view instructions ready to paste into Manus.</p>
+    <div class="nav-section-label">WEEKLY TASKS</div>
+    <div id="manus-weekly"></div>
+    <div class="nav-section-label" style="margin-top:20px">MONTHLY TASKS</div>
+    <div id="manus-monthly"></div>
+    <div class="nav-section-label" style="margin-top:20px">ON-DEMAND TASKS</div>
+    <div id="manus-ondemand"></div>
+  </div>
+
+  <!-- Section: Campaign Archive -->
+  <div id="section-archive" class="section">
+    <div class="section-title">CAMPAIGN ARCHIVE</div>
+    <div id="archive-list"></div>
+  </div>
+
+</main>
+
+<!-- AHRI Panel -->
+<div id="ahri-panel">
+  <div class="ahri-panel-header">
+    <div class="dot" style="flex-shrink:0"></div>
+    <div class="ahri-panel-title">AHRI</div>
+    <div class="ahri-panel-sub">Marketing Intelligence</div>
+    <button class="ahri-close" onclick="toggleAhriPanel()">×</button>
+  </div>
+  <div class="ahri-mode-tabs">
+    <div class="ahri-mode-tab active" onclick="switchAhriTab('chat',this)">💬 CHAT</div>
+    <div class="ahri-mode-tab" onclick="switchAhriTab('voice',this)">🎤 VOICE</div>
+    <div class="ahri-mode-tab" onclick="switchAhriTab('actions',this)">⚡ ACTIONS</div>
+  </div>
+  <!-- Chat Tab -->
+  <div class="ahri-tab-content active" id="ahri-chat-tab">
+    <div id="ahri-messages"></div>
+    <div class="ahri-suggestions" id="ahri-suggestions"></div>
+    <div id="ahri-input-row">
+      <textarea id="ahri-input" placeholder="Ask AHRI anything..." onkeydown="handleAhriKey(event)"></textarea>
+      <button id="ahri-send" onclick="sendAhriMessage()">Send</button>
+    </div>
+  </div>
+  <!-- Voice Tab -->
+  <div class="ahri-tab-content" id="ahri-voice-tab">
+    <div id="mic-btn" onclick="toggleVoice()">🎤</div>
+    <div class="mic-label" id="mic-label">Tap to speak</div>
+    <div id="voice-transcript">Voice transcript will appear here...</div>
+  </div>
+  <!-- Actions Tab -->
+  <div class="ahri-tab-content" id="ahri-actions-tab">
+    <div class="actions-section-label">DAILY</div>
+    <div class="actions-grid">
+      <div class="action-btn" onclick="quickAction('Generate this morning\'s performance brief')">📋 Morning Brief</div>
+      <div class="action-btn" onclick="navigate('queue')">✅ Review Queue</div>
+      <div class="action-btn" onclick="quickAction('What content should I post this week based on current performance?')">📅 This Week</div>
+      <div class="action-btn" onclick="navigate('overview')">🔔 Active Alerts</div>
+    </div>
+    <div class="actions-section-label">GENERATE</div>
+    <div class="actions-grid">
+      <div class="action-btn" onclick="quickAction('Write 3 new hook variants for the active offer at awareness level 2')">🖊 New Hooks</div>
+      <div class="action-btn" onclick="quickAction('What content should I generate this week? Give me a 5-post plan with specific topics.')">📱 Content Plan</div>
+      <div class="action-btn" onclick="quickAction('Give me a performance summary and top 3 actions to take today')">📊 Perf Summary</div>
+      <div class="action-btn" onclick="quickAction('Generate a campaign brief for next month based on current results')">🎯 Campaign Brief</div>
+    </div>
+    <div class="actions-section-label" id="contextual-actions-label" style="display:none">CONTEXTUAL</div>
+    <div class="actions-grid" id="contextual-actions"></div>
+  </div>
+</div>
+
+<!-- Notification Dropdown -->
+<div id="notif-dropdown">
+  <div class="notif-header">
+    <div class="notif-title">Notifications</div>
+    <div class="notif-mark-read" onclick="markAllRead()">Mark all read</div>
+  </div>
+  <div class="notif-list" id="notif-list"></div>
+</div>
+
+<!-- Modal -->
+<div id="modal-overlay" onclick="closeModal()">
+  <div id="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Task</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+// ════════════════════════════════════════════
+// GLOBAL STATE
+// ════════════════════════════════════════════
+const state = {
+  overview: null,
+  performance: null,
+  queue: null,
+  manusTasks: null,
+  hooks: null,
+  nurture: null,
+  abTests: null,
+  alerts: [],
+  selectedAssets: new Set(),
+  queueFilter: 'all',
+  perfCharts: {},
+  attributionChart: null,
+  agenticMode: 'supervised',
+  gymName: 'GymSuite AI',
+  ahriPanelOpen: false,
+  currentSection: 'overview',
+};
+
+// ════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  const status = await api('/api/status');
+  if (status) {
+    state.gymName = status.gym_name;
+    document.title = `AHRI — ${status.gym_name}`;
+    document.getElementById('ops-link').href = status.ops_url;
+    document.getElementById('neural-link').href = status.neural_url;
+    document.querySelector('.location-select').innerHTML = `<option>${status.gym_name}</option>`;
+  }
+  await loadOverview();
+  ahriGreeting();
+  setInterval(refreshAlerts, 60000);
+  setInterval(loadOverview, 300000);
+  setupKeyboardShortcuts();
+});
+
+// ════════════════════════════════════════════
+// API
+// ════════════════════════════════════════════
+async function api(url, opts = {}) {
+  try {
+    const res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      ...opts
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+async function apiPost(url, body) {
+  return api(url, { method: 'POST', body: JSON.stringify(body) });
+}
+
+// ════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════
+function navigate(section) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const el = document.getElementById(`section-${section}`);
+  if (el) el.classList.add('active');
+  const nav = document.querySelector(`[data-section="${section}"]`);
+  if (nav) nav.classList.add('active');
+  state.currentSection = section;
+  updateContextualActions();
+
+  switch(section) {
+    case 'overview': loadOverview(); break;
+    case 'queue': loadQueue(); break;
+    case 'calendar': loadCalendar(); break;
+    case 'performance': loadPerformance(); break;
+    case 'decision': loadDecision(); break;
+    case 'hooks': loadHooks(); break;
+    case 'journey': loadJourney(); break;
+    case 'landing': loadLanding(); break;
+    case 'nurture': loadNurture(); break;
+    case 'manus': loadManusTasks(); break;
+    case 'archive': loadArchive(); break;
+  }
+}
+
+// ════════════════════════════════════════════
+// OVERVIEW
+// ════════════════════════════════════════════
+async function loadOverview() {
+  const data = await api('/api/overview');
+  if (!data) return;
+  state.overview = data;
+
+  // Update queue badge
+  const qb = document.getElementById('queue-badge');
+  if (qb) qb.textContent = data.queue.pending_count;
+  const bellBadge = document.getElementById('bell-badge');
+  if (bellBadge) {
+    bellBadge.textContent = data.alerts.length;
+    bellBadge.style.display = data.alerts.length > 0 ? 'block' : 'none';
+  }
+
+  // Pacing bar tooltip
+  const pacing = data.paid.pacing;
+  const pacingText = pacing && pacing.meta_pacing ?
+    `Meta: $${pacing.meta_spent || '—'}/$${pacing.meta_target || '750'} · Google: $${pacing.google_spent || '—'}/$${pacing.google_target || '600'} · ${pacing.status || 'Check pacing data'}` :
+    'Run budget-pacing-tracker to see pacing data';
+  document.getElementById('pacing-tooltip').textContent = pacingText;
+
+  // Metrics
+  const blendedClass = data.paid.blended_cpl <= 30 ? 'green' : data.paid.blended_cpl <= 60 ? 'yellow' : 'red';
+  document.getElementById('overview-metrics').innerHTML = `
+    <div class="card">
+      <div class="card-label">Blended CPL</div>
+      <div class="metric-value ${blendedClass}">$${data.paid.blended_cpl || '—'}</div>
+      <div class="text-muted" style="margin-top:4px">Target: $30</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Meta CPL</div>
+      <div class="metric-value ${(data.paid.meta_cpl||0) <= 30 ? 'green' : 'yellow'}">$${data.paid.meta_cpl || '—'}</div>
+      <div class="text-muted" style="margin-top:4px">${data.placeholder_data ? 'placeholder' : 'live'}</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Google CPL</div>
+      <div class="metric-value ${(data.paid.google_cpl||0) <= 30 ? 'green' : 'yellow'}">$${data.paid.google_cpl || '—'}</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Queue Pending</div>
+      <div class="metric-value ${data.queue.pending_count > 0 ? 'yellow' : 'green'}">${data.queue.pending_count}</div>
+      <div class="text-muted" style="margin-top:4px">${data.queue.budget_flagged} need budget</div>
+    </div>
+    <div class="card">
+      <div class="card-label">At-Risk Members</div>
+      <div class="metric-value ${data.retention.critical_count > 0 ? 'red' : data.retention.at_risk_count > 0 ? 'yellow' : 'green'}">${data.retention.critical_count + data.retention.at_risk_count}</div>
+      <div class="text-muted" style="margin-top:4px">${data.retention.critical_count} critical</div>
+    </div>
+  `;
+
+  // Morning brief
+  const brief = data.morning_brief;
+  const briefEl = document.getElementById('overview-brief');
+  if (brief && brief.content) {
+    briefEl.innerHTML = `
+      <div class="section-title">TODAY'S BRIEF${brief.date ? ' — ' + brief.date : ''}</div>
+      <div style="font-size:13px;line-height:1.7;color:var(--text-secondary);white-space:pre-wrap">${brief.content.slice(0, 1200)}</div>
+    `;
+  } else {
+    briefEl.innerHTML = `
+      <div class="section-title">MORNING BRIEF</div>
+      <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px">No brief generated yet. Run the morning-brief routine to populate this.</div>
+      <button class="btn" onclick="navigate('manus')">▶ Launch Manus Tasks</button>
+    `;
+  }
+
+  // Alerts
+  state.alerts = data.alerts;
+  renderAlerts(data.alerts, 'overview-alerts');
+  renderNotifications(data.alerts);
+
+  // Suggestions
+  const suggestions = [
+    data.queue.pending_count > 0 ? `Approve ${data.queue.pending_count} queued assets` : null,
+    data.retention.critical_count > 0 ? `Call ${data.retention.critical_count} critical members now` : null,
+    data.paid.kill_signals > 0 ? `Review ${data.paid.kill_signals} kill signal(s)` : null,
+    data.nurture.weak_links > 0 ? `Fix ${data.nurture.weak_links} weak nurture message(s)` : null,
+    'Generate this week\'s content calendar',
+  ].filter(Boolean).slice(0, 3);
+
+  document.getElementById('overview-suggestions').innerHTML = suggestions.map(s =>
+    `<button class="btn" onclick="quickSuggestion('${s}')">${s}</button>`
+  ).join('');
+}
+
+function renderAlerts(alerts, containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!alerts || alerts.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="padding:24px"><div class="icon">✓</div><div>No active alerts</div></div>';
+    return;
+  }
+  el.innerHTML = alerts.map(a => `
+    <div class="alert-card">
+      <div class="alert-bar ${a.type}"></div>
+      <div class="alert-body">
+        <div class="alert-category">${a.category}</div>
+        <div class="alert-title">${a.title}</div>
+        <div class="alert-desc">${a.description}</div>
+      </div>
+      <button class="alert-action" onclick="handleAlertAction('${a.action_type}', '${a.id}')">${a.action_label}</button>
+    </div>
+  `).join('');
+}
+
+function handleAlertAction(type, id) {
+  const actions = {
+    'navigate_nurture': () => navigate('nurture'),
+    'navigate_decision': () => navigate('decision'),
+    'ahri_rewrite_nurture': () => { toggleAhriPanel(); setTimeout(() => { document.getElementById('ahri-input').value = 'Rewrite the weak message in the nurture sequence — what should the new message say?'; }, 300); },
+  };
+  if (actions[type]) actions[type]();
+}
+
+function quickSuggestion(text) {
+  if (text.includes('Approve')) navigate('queue');
+  else if (text.includes('critical members')) navigate('nurture');
+  else if (text.includes('kill signal')) navigate('decision');
+  else if (text.includes('nurture')) navigate('nurture');
+  else { toggleAhriPanel(); setTimeout(() => sendAhriMessage(text), 300); }
+}
+
+// ════════════════════════════════════════════
+// APPROVAL QUEUE
+// ════════════════════════════════════════════
+async function loadQueue() {
+  document.getElementById('queue-list').innerHTML = '<div class="skeleton skeleton-text" style="height:80px;margin-bottom:10px"></div>'.repeat(3);
+  const data = await api('/api/queue');
+  if (!data) return;
+  state.queue = data.assets;
+  document.getElementById('queue-badge').textContent = data.total;
+  renderQueue(state.queue);
+}
+
+function renderQueue(assets) {
+  const filtered = state.queueFilter === 'all' ? assets :
+    assets.filter(a => a.skill.toLowerCase().includes(state.queueFilter) || a.filename.toLowerCase().includes(state.queueFilter));
+
+  if (!filtered || filtered.length === 0) {
+    document.getElementById('queue-list').innerHTML = `
+      <div class="empty-state">
+        <div class="icon">✓</div>
+        <h3>Queue Clear</h3>
+        <p>AHRI has no pending assets.</p>
+        <button class="btn primary" onclick="quickAction('Generate content for this week')">▶ Generate Content Calendar</button>
+      </div>`;
+    return;
+  }
+
+  const skillBadgeClass = (skill) => {
+    if (skill.includes('hook')) return 'badge-hook';
+    if (skill.includes('ad')) return 'badge-ad';
+    if (skill.includes('content') || skill.includes('calendar')) return 'badge-content';
+    if (skill.includes('email')) return 'badge-email';
+    if (skill.includes('landing')) return 'badge-landing';
+    if (skill.includes('nurture')) return 'badge-nurture';
+    return 'badge-content';
+  };
+
+  document.getElementById('queue-list').innerHTML = filtered.map(a => `
+    <div class="asset-card" id="asset-${a.filename}">
+      <div style="display:flex;align-items:center;flex-shrink:0">
+        <input type="checkbox" style="width:16px;height:16px;cursor:pointer;margin-right:10px" onchange="toggleAssetSelect('${a.filename}',this.checked)">
+      </div>
+      <div class="asset-meta">
+        <div>
+          <span class="asset-badge ${skillBadgeClass(a.skill)}">${a.skill}</span>
+          ${a.has_budget_flag ? '<span class="badge-budget">$ BUDGET</span>' : ''}
+        </div>
+        ${a.platform ? `<div class="text-muted">${a.platform} · ${a.format || ''}</div>` : ''}
+        ${a.awareness_level ? `<div class="text-muted">L${a.awareness_level}</div>` : ''}
+        <div class="text-muted">${a.days_in_queue === 0 ? 'today' : a.days_in_queue + 'd in queue'}</div>
+      </div>
+      <div class="asset-preview">${a.preview || a.asset_id}</div>
+      <div class="asset-actions">
+        <button class="btn green" onclick="approveAsset('${a.filename}')">✓ Approve</button>
+        <button class="btn yellow" onclick="reviseAsset('${a.filename}')">↻ Revise</button>
+        <button class="btn red" onclick="rejectAsset('${a.filename}')">✗ Reject</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterQueue(filter, btn) {
+  state.queueFilter = filter;
+  document.querySelectorAll('#section-queue .filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  if (state.queue) renderQueue(state.queue);
+}
+
+async function approveAsset(filename) {
+  const res = await apiPost('/api/queue/approve', { filename });
+  if (res && res.success) {
+    const card = document.getElementById(`asset-${filename}`);
+    if (card) { card.classList.add('approved'); setTimeout(() => card.remove(), 400); }
+    toast('✓ Approved → moved to ready-to-post', 'success');
+    state.selectedAssets.delete(filename);
+    if (state.overview) state.overview.queue.pending_count = Math.max(0, state.overview.queue.pending_count - 1);
+    document.getElementById('queue-badge').textContent = Math.max(0, parseInt(document.getElementById('queue-badge').textContent) - 1);
+  } else {
+    toast('Failed to approve asset', 'error');
+  }
+}
+
+async function rejectAsset(filename) {
+  const res = await apiPost('/api/queue/reject', { filename, note: 'Rejected from portal' });
+  if (res && res.success) {
+    const card = document.getElementById(`asset-${filename}`);
+    if (card) card.remove();
+    toast('Asset moved to revision queue', 'warning');
+  }
+}
+
+function reviseAsset(filename) {
+  toggleAhriPanel();
+  switchAhriTab('chat', document.querySelector('.ahri-mode-tab'));
+  setTimeout(() => sendAhriMessage(`Suggest a revision for asset: ${filename}. What should I change?`), 300);
+}
+
+function selectAllAssets() {
+  if (!state.queue) return;
+  state.queue.forEach(a => {
+    state.selectedAssets.add(a.filename);
+    const cb = document.querySelector(`#asset-${a.filename} input[type=checkbox]`);
+    if (cb) cb.checked = true;
+  });
+}
+
+async function approveSelected() {
+  if (state.selectedAssets.size === 0) { toast('No assets selected', 'warning'); return; }
+  for (const f of [...state.selectedAssets]) await approveAsset(f);
+  state.selectedAssets.clear();
+}
+
+async function rejectSelected() {
+  if (state.selectedAssets.size === 0) { toast('No assets selected', 'warning'); return; }
+  for (const f of [...state.selectedAssets]) await rejectAsset(f);
+  state.selectedAssets.clear();
+}
+
+function toggleAssetSelect(filename, checked) {
+  if (checked) state.selectedAssets.add(filename);
+  else state.selectedAssets.delete(filename);
+}
+
+// ════════════════════════════════════════════
+// CONTENT CALENDAR
+// ════════════════════════════════════════════
+async function loadCalendar() {
+  const data = await api('/api/content-calendar');
+  if (!data) return;
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const grid = document.getElementById('calendar-grid');
+  const all = [...data.scheduled, ...data.posted];
+
+  if (all.length === 0) {
+    grid.innerHTML = `<div class="empty-state"><div class="icon">📅</div><h3>No scheduled content</h3><p>Approve assets from the queue to see them here.</p><button class="btn primary" onclick="navigate('queue')">→ Go to Queue</button></div>`;
+    return;
+  }
+
+  grid.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px">
+      ${days.map(d => `<div style="font-size:10px;font-weight:700;letter-spacing:2px;color:var(--text-muted);padding:8px 4px;text-align:center">${d}</div>`).join('')}
+      ${days.map(d => {
+        const dayPosts = all.filter(p => {
+          if (!p.posting_date) return false;
+          const pd = new Date(p.posting_date);
+          return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][pd.getDay()] === d;
+        });
+        return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;min-height:120px;padding:8px">
+          ${dayPosts.length === 0 ? `<div style="height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:11px;flex-direction:column;gap:4px"><div>+</div><div>Add</div></div>` :
+          dayPosts.map(p => `<div style="background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);border-radius:6px;padding:6px;margin-bottom:4px;cursor:pointer;font-size:11px">
+            <div style="color:var(--text-muted)">${p.platform || 'Post'}</div>
+            <div style="color:var(--text-secondary);overflow:hidden;max-height:40px">${p.caption_preview || p.filename}</div>
+            <span class="chip chip-${p.status === 'posted' ? 'green' : 'purple'}">${p.status || 'scheduled'}</span>
+          </div>`).join('')}
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+// ════════════════════════════════════════════
+// PERFORMANCE
+// ════════════════════════════════════════════
+async function loadPerformance() {
+  document.getElementById('perf-metrics').innerHTML = '<div class="skeleton skeleton-value"></div>'.repeat(5);
+  const data = await api('/api/performance');
+  if (!data) return;
+  state.performance = data;
+
+  const isPlaceholder = data._is_placeholder;
+  document.getElementById('perf-placeholder-notice').innerHTML = isPlaceholder
+    ? `<div class="placeholder-notice">⚠ ${data._placeholder_message || 'Placeholder data'} <button class="btn" style="margin-left:auto" onclick="navigate('manus')">▶ Run Analysis</button></div>`
+    : '';
+
+  const ov = data.overview;
+  const cplClass = (v) => v <= 30 ? 'green' : v <= 60 ? 'yellow' : 'red';
+  document.getElementById('perf-metrics').innerHTML = `
+    <div class="card"><div class="card-label">Blended CPL</div><div class="metric-value ${cplClass(ov.blended_cpl)}">$${ov.blended_cpl}</div><div class="text-muted">Target: $30</div></div>
+    <div class="card"><div class="card-label">CPA</div><div class="metric-value ${cplClass(ov.cpa)}">$${ov.cpa}</div><div class="text-muted">Cost per member</div></div>
+    <div class="card"><div class="card-label">ROAS</div><div class="metric-value ${ov.roas >= 15 ? 'green' : 'yellow'}">${ov.roas}x</div><div class="text-muted">vs LTV $2,000</div></div>
+    <div class="card"><div class="card-label">Payback</div><div class="metric-value ${ov.payback_months <= 3 ? 'green' : 'yellow'}">${ov.payback_months}mo</div><div class="text-muted">Break-even</div></div>
+    <div class="card"><div class="card-label">Meta CPL</div><div class="metric-value ${cplClass(ov.meta_cpl || 0)}">$${ov.meta_cpl || '—'}</div></div>
+  `;
+
+  // Funnel
+  const funnel = data.funnel || [];
+  const maxCount = Math.max(...funnel.map(f => f.count), 1);
+  const funnelColors = ['#8B5CF6','#7C3AED','#6D28D9','#5B21B6','#F97316','#EF4444','#DC2626'];
+  const weakStage = funnel.reduce((weak, f, i) => {
+    if (i === 0) return weak;
+    const conv = f.conversion_pct;
+    if (!weak || (conv && conv < (weak.conv || 100))) return { stage: f.stage, conv, idx: i };
+    return weak;
+  }, null);
+
+  document.getElementById('funnel-chart').innerHTML = funnel.map((f, i) => `
+    <div class="funnel-bar-row">
+      <div class="funnel-label">${f.stage}</div>
+      <div class="funnel-bar-track">
+        <div class="funnel-bar-fill" style="width:${Math.round(f.count/maxCount*100)}%;background:${funnelColors[i % funnelColors.length]}">${f.count.toLocaleString()}</div>
+      </div>
+      ${f.conversion_pct ? `<div class="funnel-conv">${f.conversion_pct}%</div>` : '<div class="funnel-conv"></div>'}
+    </div>
+  `).join('');
+
+  if (weakStage) {
+    document.getElementById('funnel-insight').textContent = `Biggest opportunity: ${weakStage.stage} at ${weakStage.conv}% conversion. This is where most leads are dropping.`;
+  }
+
+  // CPL chart
+  renderCplChart(data.trends.cpl_weekly);
+  renderSpendChart(data.trends.spend_weekly);
+
+  // Channel table
+  const channels = data.by_channel || [];
+  document.getElementById('channel-table').innerHTML = channels.length === 0
+    ? '<div class="text-muted">No channel data yet. Run paid-ads-analyzer and google-ads-analyzer.</div>'
+    : `<table class="data-table">
+        <thead><tr><th>Channel</th><th>Spend</th><th>Leads</th><th>CPL</th><th>Bookings</th><th>Members</th></tr></thead>
+        <tbody>${channels.map(c => `
+          <tr>
+            <td>${c.channel}</td>
+            <td>$${(c.spend||0).toLocaleString()}</td>
+            <td>${c.leads||0}</td>
+            <td class="${c.cpl <= 30 ? 'cpl-green' : c.cpl <= 60 ? 'cpl-yellow' : 'cpl-red'}">$${c.cpl||'—'}</td>
+            <td>${c.bookings||0}</td>
+            <td>${c.members||0}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+
+  // Efficiency
+  const eff = data.efficiency;
+  document.getElementById('efficiency-note').innerHTML = `
+    <div style="display:flex;gap:24px;flex-wrap:wrap">
+      <div><div class="card-label">Optimal Daily Spend</div><div class="metric-value green">$${eff.optimal_daily_spend}</div></div>
+      <div><div class="card-label">Current Daily Spend</div><div class="metric-value">${eff.current_daily_spend ? '$'+eff.current_daily_spend : '—'}</div></div>
+      <div><div class="card-label">Diminishing Returns Above</div><div class="metric-value yellow">$${eff.diminishing_returns_threshold}</div></div>
+    </div>`;
+}
+
+function renderCplChart(data) {
+  const ctx = document.getElementById('cpl-chart');
+  if (!ctx) return;
+  if (state.perfCharts.cpl) state.perfCharts.cpl.destroy();
+  const labels = data && data.length ? data.map(d => d.week) : ['W1','W2','W3','W4'];
+  const values = data && data.length ? data.map(d => d.cpl) : [38,34,31,34];
+  state.perfCharts.cpl = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'CPL',
+        data: values,
+        borderColor: '#8B5CF6',
+        backgroundColor: 'rgba(139,92,246,0.1)',
+        tension: 0.4,
+        fill: true,
+      }, {
+        label: 'Target $30',
+        data: labels.map(() => 30),
+        borderColor: 'rgba(16,185,129,0.5)',
+        borderDash: [5,5],
+        pointRadius: 0,
+      }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.4)' } }, y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.4)', callback: v => '$'+v } } } }
+  });
+}
+
+function renderSpendChart(data) {
+  const ctx = document.getElementById('spend-chart');
+  if (!ctx) return;
+  if (state.perfCharts.spend) state.perfCharts.spend.destroy();
+  const labels = data && data.length ? data.map(d => d.week) : ['W1','W2','W3','W4'];
+  const spend = data && data.length ? data.map(d => d.spend) : [280,315,315,280];
+  const leads = data && data.length ? data.map(d => d.leads) : [8,9,10,8];
+  state.perfCharts.spend = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Spend', data: spend, backgroundColor: 'rgba(124,58,237,0.5)', yAxisID: 'y' },
+        { label: 'Leads', data: leads, backgroundColor: 'rgba(16,185,129,0.5)', yAxisID: 'y1' },
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { labels: { color: 'rgba(255,255,255,0.5)', font: { size: 10 } } } }, scales: { x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.4)' } }, y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.4)', callback: v => '$'+v } }, y1: { position: 'right', grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.4)' } } } }
+  });
+}
+
+function setPerfRange(range, btn) {
+  document.querySelectorAll('#section-performance .filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  // In production: re-fetch with date range param
+}
+
+// ════════════════════════════════════════════
+// DECISION LAYER
+// ════════════════════════════════════════════
+async function loadDecision() {
+  const [perfData, testsData] = await Promise.all([api('/api/performance'), api('/api/ab-tests')]);
+  state.abTests = testsData;
+
+  // Signals from performance data
+  const perf = perfData || getLocalPlaceholderSignals();
+  const signals = buildSignals(perf);
+  renderSignals(signals);
+  renderAbTests(testsData);
+}
+
+function getLocalPlaceholderSignals() {
+  return { _is_placeholder: true, by_channel: [{ channel: 'Meta Cold', cpl: 43.75, spend: 175 }] };
+}
+
+function buildSignals(perf) {
+  const signals = [];
+  if (perf._is_placeholder) {
+    signals.push({
+      type: 'info',
+      title: 'No live signals yet',
+      description: 'Run paid-ads-analyzer (Wednesday 8am) to populate real kill/scale signals.',
+      metrics: []
+    });
+    return signals;
+  }
+  // Parse kill/scale signals from channel data
+  (perf.by_channel || []).forEach(ch => {
+    if (ch.cpl > 60 && ch.spend >= 30) {
+      signals.push({ type: 'kill', title: `KILL SIGNAL: ${ch.channel}`, subtitle: 'CPL above threshold after minimum spend', metrics: [{ label: 'CPL', value: '$'+ch.cpl }, { label: 'Spend', value: '$'+ch.spend }, { label: 'Target', value: '$30' }] });
+    } else if (ch.cpl <= 30 && ch.spend > 0) {
+      signals.push({ type: 'scale', title: `SCALE SIGNAL: ${ch.channel}`, subtitle: 'CPL at or below target', metrics: [{ label: 'CPL', value: '$'+ch.cpl }, { label: 'Current', value: '$'+ch.spend+'/day' }, { label: 'Recommended', value: '+20%' }] });
+    }
+  });
+  return signals;
+}
+
+function renderSignals(signals) {
+  const el = document.getElementById('signals-list');
+  if (!signals || signals.length === 0) {
+    el.innerHTML = '<div class="card"><div class="text-muted">No active signals. All campaigns within target range.</div></div>';
+    return;
+  }
+  el.innerHTML = signals.map(s => {
+    if (s.type === 'info') return `<div class="card mb-16"><div style="color:var(--text-muted)">${s.description}</div><button class="btn" style="margin-top:12px" onclick="navigate('manus')">▶ Launch Paid Ads Analysis</button></div>`;
+    const icon = s.type === 'kill' ? '🔴' : s.type === 'double' ? '🔵' : '🟢';
+    return `
+      <div class="signal-card ${s.type} mb-16">
+        <div class="signal-header">
+          <div class="signal-icon">${icon}</div>
+          <div><div class="signal-title">${s.title}</div><div class="signal-subtitle">${s.subtitle}</div></div>
+        </div>
+        <div class="signal-metrics">
+          ${s.metrics.map(m => `<div class="signal-metric"><div class="label">${m.label}</div><div class="value">${m.value}</div></div>`).join('')}
+        </div>
+        <div class="signal-actions">
+          <button class="btn ${s.type === 'kill' ? 'red' : 'green'}" onclick="showManusAction('${s.type}','${s.title}')">▶ ${s.type === 'kill' ? 'PAUSE VIA MANUS' : 'SCALE VIA MANUS'}</button>
+          <button class="btn" onclick="toast('Signal snoozed for 24 hours','info')">Watch 24hrs</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderAbTests(data) {
+  const el = document.getElementById('ab-tests-list');
+  const tests = data ? data.tests : [];
+  if (!tests || tests.length === 0) {
+    el.innerHTML = '<div class="card"><div class="text-muted">No A/B tests in progress. Run the paid-ads-analyzer to see active tests.</div></div>';
+    return;
+  }
+  el.innerHTML = tests.map(t => `
+    <div class="ab-test-card">
+      <div class="section-title">${t.test_name}</div>
+      <div class="ab-variants">
+        <div class="ab-variant ${t.winner === 'a' ? 'winner' : ''}">
+          <div class="ab-variant-label">VARIANT A ${t.winner === 'a' ? '🏆' : ''}</div>
+          ${Object.entries(t.variant_a || {}).map(([k,v]) => `<div class="ab-metric"><span>${k}</span><span>${v}</span></div>`).join('')}
+        </div>
+        <div class="ab-variant ${t.winner === 'b' ? 'winner' : ''}">
+          <div class="ab-variant-label">VARIANT B ${t.winner === 'b' ? '🏆' : ''}</div>
+          ${Object.entries(t.variant_b || {}).map(([k,v]) => `<div class="ab-metric"><span>${k}</span><span>${v}</span></div>`).join('')}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        ${t.action_available ? `<button class="btn green" onclick="toast('Winner declared','success')">🏆 Declare Winner</button>` : ''}
+        <button class="btn" onclick="toast('Test extended 48 hours','info')">Extend 48hrs</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function showManusAction(type, title) {
+  openModal(`${type.toUpperCase()} ACTION — MANUS INSTRUCTIONS`,
+    `<p style="margin-bottom:16px;color:var(--text-secondary)">Follow these steps in Manus to ${type} this campaign:</p>
+    <div style="background:var(--bg-void);border-radius:8px;padding:16px;font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);line-height:1.8">
+Step 1: Open Meta Ads Manager<br>
+Step 2: Navigate to Ad Sets<br>
+Step 3: Find "${title.replace('KILL SIGNAL: ','').replace('SCALE SIGNAL: ','')}"<br>
+${type === 'kill' ? 'Step 4: Toggle ad set to Paused\nStep 5: Screenshot confirmation\nStep 6: Note in session log' : 'Step 4: Click Edit on the budget\nStep 5: Increase daily budget by 20%\nStep 6: Screenshot confirmation\nStep 7: Note in session log'}
+    </div>`,
+    [{ text: '📋 Copy Instructions', action: () => { navigator.clipboard.writeText(`Steps for ${title}:\n1. Open Meta Ads Manager\n2. Navigate to Ad Sets\n3. Find "${title}"\n${type==='kill'?'4. Toggle to Paused':'4. Increase budget 20%'}`); toast('Copied to clipboard','success'); } }]
+  );
+}
+
+function setAgenticMode(mode, btn) {
+  state.agenticMode = mode;
+  document.querySelectorAll('.agentic-mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  toast(`Switched to ${mode} mode`, 'info');
+}
+
+// ════════════════════════════════════════════
+// HOOKS LIBRARY
+// ════════════════════════════════════════════
+async function loadHooks() {
+  const data = await api('/api/hooks-library');
+  if (!data) return;
+  state.hooks = data.hooks;
+  document.getElementById('hooks-summary').textContent = `${data.total} hooks — ${data.hooks.filter(h=>h.status==='winner').length} winners — ${data.has_performance_data ? 'Live performance data' : 'No performance data yet'}`;
+  renderHooks(state.hooks);
+}
+
+function renderHooks(hooks) {
+  const el = document.getElementById('hooks-list');
+  if (!hooks || hooks.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">🔗</div><h3>No hooks yet</h3><p>Hooks appear here after the first campaign runs. Generate hooks from the approval queue.</p></div>`;
+    return;
+  }
+  el.innerHTML = hooks.map(h => `
+    <div class="card mb-12">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="chip chip-purple">${h.hook_type}</span>
+        <span class="chip ${h.status==='winner'?'chip-green':h.status==='testing'?'chip-gold':'chip-purple'}">${h.status}</span>
+        ${h.cpl ? `<span class="chip ${h.cpl<=30?'chip-green':h.cpl<=60?'chip-gold':'chip-red'}">CPL $${h.cpl}</span>` : ''}
+      </div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">${h.hook_text || h.asset_id || 'Hook text not available'}</div>
+      ${h.ctr || h.thumbstop_rate ? `<div style="display:flex;gap:16px;font-size:11px;color:var(--text-muted)">
+        ${h.ctr ? `<span>CTR: ${h.ctr}%</span>` : ''}
+        ${h.thumbstop_rate ? `<span>Thumbstop: ${h.thumbstop_rate}%</span>` : ''}
+        ${h.campaign ? `<span>Campaign: ${h.campaign}</span>` : ''}
+      </div>` : ''}
+    </div>
+  `).join('');
+}
+
+function filterHooks(filter, btn) {
+  document.querySelectorAll('#section-hooks .filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  if (!state.hooks) return;
+  const filtered = filter === 'all' ? state.hooks : state.hooks.filter(h => h.status === filter);
+  renderHooks(filtered);
+}
+
+// ════════════════════════════════════════════
+// LEAD JOURNEY
+// ════════════════════════════════════════════
+async function loadJourney() {
+  const data = await api('/api/performance');
+  if (!data) return;
+
+  const isPlaceholder = data._is_placeholder;
+  const reported = data.overview.meta_cpl || 38;
+  const blended = data.overview.blended_cpl || 34;
+
+  document.getElementById('journey-attribution').innerHTML = `
+    ${isPlaceholder ? '<div class="placeholder-notice">⚠ Placeholder data — run lead-journey-tracker to populate real attribution</div>' : ''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;text-align:center">
+      <div>
+        <div class="card-label">META-REPORTED CPL</div>
+        <div class="metric-value yellow">$${reported}</div>
+        <div class="text-muted">What Meta says</div>
+      </div>
+      <div>
+        <div class="card-label">TRUE BLENDED CPL</div>
+        <div class="metric-value green">$${blended}</div>
+        <div class="text-muted">What we tracked</div>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding:10px;background:rgba(16,185,129,0.08);border-radius:8px;font-size:12px;color:var(--text-secondary)">
+      True CPL is typically lower because some members converted through paths the platform doesn't see (GBP clicks, direct, referral).
+    </div>`;
+
+  // Attribution pie
+  const attrData = isPlaceholder
+    ? { labels: ['Facebook', 'Google', 'GBP', 'Organic', 'Referral', 'Unattributed'], values: [40, 30, 10, 8, 7, 5] }
+    : { labels: ['Facebook', 'Google', 'GBP', 'Organic', 'Referral', 'Unattributed'], values: [35, 30, 12, 10, 8, 5] };
+
+  const ctx = document.getElementById('attribution-pie');
+  if (state.attributionChart) state.attributionChart.destroy();
+  state.attributionChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: attrData.labels, datasets: [{ data: attrData.values, backgroundColor: ['#7C3AED','#F97316','#10B981','#06B6D4','#EC4899','rgba(255,255,255,0.15)'], borderWidth: 0 }] },
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: 'rgba(255,255,255,0.5)', font: { size: 11 } } } } }
+  });
+
+  document.getElementById('multitouch-stats').innerHTML = `
+    <div style="padding:12px 0;border-bottom:1px solid var(--border)"><div class="card-label">Multi-touch leads</div><div style="font-size:18px;font-weight:700">${isPlaceholder ? '~35%' : 'No data'}</div><div class="text-muted">Touched 2+ channels before converting</div></div>
+    <div style="padding:12px 0;border-bottom:1px solid var(--border)"><div class="card-label">Avg touches before form submit</div><div style="font-size:18px;font-weight:700">${isPlaceholder ? '2.4' : 'No data'}</div></div>
+    <div style="padding:12px 0"><div class="card-label">Avg days first touch → submit</div><div style="font-size:18px;font-weight:700">${isPlaceholder ? '4.2 days' : 'No data'}</div></div>`;
+
+  const trackingPct = isPlaceholder ? 72 : 0;
+  document.getElementById('tracking-gap').innerHTML = `
+    <div style="margin-bottom:8px;font-size:13px">${trackingPct}% of leads have journey data</div>
+    <div style="background:var(--bg-void);border-radius:4px;height:8px;margin-bottom:8px;overflow:hidden">
+      <div style="width:${trackingPct}%;background:linear-gradient(90deg,var(--purple),var(--violet));height:100%;border-radius:4px"></div>
+    </div>
+    <div class="text-muted">${100-trackingPct}% unattributed. Fix: update all GBP location website URLs to tracking redirect.</div>`;
+
+  document.getElementById('tracking-status').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;font-size:13px">
+      ${isPlaceholder ? '<span style="color:var(--gold)">⚠</span> <span>Tracking redirect status unknown — deploy <code>tracking-redirect/</code> to Railway</span>' : '<span style="color:var(--green)">✓</span> Tracking redirect LIVE'}
+    </div>`;
+}
+
+// ════════════════════════════════════════════
+// LANDING PAGE INTEL
+// ════════════════════════════════════════════
+async function loadLanding() {
+  const data = await api('/api/overview');
+  const claritySet = false; // Would check via env or status
+
+  document.getElementById('clarity-status-notice').innerHTML = `
+    <div class="placeholder-notice">⚠ Clarity not connected — add CLARITY_PROJECT_ID to Railway env vars, then run clarity-analyzer on Wednesday 10am.
+    <button class="btn" style="margin-left:auto" onclick="navigate('manus')">▶ View Task</button></div>`;
+
+  const sections = [
+    { name: 'Hero section', pct: 100 },
+    { name: 'First form', pct: 67 },
+    { name: 'Testimonials', pct: 38 },
+    { name: 'Bottom CTA', pct: 19 },
+  ];
+  document.getElementById('scroll-depth').innerHTML = sections.map(s => `
+    <div class="scroll-section">
+      <div class="scroll-section-name">${s.name}</div>
+      <div class="scroll-bar-track"><div class="scroll-bar-fill" style="width:${s.pct}%"></div></div>
+      <div class="scroll-pct ${s.pct < 40 ? 'red' : s.pct < 70 ? 'yellow' : ''}" style="color:${s.pct<40?'var(--red)':s.pct<70?'var(--gold)':'var(--green)'}">${s.pct}%</div>
+    </div>
+  `).join('') + '<div class="text-muted" style="margin-top:8px;font-size:11px">Placeholder data — run clarity-analyzer to populate</div>';
+
+  document.getElementById('click-metrics').innerHTML = `
+    <div class="card"><div class="card-label">CTA Click Rate</div><div class="metric-value">—</div></div>
+    <div class="card"><div class="card-label">Form Completion</div><div class="metric-value">—</div></div>
+    <div class="card"><div class="card-label">Rage Clicks</div><div class="metric-value green">0</div></div>
+    <div class="card"><div class="card-label">Dead Clicks</div><div class="metric-value green">0</div></div>`;
+
+  document.getElementById('form-analytics').innerHTML = `<div class="text-muted" style="font-size:13px">No form analytics yet.<br><br>Clarity tracks which field has the highest abandonment rate and whether mobile completion rate differs from desktop.<br><br>Run <strong>clarity-analyzer</strong> after Clarity is connected.</div>`;
+
+  document.getElementById('session-insights').innerHTML = `<div class="text-muted" style="font-size:13px">Session recordings will appear here after Clarity is configured.<br><br>AHRI watches 5 non-converting sessions each week and summarizes hesitation patterns, dead clicks, and exit intent.</div>`;
+
+  document.getElementById('landing-rec-text').innerHTML = `
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">Connect Clarity and run the Wednesday analyzer to get a specific landing page recommendation. Until then, the most common first fix is: <strong style="color:var(--text-primary)">ensure hero form is visible without scrolling on mobile.</strong></div>
+    <button class="btn" onclick="navigate('manus')">▶ Launch Clarity Analyzer Task</button>`;
+}
+
+// ════════════════════════════════════════════
+// NURTURE & RETENTION
+// ════════════════════════════════════════════
+async function loadNurture() {
+  const data = await api('/api/nurture');
+  if (!data) return;
+
+  // Critical members
+  const critical = data.critical_members || [];
+  const sectEl = document.getElementById('critical-members-section');
+  if (critical.length > 0) {
+    sectEl.innerHTML = `
+      <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:16px;margin-bottom:20px">
+        <div class="section-title" style="color:var(--red)">CALL TODAY (${critical.length} members)</div>
+        ${critical.map(m => `
+          <div class="member-card">
+            <div class="member-urgency critical"></div>
+            <div class="member-body">
+              <div class="member-name">${m.name || 'Member'}</div>
+              <div class="member-meta">${m.days_inactive || '14'}+ days inactive · Joined ${m.join_date || 'recently'} · ${m.archetype || 'Unknown'} archetype</div>
+              <div class="member-opener">"${m.recommended_opener || 'Hey, just checking in — haven\'t seen you in a bit. Everything good?'}"</div>
+              <div class="member-actions">
+                <button class="btn green" onclick="toast('Re-engagement marked','success')">✓ Re-engaged</button>
+                <button class="btn red" onclick="toast('Marked as churned','warning')">✗ Churned</button>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  } else {
+    sectEl.innerHTML = `<div class="card mb-16" style="border-color:rgba(16,185,129,0.3)"><div style="color:var(--green)">✓ No critical members. All new members checked in within 14 days.</div></div>`;
+  }
+
+  // At-risk
+  const atRisk = [...(data.at_risk_members || []), ...(data.high_risk_members || [])];
+  const riskEl = document.getElementById('at-risk-section');
+  if (atRisk.length > 0) {
+    riskEl.innerHTML = `
+      <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:16px;margin-bottom:20px">
+        <div class="section-title" style="color:var(--gold)">AT RISK (${atRisk.length} members)</div>
+        ${atRisk.map(m => `
+          <div class="member-card">
+            <div class="member-urgency risk"></div>
+            <div class="member-body">
+              <div class="member-name">${m.name || 'Member'}</div>
+              <div class="member-meta">${m.days_inactive || '7'} days inactive · ${m.archetype || 'Unknown'} archetype</div>
+              <div class="member-opener">"${m.recommended_opener || 'Hey, haven\'t seen you in a bit — everything okay?'}"</div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  } else {
+    riskEl.innerHTML = '';
+  }
+
+  // Nurture sequence
+  const msgs = data.sequence || [];
+  const seqEl = document.getElementById('nurture-sequence');
+  if (msgs.length === 0) {
+    seqEl.innerHTML = `
+      <div class="card">
+        <div class="text-muted">No nurture sequence data yet. Run <strong>nurture-performance-analyzer</strong> (Sunday 9pm) to populate.</div>
+        <button class="btn" style="margin-top:12px" onclick="navigate('manus')">▶ Launch Task</button>
+      </div>`;
+  } else {
+    const statusColor = (rate) => rate >= 30 ? 'strong' : rate >= 15 ? 'acceptable' : rate >= 5 ? 'weak' : 'dead';
+    seqEl.innerHTML = `
+      <div class="nurture-msg-row">
+        ${msgs.map((m, i) => `
+          <div class="nurture-msg ${statusColor(m.reply_rate || 0)}" title="${m.message_preview || ''}" onclick="showNurtureMsg(${i})">
+            <div class="step">MSG ${m.step || i+1}</div>
+            <div class="rate">${m.reply_rate ? m.reply_rate+'%' : '—'}</div>
+            <div class="label">${statusColor(m.reply_rate || 0)}</div>
+          </div>`).join('')}
+      </div>
+      ${data.weak_links && data.weak_links.length > 0 ? `
+        <div class="card" style="border-color:rgba(249,115,22,0.3);background:rgba(249,115,22,0.06);margin-bottom:12px">
+          <div style="color:var(--orange);font-weight:600;margin-bottom:8px">⚠ Weak Link: Message ${data.weak_links.join(', ')}</div>
+          <div class="text-muted">Reply rate dropped 50%+ vs previous message.</div>
+          <button class="btn" style="margin-top:10px" onclick="askAhriRewrite()">▶ Ask AHRI to Rewrite</button>
+        </div>` : ''}`;
+  }
+
+  // Retention stats
+  document.getElementById('retention-stats').innerHTML = data.retention_rate_30d
+    ? `<div class="metrics-row"><div class="card"><div class="card-label">30-Day Retention</div><div class="metric-value ${data.retention_rate_30d >= 70 ? 'green' : 'yellow'}">${data.retention_rate_30d}%</div></div><div class="card"><div class="card-label">New Members (30d)</div><div class="metric-value">${data.new_members_30d}</div></div></div>`
+    : '<div class="text-muted">Run retention-early-warning (Wednesday 11am) to populate retention data.</div>';
+}
+
+function askAhriRewrite() {
+  toggleAhriPanel();
+  setTimeout(() => { document.getElementById('ahri-input').value = 'Rewrite the weak message in the nurture sequence. What should the new message say to improve reply rate?'; }, 300);
+}
+
+function showNurtureMsg(idx) {
+  if (!state.nurture) return;
+  const msg = state.nurture.sequence[idx];
+  if (!msg) return;
+  openModal(`Message ${msg.step} — ${msg.status || 'unknown status'}`,
+    `<div class="text-muted mb-8">Reply rate: <strong>${msg.reply_rate || '—'}%</strong> · Sent: ${msg.sent_count || '—'} · Replies: ${msg.reply_count || '—'}</div>
+     <div style="font-size:13px;color:var(--text-secondary);background:var(--bg-void);border-radius:8px;padding:14px;line-height:1.7">${msg.message_preview || 'Full message text not available — check GHL nurture sequence'}</div>`,
+    [{ text: '▶ Ask AHRI to Rewrite', action: askAhriRewrite }]);
+}
+
+// ════════════════════════════════════════════
+// MANUS TASKS
+// ════════════════════════════════════════════
+async function loadManusTasks() {
+  const data = await api('/api/manus-tasks');
+  if (!data) return;
+  state.manusTasks = data.tasks;
+
+  const weekly = ['paid-ads-analyzer','google-ads-analyzer','budget-pacing-tracker','clarity-analyzer','retention-early-warning','nurture-performance-analyzer','lead-journey-tracker','review-monitoring','referral-tracker','competitor-research','trend-monitoring'];
+  const monthly = ['crm-hygiene','gbp-optimization','monthly-report'];
+  const ondemand = ['content-posting'];
+
+  const renderTaskList = (tasks, containerId) => {
+    const el = document.getElementById(containerId);
+    if (!tasks || tasks.length === 0) { el.innerHTML = '<div class="text-muted">No tasks in this category.</div>'; return; }
+    el.innerHTML = tasks.map(t => `
+      <div class="manus-card" onclick="showManusTask('${t.filename}')">
+        <div class="manus-card-body">
+          <div class="manus-task-name">${t.task_name}</div>
+          <div class="manus-meta">${t.trigger_schedule || ''} · ${t.estimated_time || ''}</div>
+          <div class="manus-last-run">Last run: ${t.last_run === 'never' ? 'Never run' : new Date(t.last_run).toLocaleDateString()}</div>
+        </div>
+        <button class="manus-launch-btn" onclick="event.stopPropagation();showManusTask('${t.filename}')">▶ LAUNCH</button>
+      </div>
+    `).join('');
+  };
+
+  const filterTasks = (keys) => data.tasks.filter(t => keys.some(k => t.filename.includes(k)));
+  renderTaskList(filterTasks(weekly), 'manus-weekly');
+  renderTaskList(filterTasks(monthly), 'manus-monthly');
+  renderTaskList(filterTasks(ondemand), 'manus-ondemand');
+}
+
+async function showManusTask(filename) {
+  const data = await api(`/api/manus-tasks/${filename}`);
+  if (!data) { toast('Task file not found', 'error'); return; }
+  const taskName = filename.replace('.md','').replace(/-/g,' ').toUpperCase();
+  openModal(`MANUS TASK — ${taskName}`,
+    `<div class="placeholder-notice" style="margin-bottom:16px">Hand this to Manus. Step 0 (account verification) is mandatory — never skip it.</div>
+     <div class="task-content">${data.content.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/^##\s(.+)/gm,'<br><strong style="color:var(--text-primary);font-size:13px">$1</strong>').replace(/^#\s(.+)/gm,'<strong style="color:var(--violet);font-size:14px">$1</strong>').replace(/`([^`]+)`/g,'<code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;font-family:var(--font-mono)">$1</code>')}</div>`,
+    [
+      { text: '📋 Copy to Clipboard', action: () => { navigator.clipboard.writeText(data.content); toast('Copied to clipboard — paste into Manus','success'); } },
+      { text: '✓ Mark Complete', action: () => { toast('Task marked complete','success'); closeModal(); } }
+    ]
+  );
+}
+
+// ════════════════════════════════════════════
+// CAMPAIGN ARCHIVE
+// ════════════════════════════════════════════
+async function loadArchive() {
+  const data = await api('/api/campaign-archive');
+  const el = document.getElementById('archive-list');
+  if (!data || !data.campaigns || data.campaigns.length === 0) {
+    el.innerHTML = `<div class="empty-state"><div class="icon">📁</div><h3>No campaigns archived yet</h3><p>Your first monthly summary will appear here after the end of the month.</p><button class="btn" onclick="navigate('manus')">▶ Run Monthly Report</button></div>`;
+    return;
+  }
+  el.innerHTML = `<table class="data-table"><thead><tr><th>Month</th><th>File</th><th>Preview</th><th></th></tr></thead><tbody>${data.campaigns.map(c => `<tr><td>${c.month}</td><td style="font-family:var(--font-mono);font-size:11px">${c.filename}</td><td style="max-width:300px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${c.content_preview}</td><td><button class="btn" onclick="showArchive('${c.filename}','${c.month}')">View</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+async function showArchive(filename, month) {
+  const data = await api(`/api/campaign-archive`);
+  const camp = data && data.campaigns.find(c => c.filename === filename);
+  if (!camp) return;
+  openModal(`Campaign Report — ${month}`, `<div class="task-content" style="white-space:pre-wrap">${camp.content_preview}</div>`);
+}
+
+// ════════════════════════════════════════════
+// AHRI PANEL
+// ════════════════════════════════════════════
+function toggleAhriPanel() {
+  state.ahriPanelOpen = !state.ahriPanelOpen;
+  document.getElementById('ahri-panel').classList.toggle('open', state.ahriPanelOpen);
+  document.getElementById('main').classList.toggle('ahri-open', state.ahriPanelOpen);
+  document.getElementById('ahri-toggle').textContent = state.ahriPanelOpen ? 'AHRI ×' : 'AHRI ›';
+}
+
+function switchAhriTab(tab, btn) {
+  document.querySelectorAll('.ahri-mode-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.ahri-tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.ahri-mode-tab').forEach(t => { if (t.textContent.toLowerCase().includes(tab)) t.classList.add('active'); });
+  const tabEl = document.getElementById(`ahri-${tab}-tab`);
+  if (tabEl) tabEl.classList.add('active');
+}
+
+function ahriGreeting() {
+  const hour = new Date().getHours();
+  const tod = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  const msgs = document.getElementById('ahri-messages');
+  msgs.innerHTML = `<div class="ahri-msg from-ahri">Good ${tod}. AHRI online. I'm monitoring all your marketing intelligence feeds. What would you like to tackle today?</div>`;
+  showSuggestions(['What should I approve today?','Give me the performance summary','What are my top 3 actions?']);
+}
+
+function showSuggestions(suggestions) {
+  document.getElementById('ahri-suggestions').innerHTML = suggestions.map(s =>
+    `<div class="ahri-suggestion" onclick="sendAhriMessage('${s}')">${s}</div>`
+  ).join('');
+}
+
+async function sendAhriMessage(msg) {
+  const input = document.getElementById('ahri-input');
+  const message = msg || input.value.trim();
+  if (!message) return;
+  if (input) input.value = '';
+
+  const msgs = document.getElementById('ahri-messages');
+  msgs.innerHTML += `<div class="ahri-msg from-user">${message}</div>`;
+  msgs.innerHTML += `<div class="ahri-msg from-ahri" id="ahri-thinking">Thinking...</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  if (!state.ahriPanelOpen) toggleAhriPanel();
+  switchAhriTab('chat');
+
+  const res = await apiPost('/api/ahri', { message, context: state.currentSection });
+  const thinkEl = document.getElementById('ahri-thinking');
+  if (thinkEl) thinkEl.remove();
+
+  if (res && res.response) {
+    msgs.innerHTML += `<div class="ahri-msg from-ahri">${res.response.replace(/\n/g,'<br>')}</div>`;
+    const followUps = ['What should I do about this?','Show me the data','Generate a fix'];
+    showSuggestions(followUps);
+  } else {
+    msgs.innerHTML += `<div class="ahri-msg from-ahri">I couldn't get a response. Check that ANTHROPIC_API_KEY is set in your Railway environment variables.</div>`;
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function handleAhriKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAhriMessage(); }
+}
+
+function quickAction(prompt) {
+  if (!state.ahriPanelOpen) toggleAhriPanel();
+  switchAhriTab('chat');
+  sendAhriMessage(prompt);
+}
+
+function updateContextualActions() {
+  const label = document.getElementById('contextual-actions-label');
+  const grid = document.getElementById('contextual-actions');
+  const contextual = {
+    queue: [['✓ Approve All Content','approveSelected()'],['$ Hold Budget Items','navigate(\'decision\')']],
+    decision: [['⚡ Execute Scale Signals','toast(\'Show Manus instructions\',\'info\')'],['✗ Kill Flagged Ads','toast(\'Show Manus instructions\',\'info\')']],
+    nurture: [['📞 All Call Scripts','navigate(\'nurture\')'],['✉ Draft SMS','quickAction(\'Draft a re-engagement SMS for at-risk members\')']],
+    manus: [['🔍 Run Competitor Research','showManusTask(\'competitor-research.md\')'],['📈 Run Ads Analysis','showManusTask(\'paid-ads-analyzer.md\')']],
+  };
+  const actions = contextual[state.currentSection];
+  if (actions) {
+    label.style.display = 'block';
+    grid.innerHTML = actions.map(([text, action]) => `<div class="action-btn" onclick="${action}">${text}</div>`).join('');
+  } else {
+    label.style.display = 'none';
+    grid.innerHTML = '';
+  }
+}
+
+// ════════════════════════════════════════════
+// VOICE
+// ════════════════════════════════════════════
+let voiceSession = null;
+let speechRec = null;
+
+function toggleVoice() {
+  const btn = document.getElementById('mic-btn');
+  const label = document.getElementById('mic-label');
+  const transcript = document.getElementById('voice-transcript');
+
+  if (speechRec) {
+    speechRec.stop();
+    speechRec = null;
+    btn.classList.remove('listening');
+    label.textContent = 'Tap to speak';
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    transcript.textContent = 'Voice input not supported in this browser. Use Chrome.';
+    return;
+  }
+
+  speechRec = new SpeechRecognition();
+  speechRec.continuous = false;
+  speechRec.interimResults = true;
+  speechRec.lang = 'en-US';
+
+  btn.classList.add('listening');
+  label.textContent = 'Listening...';
+  speechRec.start();
+
+  speechRec.onresult = (e) => {
+    const text = Array.from(e.results).map(r => r[0].transcript).join('');
+    transcript.textContent = text;
+    if (e.results[e.results.length - 1].isFinal) {
+      btn.classList.remove('listening');
+      btn.classList.add('processing');
+      label.textContent = 'AHRI is thinking...';
+      sendAhriMessage(text).then(() => {
+        btn.classList.remove('processing');
+        label.textContent = 'Tap to speak';
+        speechRec = null;
+      });
+    }
+  };
+  speechRec.onerror = () => {
+    btn.classList.remove('listening','processing');
+    label.textContent = 'Tap to speak';
+    speechRec = null;
+  };
+}
+
+// ════════════════════════════════════════════
+// NOTIFICATIONS
+// ════════════════════════════════════════════
+let notifRead = new Set();
+
+function renderNotifications(alerts) {
+  const el = document.getElementById('notif-list');
+  if (!alerts || alerts.length === 0) {
+    el.innerHTML = '<div class="notif-item"><div class="text-muted" style="padding:8px">No notifications</div></div>';
+    return;
+  }
+  el.innerHTML = alerts.map(a => `
+    <div class="notif-item ${notifRead.has(a.id) ? '' : 'unread'}" onclick="handleAlertAction('${a.action_type}','${a.id}');toggleNotifications()">
+      ${!notifRead.has(a.id) ? '<span class="notif-dot"></span>' : ''}
+      <div class="notif-item-title">${a.title}</div>
+      <div class="notif-item-desc">${a.description}</div>
+      <div class="notif-item-time">${a.category.toUpperCase()}</div>
+    </div>`).join('');
+  const badge = document.getElementById('bell-badge');
+  const unread = alerts.filter(a => !notifRead.has(a.id)).length;
+  badge.textContent = unread;
+  badge.style.display = unread > 0 ? 'block' : 'none';
+}
+
+function toggleNotifications() {
+  document.getElementById('notif-dropdown').classList.toggle('open');
+}
+
+function markAllRead() {
+  state.alerts.forEach(a => notifRead.add(a.id));
+  document.getElementById('bell-badge').style.display = 'none';
+  document.getElementById('notif-dropdown').innerHTML = `<div class="notif-header"><div class="notif-title">Notifications</div></div><div class="notif-list"><div class="notif-item"><div class="text-muted" style="padding:8px">All caught up ✓</div></div></div>`;
+}
+
+async function refreshAlerts() {
+  const data = await api('/api/alerts');
+  if (data && data.alerts) {
+    state.alerts = data.alerts;
+    renderNotifications(data.alerts);
+  }
+}
+
+// ════════════════════════════════════════════
+// MODAL
+// ════════════════════════════════════════════
+function openModal(title, bodyHtml, footerBtns = []) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = bodyHtml;
+  document.getElementById('modal-footer').innerHTML = [
+    ...footerBtns.map((b,i) => `<button class="btn ${i===0?'primary':''}" onclick="modalFooterAction(${i})">${b.text}</button>`),
+    '<button class="btn" onclick="closeModal()">Close</button>'
+  ].join('');
+  document.getElementById('modal-overlay').classList.add('open');
+  window._modalFooterBtns = footerBtns;
+}
+
+function modalFooterAction(idx) {
+  const btn = window._modalFooterBtns && window._modalFooterBtns[idx];
+  if (btn && btn.action) btn.action();
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+// ════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════
+function toast(msg, type = 'info') {
+  const icons = { success:'✓', warning:'⚠', error:'✗', info:'ℹ' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${icons[type] || 'ℹ'}</span> ${msg}`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+// ════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ════════════════════════════════════════════
+let keyBuffer = '';
+let keyTimer;
+
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === 'Escape') { closeModal(); if (state.ahriPanelOpen) toggleAhriPanel(); }
+    if (e.key === 'a' || e.key === 'A') { toggleAhriPanel(); return; }
+    keyBuffer += e.key.toLowerCase();
+    clearTimeout(keyTimer);
+    keyTimer = setTimeout(() => { keyBuffer = ''; }, 500);
+    const shortcuts = { 'go': 'overview', 'gq': 'queue', 'gp': 'performance', 'gd': 'decision', 'gn': 'nurture', 'gm': 'manus' };
+    if (shortcuts[keyBuffer]) { navigate(shortcuts[keyBuffer]); keyBuffer = ''; }
+  });
+}
+
+// Close notif on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#notif-dropdown') && !e.target.closest('#bell-btn')) {
+    document.getElementById('notif-dropdown').classList.remove('open');
+  }
+});
+</script>
+</body>
+</html>

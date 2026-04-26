@@ -1,0 +1,16 @@
+{
+  "rules": {
+    "auto_pause": {
+      "enabled": false,
+      "mode": "supervised",
+      "conditions": {
+        "cpl_above": 60,
+        "min_spend": 30,
+        "frequency_above": 3.5,
+        "ctr_below": 0.8,
+        "after_impressions": 1000
+      },
+      "action": "queue_manus_pause_task"
+    }
+  }
+}

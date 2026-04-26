@@ -2,7 +2,7 @@
 # AHRI reads this file before every generation. Keep it current.
 
 ## Sessions Complete
-Sessions 0–14 | Version: v1.7 | Last updated: 2026-04-25
+Sessions 0–15 | Version: v1.8 | Last updated: 2026-04-26
 
 ## Active Offer
 The No-Risk Comeback — 30 Days Coached, $1 to Start
@@ -87,10 +87,25 @@ Manus tasks (on-demand):
 - manus-tasks/monthly-report.md
 
 ## Last Session Notes
-Sessions 0–14 complete (2026-04-25). Full intelligence and attribution layer built.
-Session 14: 12 new knowledge base files, tracking redirect service, Clarity install,
-15 Manus tasks total (12 new + 2 updated), 13 new AHRI intents + handlers, automation
-schedule rebuilt, brain-state updated. TypeScript: 0 errors. v1.7 tagged.
+Sessions 0–15 complete (2026-04-26). AHRI Marketing Command Center (portal) built and tested.
+Session 15: Full 6-file marketing portal, 19 API endpoints, 11-section SPA, AHRI chat panel,
+agentic rules engine, Chart.js analytics, voice input, notification center. All endpoints verified.
+v1.8 tagged.
+
+## Session 15 — What Was Built
+- marketing-portal/server.js — Express backend, 19 API endpoints, placeholder perf data
+- marketing-portal/package.json — express, cors, @anthropic-ai/sdk deps
+- marketing-portal/railway.json — NIXPACKS builder, healthcheckPath /health
+- marketing-portal/config/agentic-rules.json — supervised mode, kill/scale/guardrail rules
+- marketing-portal/public/styles.css — full design system (CSS vars, animations, all components)
+- marketing-portal/public/index.html — 11-section SPA: overview, queue, calendar, performance,
+  decision, hooks, journey, landing, nurture, manus launcher, archive
+- AHRI panel: 3 tabs (chat via Anthropic API, voice via Web Speech, actions grid)
+- Agentic rules engine: auto_pause (CPL>$60), auto_scale (+20%), auto_double_down (+40%)
+- All 19 endpoints verified: health, status, overview, queue, approve, reject, content-calendar,
+  morning-brief, manus-tasks, manus-tasks/:filename, hooks-library, nurture, ab-tests,
+  campaign-archive, agentic-rules (GET+POST), ahri, competitor-intel, alerts, performance
+- Graceful degradation: missing API key, empty intelligence files, placeholder data with banner
 
 ## Session 14 — What Was Built
 - knowledge-base/paid-media/thresholds.md — CPL targets, kill/scale signals, pacing rules
@@ -113,10 +128,12 @@ schedule rebuilt, brain-state updated. TypeScript: 0 errors. v1.7 tagged.
 8. Create Clarity project at clarity.microsoft.com → add CLARITY_PROJECT_ID to landing-server Railway env vars
 9. Deploy tracking-redirect/ as new Railway service → add META_PIXEL_ID + META_CAPI_TOKEN env vars
 10. Update all 9 GBP location website fields to use tracking redirect URL (not AF.com direct)
+11. Deploy marketing-portal/ as new Railway service → set env vars: GYM_NAME, OPS_URL, NEURAL_URL, ELEVENLABS_AGENT_ID, ANTHROPIC_API_KEY
 
 ## Next Session
-Session 15 (agency context) OR Session 16 (first campaign launch).
-AHRI recommendation: skip to 16 — launch first. Pre-launch checklist above must be cleared first.
+Session 16 — first campaign launch.
+Pre-launch checklist (items 1–11 above) must be cleared first.
+Portal is ready to deploy to Railway as a new service once env vars are set.
 
 ## Cross-Brain Insights (updated 2026-04-24 — 75 calls analyzed)
 - INSIGHT 1: Source attribution is null for 3 of 75 calls (4%). AHRI enforces UTM injection on all assets. Default source value "direct_untagged" appended to all untagged leads.
