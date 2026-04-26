@@ -93,6 +93,31 @@ Session 16: 16 JSON Schema files, OUTPUT CONTRACT added to all 15 manus task fil
 Recent Runs panel, ahri.ts portal API integration, seed data for competitor-ads + hook-saturation.
 v1.9 tagged.
 
+Session 17 (2026-04-26 — in progress):
+- Neural OS brain shape anatomical rewrite in progress: anatomically accurate bilateral hemispheres,
+  longitudinal fissure, temporal wings, Sylvian fissures, directional gyral texture (3-layer sine),
+  correct cerebellum position (rear-bottom, pz -0.55→-0.95), brainstem tapered cylinder.
+  Rejection sampling + binary-search surface detection. TOTAL bumped to 85,000 particles.
+  All REGIONS centers updated per anatomical coordinates. Visual verification pending.
+- marketing-portal/server.js: manus-tasks/ path resolution fix for Railway deployed (commit f1237aa).
+  MANUS path now resolves with fs.existsSync → MANUS_TASKS_DIR env var fallback.
+  KNOWN_TASK_FILES hardcoded list ensures frontend always shows all 15 tasks.
+
+## Outstanding Issues
+- Manus LAUNCH button not working on Railway — task files not bundled with marketing-portal/
+  deployment. Fix needed: copy manus-tasks/ into marketing-portal/manus-tasks/ and redeploy,
+  OR set MANUS_TASKS_DIR env var on Railway pointing to uploaded task files.
+- Session 16 end-to-end loop not yet verified with a real Manus run.
+- Neural OS brain shape visual verification pending (localhost:3001 — verify all angles).
+- All previous external setup still pending:
+  GHL API key regeneration
+  Workflow 1 archetype tagging (3 steps)
+  Make scenario columns M and R
+  Landing page UTM hidden fields
+  Clarity project ID
+  CAPI tokens
+  GBP links updated to tracking redirect
+
 ## Session 16 — What Was Built
 - schemas/manus-outputs/ — 16 JSON Schema Draft 2020-12 files (1 meta + 15 task-specific)
 - manus-tasks/ — OUTPUT CONTRACT section added to all 15 task files (JSON-only, no PDF/prose)
@@ -142,9 +167,14 @@ v1.9 tagged.
 10. Update all 9 GBP location website fields to use tracking redirect URL (not AF.com direct)
 11. Deploy marketing-portal/ as new Railway service → set env vars: GYM_NAME, OPS_URL, NEURAL_URL, ELEVENLABS_AGENT_ID, ANTHROPIC_API_KEY
 
-## Next Session
-Session 17 — first campaign launch.
-Pre-launch checklist (items 1–11 below) must be cleared first.
+## Next Session Priorities
+1. Fix Manus task file bundling in portal (copy manus-tasks/ into marketing-portal/ or set MANUS_TASKS_DIR on Railway)
+2. Verify Session 16 loop end-to-end with a real Manus run via LAUNCH button
+3. Run competitor research via LAUNCH button — first live intelligence pull
+4. Approve assets in queue (distribution/queue/pending-review/)
+5. Get first ad live (Meta $25/day — Kai approval required)
+
+Then clear remaining external setup (items 1–11 from pre-launch checklist below).
 Portal is ready to deploy to Railway. Add MANUS_API_KEY + MANUS_WEBHOOK_SECRET to Railway env vars when deploying portal.
 
 ## Cross-Brain Insights (updated 2026-04-24 — 75 calls analyzed)
