@@ -62,6 +62,19 @@ type IntentType =
   | 'run_manus_task'
   | 'show_routines'
   | 'run_routine_manually'
+  | 'analyze_paid_ads'
+  | 'analyze_google_ads'
+  | 'check_budget_pacing'
+  | 'track_lead_journey'
+  | 'analyze_landing_page'
+  | 'analyze_nurture'
+  | 'check_retention'
+  | 'monitor_reviews'
+  | 'track_referrals'
+  | 'audit_gbp'
+  | 'clean_crm'
+  | 'generate_monthly_report'
+  | 'process_manus_results'
   | 'exit';
 
 interface SessionHistoryEntry {
@@ -198,7 +211,7 @@ async function parseIntent(client: Anthropic, input: string, ctx: SessionContext
 Return this exact shape:
 {"intent":"<type>","skills":[],"context":"<biz>","avatar_override":null,"awareness_override":null,"budget_required":false,"message":""}
 
-intent values: generate_skill | batch_generate | review_queue | update_brain_state | show_status | run_campaign | switch_context | get_help | sync_media | sync_brains | update_funnel | update_workflows | exit
+intent values: generate_skill | batch_generate | review_queue | update_brain_state | show_status | run_campaign | switch_context | get_help | sync_media | sync_brains | update_funnel | update_workflows | run_manus_task | show_routines | run_routine_manually | analyze_paid_ads | analyze_google_ads | check_budget_pacing | track_lead_journey | analyze_landing_page | analyze_nurture | check_retention | monitor_reviews | track_referrals | audit_gbp | clean_crm | generate_monthly_report | process_manus_results | exit
 
 Rules:
 - "run campaign" / "build everything" / "full campaign" → run_campaign
@@ -218,6 +231,19 @@ Rules:
 - "run manus" / "post content" / "manus post" / "run content posting" / "competitor research" / "run competitor" / "trend monitoring" / "run trend" / "run manus task" → run_manus_task
 - "show routines" / "list routines" / "what routines" / "what automations" / "automation schedule" / "show schedule" → show_routines
 - "run routine" / "run morning brief" / "run weekly content" / "run monthly campaign" / "manually run" / "trigger routine" → run_routine_manually
+- "paid ads analysis" / "meta analysis" / "facebook ads analysis" / "ads analyzer" / "analyze meta" / "analyze facebook ads" → analyze_paid_ads
+- "google ads analysis" / "google ads analyzer" / "analyze google ads" / "search ads analysis" → analyze_google_ads
+- "budget pacing" / "check pacing" / "ad budget pacing" / "pacing tracker" → check_budget_pacing
+- "lead journey" / "attribution report" / "track leads" / "lead tracking" / "lead attribution" → track_lead_journey
+- "clarity" / "landing page analytics" / "heatmap" / "clarity analyzer" / "scroll depth" → analyze_landing_page
+- "nurture analysis" / "nurture performance" / "sequence analysis" / "analyze nurture" / "sequence performance" → analyze_nurture
+- "retention" / "at-risk members" / "early warning" / "dropout" / "check retention" / "retention warning" → check_retention
+- "reviews" / "monitor reviews" / "review monitoring" / "check reviews" / "google reviews" → monitor_reviews
+- "referrals" / "track referrals" / "referral tracker" / "referral report" → track_referrals
+- "GBP audit" / "google business profile" / "GBP optimization" / "audit GBP" / "check GBP" → audit_gbp
+- "CRM hygiene" / "clean CRM" / "CRM audit" / "crm cleanup" → clean_crm
+- "monthly report" / "generate report" / "executive report" / "monthly brief" → generate_monthly_report
+- "process results" / "summarize intelligence" / "what does the data say" / "analyze intelligence" / "intelligence summary" / "what's the data showing" → process_manus_results
 - ad-copy, google-ads, image-generator are paid skills → set budget_required: true
 - Default context: ${ctx.activeBusiness}
 - Available skills: offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync, content-calendar, vsl-script, flyer-generator, image-generator, seo-content, google-ads, referral-campaign, reactivation, review-engine, funnel-updater, workflow-updater
@@ -1011,9 +1037,51 @@ async function handleExit(ctx: SessionContext, rl: RLInterface): Promise<void> {
 // --- Automation Handlers ---
 
 const MANUS_TASKS: Record<string, string> = {
-  'content-posting':     path.join(ROOT, 'manus-tasks', 'content-posting.md'),
-  'competitor-research': path.join(ROOT, 'manus-tasks', 'competitor-research.md'),
-  'trend-monitoring':    path.join(ROOT, 'manus-tasks', 'trend-monitoring.md'),
+  'content-posting':              path.join(ROOT, 'manus-tasks', 'content-posting.md'),
+  'competitor-research':          path.join(ROOT, 'manus-tasks', 'competitor-research.md'),
+  'trend-monitoring':             path.join(ROOT, 'manus-tasks', 'trend-monitoring.md'),
+  'paid-ads-analyzer':            path.join(ROOT, 'manus-tasks', 'paid-ads-analyzer.md'),
+  'google-ads-analyzer':          path.join(ROOT, 'manus-tasks', 'google-ads-analyzer.md'),
+  'budget-pacing-tracker':        path.join(ROOT, 'manus-tasks', 'budget-pacing-tracker.md'),
+  'lead-journey-tracker':         path.join(ROOT, 'manus-tasks', 'lead-journey-tracker.md'),
+  'clarity-analyzer':             path.join(ROOT, 'manus-tasks', 'clarity-analyzer.md'),
+  'nurture-performance-analyzer': path.join(ROOT, 'manus-tasks', 'nurture-performance-analyzer.md'),
+  'retention-early-warning':      path.join(ROOT, 'manus-tasks', 'retention-early-warning.md'),
+  'review-monitoring':            path.join(ROOT, 'manus-tasks', 'review-monitoring.md'),
+  'crm-hygiene':                  path.join(ROOT, 'manus-tasks', 'crm-hygiene.md'),
+  'referral-tracker':             path.join(ROOT, 'manus-tasks', 'referral-tracker.md'),
+  'gbp-optimization':             path.join(ROOT, 'manus-tasks', 'gbp-optimization.md'),
+  'monthly-report':               path.join(ROOT, 'manus-tasks', 'monthly-report.md'),
+};
+
+const INTENT_TO_MANUS_TASK: Record<string, string> = {
+  'analyze_paid_ads':        'paid-ads-analyzer',
+  'analyze_google_ads':      'google-ads-analyzer',
+  'check_budget_pacing':     'budget-pacing-tracker',
+  'track_lead_journey':      'lead-journey-tracker',
+  'analyze_landing_page':    'clarity-analyzer',
+  'analyze_nurture':         'nurture-performance-analyzer',
+  'check_retention':         'retention-early-warning',
+  'monitor_reviews':         'review-monitoring',
+  'track_referrals':         'referral-tracker',
+  'audit_gbp':               'gbp-optimization',
+  'clean_crm':               'crm-hygiene',
+  'generate_monthly_report': 'monthly-report',
+};
+
+const TASK_INTELLIGENCE_FILES: Record<string, string[]> = {
+  'paid-ads-analyzer':            ['intelligence-db/paid/meta-performance.json'],
+  'google-ads-analyzer':          ['intelligence-db/paid/google-performance.json'],
+  'budget-pacing-tracker':        ['intelligence-db/paid/pacing-log.json'],
+  'lead-journey-tracker':         ['intelligence-db/lead-journey/attribution-report.json'],
+  'clarity-analyzer':             ['intelligence-db/clarity/heatmap-insights.json'],
+  'nurture-performance-analyzer': ['intelligence-db/nurture/sequence-performance.json'],
+  'retention-early-warning':      ['intelligence-db/retention/dropout-alerts.json'],
+  'review-monitoring':            ['intelligence-db/market/review-log.json'],
+  'crm-hygiene':                  ['intelligence-db/crm/crm-hygiene-report.csv', 'logs/crm-hygiene-log.json'],
+  'referral-tracker':             ['intelligence-db/market/referral-log.json'],
+  'gbp-optimization':             ['intelligence-db/market/gbp-audit-report.csv'],
+  'monthly-report':               ['outputs/anytime-fitness/monthly-reports/'],
 };
 
 const ROUTINES: Record<string, { file: string; script: string; description: string }> = {
@@ -1034,6 +1102,18 @@ async function handleRunManusTask(parsed: ParsedIntent, rl: RLInterface): Promis
   if (!taskKey && inputLower.includes('post')) taskKey = 'content-posting';
   if (!taskKey && inputLower.includes('competitor')) taskKey = 'competitor-research';
   if (!taskKey && inputLower.includes('trend')) taskKey = 'trend-monitoring';
+  if (!taskKey && (inputLower.includes('paid ads') || inputLower.includes('meta ads') || inputLower.includes('facebook ads'))) taskKey = 'paid-ads-analyzer';
+  if (!taskKey && inputLower.includes('google ads')) taskKey = 'google-ads-analyzer';
+  if (!taskKey && inputLower.includes('pacing')) taskKey = 'budget-pacing-tracker';
+  if (!taskKey && (inputLower.includes('lead journey') || inputLower.includes('attribution'))) taskKey = 'lead-journey-tracker';
+  if (!taskKey && (inputLower.includes('clarity') || inputLower.includes('heatmap'))) taskKey = 'clarity-analyzer';
+  if (!taskKey && (inputLower.includes('nurture') && inputLower.includes('analy'))) taskKey = 'nurture-performance-analyzer';
+  if (!taskKey && (inputLower.includes('retention') || inputLower.includes('dropout') || inputLower.includes('at risk'))) taskKey = 'retention-early-warning';
+  if (!taskKey && (inputLower.includes('review') && !inputLower.includes('queue'))) taskKey = 'review-monitoring';
+  if (!taskKey && inputLower.includes('referral')) taskKey = 'referral-tracker';
+  if (!taskKey && (inputLower.includes('gbp') || inputLower.includes('google business'))) taskKey = 'gbp-optimization';
+  if (!taskKey && inputLower.includes('crm')) taskKey = 'crm-hygiene';
+  if (!taskKey && (inputLower.includes('monthly report') || inputLower.includes('executive report'))) taskKey = 'monthly-report';
 
   if (!taskKey) {
     console.log('');
@@ -1041,11 +1121,11 @@ async function handleRunManusTask(parsed: ParsedIntent, rl: RLInterface): Promis
     console.log(chalk.gray('  ──────────────────────────────────────────────'));
     taskNames.forEach(k => {
       const taskFile = MANUS_TASKS[k];
-      const exists = fs.existsSync(taskFile);
-      console.log(chalk.gray(`  · ${k.padEnd(25)} `) + (exists ? chalk.green('ready') : chalk.red('file missing')));
+      const exists = fs.existsSync(taskFile!);
+      console.log(chalk.gray(`  · ${k.padEnd(30)} `) + (exists ? chalk.green('ready') : chalk.red('file missing')));
     });
     console.log('');
-    console.log(chalk.white('  Which task should Manus run? (content-posting / competitor-research / trend-monitoring)'));
+    console.log(chalk.white('  Which task should Manus run?'));
     const answer = await ask(rl, chalk.green('  AHRI > '));
     taskKey = taskNames.find(k => answer.toLowerCase().includes(k.replace(/-/g, ' ')) || answer.toLowerCase().includes(k));
     if (!taskKey) {
@@ -1072,6 +1152,76 @@ async function handleRunManusTask(parsed: ParsedIntent, rl: RLInterface): Promis
   logAction('run_manus_task', [taskKey], 0, false, `Manus task displayed: ${taskKey}`);
 }
 
+/** Display any Manus task by key — generic handler for all intelligence tasks. */
+async function handleDisplayManusTask(taskKey: string): Promise<void> {
+  const taskFile = MANUS_TASKS[taskKey];
+  if (!taskFile || !fs.existsSync(taskFile)) {
+    console.log(chalk.red(`\n  Task file not found for: ${taskKey}\n`));
+    return;
+  }
+  const content = readSafe(taskFile);
+  console.log('');
+  console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log(chalk.bold.white(`  MANUS TASK — ${taskKey.toUpperCase()}`));
+  console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log(chalk.yellow('\n  Hand this file to Manus. Manus follows every step in order.'));
+  console.log(chalk.yellow('  Step 0 (account verification) is mandatory — never skip it.\n'));
+  console.log(chalk.white(content));
+  console.log('');
+  logAction('run_manus_task', [taskKey], 0, false, `Manus task displayed: ${taskKey}`);
+}
+
+/** Read all available intelligence files and generate a prioritized action brief. */
+async function handleProcessManusResults(_parsed: ParsedIntent, ctx: SessionContext, client: Anthropic): Promise<void> {
+  console.log('');
+  console.log(chalk.bold.cyan('  INTELLIGENCE SUMMARY — Reading all data files...'));
+  console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+
+  const allFiles = Object.values(TASK_INTELLIGENCE_FILES).flat();
+  const fileContents: string[] = [];
+
+  for (const relPath of allFiles) {
+    const fullPath = path.join(ROOT, relPath);
+    if (fs.existsSync(fullPath)) {
+      const content = readSafe(fullPath);
+      if (content.trim()) {
+        fileContents.push(`--- ${relPath} ---\n${content.slice(0, 2000)}`);
+      }
+    }
+  }
+
+  if (fileContents.length === 0) {
+    console.log(chalk.yellow('  No intelligence data found yet. Run Manus tasks first to populate intelligence-db/.\n'));
+    return;
+  }
+
+  console.log(chalk.gray(`  Found ${fileContents.length} data files. Analyzing with claude-opus-4-6...\n`));
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-opus-4-6',
+      max_tokens: 1024,
+      system: `You are AHRI, an acquisition intelligence system for a gym chain. You have read all available intelligence data files. Summarize the most actionable insights in 5-7 bullet points. Focus on: what's working, what's broken, what needs immediate action. Be specific — include numbers when available. Be decisive — tell Kai what to do. Format: one bullet per insight, lead with the action or finding, not the source.`,
+      messages: [{
+        role: 'user',
+        content: `Intelligence data:\n\n${fileContents.join('\n\n')}\n\nActive offer: ${ctx.activeOffer}`,
+      }],
+    });
+
+    const summary = response.content[0].type === 'text' ? response.content[0].text : '';
+    console.log(chalk.bold.white('  INTELLIGENCE BRIEF'));
+    console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+    summary.split('\n').forEach(line => {
+      if (line.trim()) console.log(chalk.white('  ' + line));
+    });
+    console.log('');
+    ctx.sessionActions.push('Intelligence summary generated');
+    logAction('process_manus_results', [], 0, false, `Summarized ${fileContents.length} intelligence files`);
+  } catch (err) {
+    console.log(chalk.red(`  Intelligence summary failed: ${(err as Error).message}\n`));
+  }
+}
+
 /** List all routines with their schedule and status. */
 function handleShowRoutines(): void {
   console.log('');
@@ -1093,7 +1243,7 @@ function handleShowRoutines(): void {
   console.log(chalk.gray('  Manus tasks:'));
   Object.entries(MANUS_TASKS).forEach(([key, file]) => {
     const exists = fs.existsSync(file);
-    console.log(chalk.gray(`    · ${key.padEnd(25)} `) + (exists ? chalk.green('ready') : chalk.red('missing')));
+    console.log(chalk.gray(`    · ${key.padEnd(30)} `) + (exists ? chalk.green('ready') : chalk.red('missing')));
   });
 
   console.log('');
@@ -1328,6 +1478,27 @@ async function main(): Promise<void> {
 
         case 'run_routine_manually':
           await handleRunRoutineManually(parsed, ctx, rl);
+          break;
+
+        case 'analyze_paid_ads':
+        case 'analyze_google_ads':
+        case 'check_budget_pacing':
+        case 'track_lead_journey':
+        case 'analyze_landing_page':
+        case 'analyze_nurture':
+        case 'check_retention':
+        case 'monitor_reviews':
+        case 'track_referrals':
+        case 'audit_gbp':
+        case 'clean_crm':
+        case 'generate_monthly_report': {
+          const taskKey = INTENT_TO_MANUS_TASK[parsed.intent];
+          if (taskKey) await handleDisplayManusTask(taskKey);
+          break;
+        }
+
+        case 'process_manus_results':
+          await handleProcessManusResults(parsed, ctx, client);
           break;
 
         case 'exit':

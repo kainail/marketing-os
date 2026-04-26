@@ -2,7 +2,7 @@
 # AHRI reads this file before every generation. Keep it current.
 
 ## Sessions Complete
-Sessions 0–13 | Version: v1.6 | Last updated: 2026-04-25
+Sessions 0–14 | Version: v1.7 | Last updated: 2026-04-25
 
 ## Active Offer
 The No-Risk Comeback — 30 Days Coached, $1 to Start
@@ -49,28 +49,58 @@ content-calendar, reactivation, referral-campaign, review-engine, funnel-updater
 workflow-updater, vsl-script, flyer-generator, image-generator, seo-content,
 google-ads, partnership-outreach
 
-## Routines Active: 6
+## Routines Active: 6 automated + 15 Manus tasks
+Automated:
 - Daily 7am: morning-brief (npm run morning-brief)
 - Monday 5:45am: weekly-media-processing (npm run analyze-media)
-- Monday 6am: competitor-research (Manus — manus-tasks/competitor-research.md)
-- Monday 6:30am: trend-monitoring (Manus — manus-tasks/trend-monitoring.md)
 - Monday 7am: weekly-content (npm run weekly-content)
 - Sunday 11pm: weekly-cross-brain-sync (npm run sync-brains)
 - First Monday 7am: monthly-campaign (npm run monthly-campaign)
 - Triggered 72h after funnel update: funnel-performance-check (npm run funnel-check)
 
-## Manus Tasks Ready
+Manus tasks (weekly):
+- Sunday 8pm: referral-tracker | Sunday 9pm: nurture-performance-analyzer | Sunday 10pm: lead-journey-tracker
+- Monday 6am: competitor-research | Monday 6:30am: trend-monitoring | Monday 8am: budget-pacing-tracker | Monday 9am: review-monitoring
+- Wednesday 8am: paid-ads-analyzer | Wednesday 9am: google-ads-analyzer | Wednesday 10am: clarity-analyzer | Wednesday 11am: retention-early-warning
+
+Manus tasks (first Monday of month):
+- 10am: crm-hygiene | 11am: gbp-optimization | 12pm: monthly-report
+
+Manus tasks (on-demand):
+- content-posting (after Kai approves queue)
+
+## Manus Tasks Ready: 15 of 15
 - manus-tasks/content-posting.md
 - manus-tasks/competitor-research.md
 - manus-tasks/trend-monitoring.md
+- manus-tasks/paid-ads-analyzer.md
+- manus-tasks/google-ads-analyzer.md
+- manus-tasks/budget-pacing-tracker.md
+- manus-tasks/lead-journey-tracker.md
+- manus-tasks/clarity-analyzer.md
+- manus-tasks/nurture-performance-analyzer.md
+- manus-tasks/retention-early-warning.md
+- manus-tasks/review-monitoring.md
+- manus-tasks/crm-hygiene.md
+- manus-tasks/referral-tracker.md
+- manus-tasks/gbp-optimization.md
+- manus-tasks/monthly-report.md
 
 ## Last Session Notes
-Sessions 0–13 complete (2026-04-25). Full marketing OS built and deployed.
-Session 13: 6 routines rebuilt/created, 3 Manus tasks built, engine/ahri.ts updated
-with 3 new intents (run_manus_task, show_routines, run_routine_manually),
-outputs/automation-schedule.md created. v1.6 tagged.
-Landing page deployed to Railway — env var injection live, both forms active,
-gym-photo.jpg served locally (no Drive dependency). Jessica call copy updated.
+Sessions 0–14 complete (2026-04-25). Full intelligence and attribution layer built.
+Session 14: 12 new knowledge base files, tracking redirect service, Clarity install,
+15 Manus tasks total (12 new + 2 updated), 13 new AHRI intents + handlers, automation
+schedule rebuilt, brain-state updated. TypeScript: 0 errors. v1.7 tagged.
+
+## Session 14 — What Was Built
+- knowledge-base/paid-media/thresholds.md — CPL targets, kill/scale signals, pacing rules
+- knowledge-base/paid-media/creative-framework.md — thumbstop benchmarks, hook types, testing protocol
+- intelligence-db/ READMEs for paid/, lead-journey/, clarity/, retention/, nurture/
+- tracking-redirect/ — Express server: CAPI async, journey-log.json, 4 first-party cookies, 301 redirect in < 100ms
+- Clarity tracking installed on landing-server — CLARITY_PROJECT_ID env var injection
+- 15 Manus tasks: all 5 intelligence files ready, all 12 new tasks created
+- engine/ahri.ts: 13 new IntentType values, INTENT_TO_MANUS_TASK + TASK_INTELLIGENCE_FILES constants, handleDisplayManusTask() + handleProcessManusResults()
+- outputs/automation-schedule.md: full weekly/monthly rhythm documented
 
 ## Pending Before First Campaign Launch
 1. Regenerate GHL API key (critical — current key invalid)
@@ -80,11 +110,13 @@ gym-photo.jpg served locally (no Drive dependency). Jessica call copy updated.
 5. Budget decision: Meta $25/day, Google $20/day — Kai approval required
 6. Run competitor research in Manus first (before launching ads)
 7. Confirm gym-photo.jpg loading on iPhone after Railway redeploy
+8. Create Clarity project at clarity.microsoft.com → add CLARITY_PROJECT_ID to landing-server Railway env vars
+9. Deploy tracking-redirect/ as new Railway service → add META_PIXEL_ID + META_CAPI_TOKEN env vars
+10. Update all 9 GBP location website fields to use tracking redirect URL (not AF.com direct)
 
 ## Next Session
-Session 14 (agency context) OR Session 16 (first campaign launch).
-AHRI recommendation: skip to 16 — launch first, build agency context after proving
-the system works. Pre-launch checklist above must be cleared first.
+Session 15 (agency context) OR Session 16 (first campaign launch).
+AHRI recommendation: skip to 16 — launch first. Pre-launch checklist above must be cleared first.
 
 ## Cross-Brain Insights (updated 2026-04-24 — 75 calls analyzed)
 - INSIGHT 1: Source attribution is null for 3 of 75 calls (4%). AHRI enforces UTM injection on all assets. Default source value "direct_untagged" appended to all untagged leads.

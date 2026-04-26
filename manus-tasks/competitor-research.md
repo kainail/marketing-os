@@ -90,6 +90,41 @@ Write these 4 gaps as clear, specific statements. These feed directly into AHRI'
 
 ---
 
+## STEP 3B — COMPETITOR WEBSITE PRICING CHECK
+
+For the top 3 competitors identified in Step 1 (highest active ad count):
+
+1. Visit their website directly (not the Ad Library — their actual gym website)
+2. Look for any pricing or offer page
+3. Record:
+   - Current offer displayed on homepage or pricing page
+   - Any price shown (monthly rate, initiation fee, etc.)
+   - Any limited-time offer visible
+
+Compare to last month's record in competitor-ads.json:
+  Has their offer changed?
+  Has their price changed?
+  Are they running a new promotion?
+
+Log findings to: `intelligence-db/market/competitor-offers.json`
+Append one object per competitor (never delete existing entries):
+
+```json
+{
+  "competitor_name": "[gym name]",
+  "research_date": "[YYYY-MM-DD]",
+  "website_url": "[their website]",
+  "current_offer": "[what's showing on their site]",
+  "price_shown": "[any price visible]",
+  "changed_since_last_month": true/false,
+  "change_notes": "[what changed, if anything]"
+}
+```
+
+If their site has no pricing visible: note "pricing not public."
+
+---
+
 ## STEP 4 — UPDATE competitor-ads.json
 
 Open `intelligence-db/market/competitor-ads.json`. The file is a JSON array. Append one object per competitor researched this week:

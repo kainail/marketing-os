@@ -21,6 +21,18 @@ If all three accounts are verified — continue to Step 1.
 
 ---
 
+## STEP 0B — READ THRESHOLDS (REQUIRED BEFORE POSTING)
+
+Before posting any content, open: `knowledge-base/paid-media/thresholds.md`
+
+Scan the queue for any post flagged with [BUDGET APPROVAL REQUIRED: $X].
+If any post carries this flag:
+  DO NOT post it.
+  Log it as: "MANUS SKIPPED — [post name] has [BUDGET APPROVAL REQUIRED] flag. Kai must approve budget before this posts."
+  Continue with all other posts normally.
+
+---
+
 ## STEP 1 — READ THE APPROVED CONTENT QUEUE
 
 1. Open the file at: `distribution/queue/ready-to-post/content-calendar-[date].md`
