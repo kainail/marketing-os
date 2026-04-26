@@ -678,6 +678,11 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+app.post('/api/manus/callback', (req, res) => {
+  console.log('[Manus Callback received]', JSON.stringify(req.body, null, 2));
+  res.json({ ok: true, received: true });
+});
+
 app.listen(PORT, () => {
   console.log(`AHRI Marketing Command Center running on port ${PORT}`);
   console.log(`  Gym: ${process.env.GYM_NAME || 'GymSuite AI'}`);
