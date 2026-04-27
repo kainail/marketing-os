@@ -1145,6 +1145,35 @@ app.get('/api/intelligence/:category/:file', async (req, res) => {
   res.json(content);
 });
 
+app.get('/api/debug/paths', async (req, res) => {
+  const checks = [
+    path.join(ROOT, 'distribution', 'queue', 'pending-review'),
+    path.join(ROOT, 'distribution', 'queue', 'ready-to-post'),
+    path.join(ROOT, 'intelligence-db', 'assets', 'hooks.json'),
+    path.join(ROOT, 'performance', 'asset-log.csv'),
+    path.join(ROOT, 'intelligence-db', 'assets', 'creatives.json'),
+    ROOT,
+    __dirname,
+    process.env.REPO_ROOT || 'NOT SET'
+  ];
+
+  const results = {};
+  for (const p of checks) {
+    try {
+      const stat = await fs.promises.stat(p);
+      results[p] = stat.isDirectory() ? 'directory exists' : 'file exists';
+      if (stat.isDirectory()) {
+        const files = await fs.promises.readdir(p);
+        results[p] += ` (${files.length} items)`;
+      }
+    } catch (e) {
+      results[p] = 'NOT FOUND: ' + e.message;
+    }
+  }
+
+  res.json(results);
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
