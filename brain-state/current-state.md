@@ -88,36 +88,7 @@ Manus tasks (on-demand):
 - manus-tasks/paid-ads-setup.md (task #16 — added Session 17)
 
 ## Last Session Notes
-Session 16 fully verified and complete. Manus autonomous intelligence loop confirmed working end-to-end.
-
-Verified working:
-- LAUNCH button triggers Manus API correctly
-- Webhook receives progress and completion events
-- task_stopped handled as completion event
-- Three intelligence files written to Railway volume:
-  /data/intelligence-db/market/competitor-ads.json
-  /data/intelligence-db/market/competitor-offers.json
-  /data/intelligence-db/market/hook-saturation.json
-- Seed data confirmed on volume
-- Competitor research ran twice successfully
-- Second run found 5 national competitors with detailed intelligence
-
-Key intelligence finding:
-All competitors lead with price (dollar-down, free months). Zero coaching angle. Zero
-parent/older adult targeting. AHRI's coached onboarding and accountability positioning
-is uncontested in this market.
-
-New file added:
-manus-tasks/paid-ads-setup.md — task #16
-marketing-portal/manus-tasks/paid-ads-setup.md
-Campaign brief: 30-Day Kickstart, $25/day, Hook A cold + Hook E warm, test account first
-
-Pending before first real ad launch:
-1. Confirm test Meta ad account is set up
-2. Run paid-ads-setup.md via LAUNCH (test account)
-3. GHL API key regeneration (old key exposed)
-4. GHL Workflow 1 archetype tagging (3 steps)
-5. Verify paid-ads-setup.md committed to GitHub
+Session 4/27/2026: status check only.
 
 ## Outstanding Issues
 - Approval queue persistence (assets not visible on Railway — GitHub asset store fix needed)
