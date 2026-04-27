@@ -23,14 +23,14 @@ if (!DRIVE_RAW_FOLDER_ID) {
 // --- Types ---
 
 export interface ImageGenerationRequest {
-  hook_type: string;
-  variant: 'A' | 'B' | 'C' | 'D';
+  scene_id: string;            // O1, E1, P1, etc. — unique scene identifier from v3.0 visual map
+  category: string;             // object_shots | environment_shots | interrupted_action_shots
   hook_text: string;
   awareness_level: number;
   audience_temperature: 'cold' | 'warm' | 'retargeting';
   placement: string;
   campaign_id: string;
-  character_id?: string;
+  character_id?: string;        // only meaningful for interrupted_action_shots (character_registry: true)
   business_context: string;
   test_id: string;
   asset_id_prefix: string;
@@ -44,8 +44,8 @@ export interface GeneratedImage {
   drive_url?: string;
   prompt_used: string;
   seed: number;
-  hook_type: string;
-  variant: string;
+  scene_id: string;
+  category: string;
   awareness_level: number;
   audience_temperature: string;
   placement: string;
@@ -69,22 +69,57 @@ interface FalResponse {
   timings?: Record<string, number>;
 }
 
-interface HookVisualVariant {
-  variant_id: string;
-  scene: string;
-  subject: string;
-  emotion: string;
-  lighting: string;
-  composition: string;
-  do_not_show: string;
-  text_overlay_space: string;
+// --- v3.0 Visual Map interfaces ---
+
+interface V3ScenePerformance {
+  ctr: null;
+  cpl: null;
+  thumbstop_rate: null;
+  test_runs: number;
+  last_tested: null;
+  status: string;
 }
 
-interface HookVisualMap {
-  hook_types: Record<string, {
-    visual_strategy: string;
-    variants: Record<string, HookVisualVariant>;
-  }>;
+interface V3Scene {
+  scene_id: string;
+  name: string;
+  scene: string;
+  composition: string;
+  lighting: string;
+  do_not_show: string;
+  text_overlay_space: string;
+  use_for?: string[];
+  performance_data: V3ScenePerformance;
+  // interrupted_action_shots only:
+  subject?: string;
+  emotion?: string;
+}
+
+interface V3CategoryRules {
+  no_person?: boolean;
+  no_person_or_behind_only?: boolean;
+  no_posed_portraits?: boolean;
+  no_camera_facing?: boolean;
+  character_registry: boolean;
+  style_anchor?: string;
+  flux_generation?: boolean;
+  portal_rendered?: boolean;
+}
+
+interface V3Category {
+  label: string;
+  description: string;
+  generation_rules: V3CategoryRules;
+  scenes?: Record<string, V3Scene>;
+}
+
+interface V3VisualMap {
+  version: string;
+  philosophy: string;
+  single_test: string;
+  categories: Record<string, V3Category>;
+  generation_priority: Record<string, string[]>;
+  retired_permanently: string[];
 }
 
 interface SeasonalModifier {
@@ -131,8 +166,8 @@ interface MediaIndexEntry {
   filename: string;
   source: 'ai_generated';
   generator: string;
-  hook_type: string;
-  variant: string;
+  scene_id: string;
+  category: string;
   platform: string;
   season: string;
   campaign_id: string;
@@ -163,13 +198,13 @@ function logError(operation: string, error: Error): void {
   }
 }
 
-function logAsset(assetId: string, skill: string, variant: string, status: string, filePath: string): void {
+function logAsset(assetId: string, skill: string, sceneId: string, status: string, filePath: string): void {
   try {
     fs.ensureDirSync(path.join(ROOT, 'performance'));
     if (!fs.existsSync(ASSET_LOG)) {
-      fs.writeFileSync(ASSET_LOG, 'timestamp,asset_id,skill,variant,status,file_path\n', 'utf-8');
+      fs.writeFileSync(ASSET_LOG, 'timestamp,asset_id,skill,scene_id,status,file_path\n', 'utf-8');
     }
-    const row = `"${new Date().toISOString()}","${assetId}","${skill}","${variant}","${status}","${filePath}"\n`;
+    const row = `"${new Date().toISOString()}","${assetId}","${skill}","${sceneId}","${status}","${filePath}"\n`;
     fs.appendFileSync(ASSET_LOG, row);
   } catch {
     /* non-fatal */
@@ -193,8 +228,8 @@ function getCurrentSeason(): string {
 async function uploadToRawFolder(
   localPath: string,
   filename: string,
-  hookType: string,
-  variant: string,
+  sceneId: string,
+  category: string,
   platform: string,
   qualityScore: number
 ): Promise<{ driveFileId: string; driveUrl: string } | null> {
@@ -212,8 +247,8 @@ async function uploadToRawFolder(
       mimeType,
       folderId: DRIVE_RAW_FOLDER_ID,
       description: JSON.stringify({
-        hook_type: hookType,
-        variant,
+        scene_id: sceneId,
+        category,
         platform,
         quality_score: qualityScore,
         source: 'ai_generated',
@@ -266,6 +301,48 @@ function loadJson<T>(relPath: string): T | null {
   }
 }
 
+// --- v3.0 Scene helpers ---
+
+interface FoundScene {
+  scene: V3Scene;
+  rules: V3CategoryRules;
+  category: string;
+}
+
+function findScene(map: V3VisualMap, sceneId: string): FoundScene | null {
+  for (const [catKey, cat] of Object.entries(map.categories)) {
+    if (!cat.scenes) continue;
+    const scene = cat.scenes[sceneId];
+    if (scene) return { scene, rules: cat.generation_rules, category: catKey };
+  }
+  return null;
+}
+
+function getAllSceneIds(map: V3VisualMap): string[] {
+  const ids: string[] = [];
+  for (const cat of Object.values(map.categories)) {
+    if (cat.scenes) ids.push(...Object.keys(cat.scenes));
+  }
+  return ids;
+}
+
+function resolvePriorityKey(audienceTemp: string, awarenessLevel: number): string {
+  if (audienceTemp === 'retargeting') return 'retargeting';
+  if (audienceTemp === 'warm') return 'warm_audience';
+  return awarenessLevel <= 2 ? 'cold_audience_awareness_2' : 'cold_audience_awareness_3';
+}
+
+function selectScenesFromPriority(map: V3VisualMap, priorityKey: string, count: number): string[] {
+  const pool = (map.generation_priority[priorityKey] ?? []).filter(id => !id.startsWith('T'));
+  const unique = [...new Set(pool)];
+  // Shuffle
+  for (let i = unique.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [unique[i], unique[j]] = [unique[j]!, unique[i]!];
+  }
+  return unique.slice(0, count);
+}
+
 // --- Seasonal resolver ---
 
 function resolveSeasonalModifier(modifiers: SeasonalModifiers): SeasonalModifier {
@@ -278,7 +355,7 @@ function resolveSeasonalModifier(modifiers: SeasonalModifiers): SeasonalModifier
   return { prompt_append: '', avoid: '' };
 }
 
-// --- Character resolver ---
+// --- Character resolver (interrupted_action_shots only) ---
 
 function resolveCharacter(
   registry: CharacterRegistry,
@@ -294,12 +371,8 @@ function resolveCharacter(
   if (characterId) {
     char = campaign.characters.find(c => c.character_id === characterId);
   }
-  if (!char) {
-    char = campaign.characters[0];
-  }
-  if (!char) {
-    return { seed: campaign.seed_base, characterDesc: '', characterAvoid: '' };
-  }
+  if (!char) char = campaign.characters[0];
+  if (!char) return { seed: campaign.seed_base, characterDesc: '', characterAvoid: '' };
 
   return {
     seed: campaign.seed_base + char.seed_offset,
@@ -310,11 +383,7 @@ function resolveCharacter(
 
 // --- FAL profile resolver ---
 
-function resolveFalProfile(
-  profiles: FalProfiles,
-  audienceTemp: string,
-  placement: string
-): FalProfile {
+function resolveFalProfile(profiles: FalProfiles, audienceTemp: string, placement: string): FalProfile {
   const key = placement === 'stories'
     ? 'stories_vertical'
     : audienceTemp === 'cold'
@@ -326,41 +395,48 @@ function resolveFalProfile(
   return profiles.profiles[key] ?? profiles.profiles['cold_audience_static']!;
 }
 
-// --- Prompt builder ---
+// --- v3.0 Prompt builder ---
 
-function buildPrompt(
-  variant: HookVisualVariant,
+function buildPromptV3(
+  scene: V3Scene,
+  rules: V3CategoryRules,
   hookText: string,
   seasonalModifier: SeasonalModifier,
   characterDesc: string,
   characterAvoid: string,
   competitorInstructions: string,
-  awarenessLevel: number,
-  _audienceTemp: string
+  awarenessLevel: number
 ): string {
   const parts: string[] = [];
 
-  // Core scene
-  parts.push(`Photorealistic documentary-style photograph. ${variant.scene}`);
+  const hasHuman = !rules.no_person && !rules.no_person_or_behind_only;
+  const styleAnchor = rules.style_anchor ?? 'iPhone photo taken quickly without thinking.';
 
-  // Subject description
-  if (characterDesc) {
-    parts.push(`Subject: ${characterDesc}.`);
-  } else {
-    parts.push(`Subject: ${variant.subject}.`);
+  // Core scene
+  parts.push(`Photorealistic photograph. ${scene.scene}`);
+
+  // Subject — only for interrupted_action_shots
+  if (hasHuman && scene.subject) {
+    if (characterDesc) {
+      parts.push(`Subject: ${characterDesc}.`);
+    } else {
+      parts.push(`Subject: ${scene.subject}.`);
+    }
   }
 
-  // Emotion
-  parts.push(`Emotional tone: ${variant.emotion}.`);
+  // Emotion — only for interrupted_action_shots
+  if (hasHuman && scene.emotion) {
+    parts.push(`Emotional tone: ${scene.emotion}.`);
+  }
 
   // Lighting
-  parts.push(`Lighting: ${variant.lighting}.`);
+  parts.push(`Lighting: ${scene.lighting}.`);
 
   // Composition
-  parts.push(`Composition: ${variant.composition}.`);
+  parts.push(`Composition: ${scene.composition}.`);
 
-  // Hook text context — used to align the visual with the written hook's emotional register
-  if (hookText) {
+  // Hook text alignment — only for human shots (object/env shots have no human to feel the hook)
+  if (hasHuman && hookText) {
     parts.push(`The visual must support this written hook without illustrating it literally: "${hookText.slice(0, 120)}"`);
   }
 
@@ -371,27 +447,29 @@ function buildPrompt(
 
   // Awareness-level guidance
   if (awarenessLevel <= 2) {
-    parts.push('The image speaks to a life moment — no gym advertising visible anywhere in the scene.');
+    parts.push('No gym advertising, gym signage, or fitness context visible anywhere in the scene.');
   } else if (awarenessLevel <= 3) {
-    parts.push('A subtle gym context is acceptable but not the focus — the human moment is the subject.');
+    parts.push('A subtle gym context is acceptable but not the focus — the specific object or human moment is the subject.');
   } else {
-    parts.push('A gym context is acceptable and expected — but real people, not gym models.');
+    parts.push('A gym context is acceptable — but real people and real spaces, not staged photography.');
   }
 
-  // Style anchors — aggressive imperfection cues to signal authenticity to FLUX
+  // Style anchor — drives authenticity in FLUX
+  parts.push(`Photography style: ${styleAnchor}`);
   parts.push(
-    'Photography style: iPhone photo taken quickly without thinking. JPEG compression artifacts visible. Auto white balance slightly off — colour temperature not corrected. Background slightly blown out or underexposed — camera exposed for subject not scene. Subject not perfectly in focus — sharp enough but not tack sharp. Composition slightly tilted 1-2 degrees. One edge of subject partially cut off. No colour grading applied — straight from phone camera roll. Timestamp or notification bar visible in corner is acceptable. The photo was taken by someone who was not thinking about taking a photo.',
-    'No text, watermarks, logos, or overlaid graphics in the image itself.'
+    'JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself.'
   );
 
-  // Hard exclusions — merge variant + character + seasonal avoids
-  const avoidItems = [
-    variant.do_not_show,
-    characterAvoid,
+  // Hard exclusions
+  const avoidParts = [
+    scene.do_not_show,
+    hasHuman ? characterAvoid : '',
     seasonalModifier.avoid || '',
-    'stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, gym equipment as focal point, motivational poster aesthetic, obvious advertising composition',
-  ].filter(Boolean).join(', ');
-  parts.push(`DO NOT show: ${avoidItems}.`);
+    'stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop',
+    rules.no_person ? 'any person visible anywhere in the frame' : '',
+    rules.no_posed_portraits ? 'posed portrait, camera-facing direct gaze, intentional expression for camera' : '',
+  ].filter(s => s.length > 0).join(', ');
+  parts.push(`DO NOT show: ${avoidParts}.`);
 
   // Competitor differentiation
   if (competitorInstructions) {
@@ -472,23 +550,19 @@ function applyRecoveryMutation(
   const strategy = qualityResult.recovery_strategy;
 
   if (strategy === 'A') {
-    // Authenticity failure — increase documentary cues, reduce polished composition
     return basePrompt
-      .replace('Photorealistic documentary-style photograph.', 'Raw, candid, hand-held camera feel. Shot on iPhone or similar — slightly imperfect framing.')
-      .replace('authenticity score 9/10', 'authenticity score 10/10 — deliberately imperfect')
-      + ` Recovery attempt ${attempt}: prioritise grain, real lighting imperfections, slightly off-centre composition over polish.`;
+      .replace('Photorealistic photograph.', 'Raw, candid, hand-held feel. Shot on iPhone — slightly imperfect.')
+      + ` Recovery attempt ${attempt}: prioritise imperfection, real lighting, off-centre composition over any polish. The image must pass this test: would someone stop scrolling because they recognise this as their own life, not because it is beautiful?`;
   }
 
   if (strategy === 'B') {
-    // Differentiation failure — looks too much like competitor ads
     return basePrompt
-      + ` Recovery attempt ${attempt}: the previous image was rejected because it resembled competitor gym advertising. Shift setting entirely — move the scene outdoors or to a home environment. Remove all gym equipment from view. Make this look like it was taken by a documentary photographer, not a brand photographer.`;
+      + ` Recovery attempt ${attempt}: previous image was rejected for resembling competitor gym advertising. Shift setting entirely — move the scene outdoors or to a home environment. Remove all gym equipment from view. Documentary photographer, not brand photographer.`;
   }
 
   if (strategy === 'C') {
-    // Both failed — use a completely different scene direction
     return basePrompt
-      .replace(/Photorealistic documentary-style photograph\. [^.]+\./, 'Photorealistic candid photograph. Person shown in a completely ordinary life moment unrelated to fitness — morning routine, neighbourhood walk, kitchen table.')
+      .replace(/Photorealistic photograph\. [^.]+\./, 'Photorealistic candid photograph. Person shown in a completely ordinary life moment unrelated to fitness — morning routine, neighbourhood walk, kitchen table.')
       + ` Recovery attempt ${attempt}: complete scene reset. Prioritise the feeling of privacy and real life over any visual polish.`;
   }
 
@@ -498,7 +572,7 @@ function applyRecoveryMutation(
 // --- Main generator ---
 
 /**
- * Generates one image for a given hook type and variant.
+ * Generates one image for a given scene_id.
  * Applies two-stage quality gate with up to 2 recovery attempts.
  */
 export async function generateImage(
@@ -510,49 +584,58 @@ export async function generateImage(
     throw new Error('FAL_API_KEY not set in .env');
   }
 
-  // Load all data files
-  const hookVisualMap  = loadJson<HookVisualMap>('knowledge-base/creative/hook-visual-map.json');
-  const seasonalData   = loadJson<SeasonalModifiers>('knowledge-base/creative/seasonal-visual-modifiers.json');
-  const falProfiles    = loadJson<FalProfiles>('knowledge-base/creative/fal-parameter-profiles.json');
-  const charRegistry   = loadJson<CharacterRegistry>('intelligence-db/creative/character-registry.json');
+  // Load data files
+  const visualMap   = loadJson<V3VisualMap>('knowledge-base/creative/hook-visual-map.json');
+  const seasonalData = loadJson<SeasonalModifiers>('knowledge-base/creative/seasonal-visual-modifiers.json');
+  const falProfiles  = loadJson<FalProfiles>('knowledge-base/creative/fal-parameter-profiles.json');
+  // Character registry is optional — only used for interrupted_action_shots
+  const charRegistry = loadJson<CharacterRegistry>('intelligence-db/creative/character-registry.json');
 
-  if (!hookVisualMap || !seasonalData || !falProfiles || !charRegistry) {
-    throw new Error('Missing required data files — run setup to initialise knowledge-base/creative/ and intelligence-db/creative/');
+  if (!visualMap || !seasonalData || !falProfiles) {
+    throw new Error('Missing required data files — knowledge-base/creative/ must contain hook-visual-map.json, seasonal-visual-modifiers.json, fal-parameter-profiles.json');
   }
 
-  const hookConfig = hookVisualMap.hook_types[request.hook_type];
-  if (!hookConfig) {
-    throw new Error(`Unknown hook type: ${request.hook_type}. Valid types: ${Object.keys(hookVisualMap.hook_types).join(', ')}`);
+  // Find the scene in the visual map
+  const found = findScene(visualMap, request.scene_id);
+  if (!found) {
+    throw new Error(`Unknown scene_id: ${request.scene_id}. Valid IDs: ${getAllSceneIds(visualMap).join(', ')}`);
+  }
+  const { scene, rules } = found;
+
+  // Build context
+  const seasonalModifier = resolveSeasonalModifier(seasonalData);
+  const falProfile = resolveFalProfile(falProfiles, request.audience_temperature, request.placement);
+  const fingerprint = buildCompetitorFingerprint();
+
+  // Character: only for interrupted_action_shots (character_registry: true)
+  let characterDesc = '';
+  let characterAvoid = '';
+  let seed = Math.floor(Math.random() * 999999);
+
+  if (rules.character_registry && charRegistry) {
+    const charContext = resolveCharacter(charRegistry, request.campaign_id, request.character_id);
+    characterDesc = charContext.characterDesc;
+    characterAvoid = charContext.characterAvoid;
+    seed = charContext.seed;
   }
 
-  const variantConfig = hookConfig.variants[request.variant];
-  if (!variantConfig) {
-    throw new Error(`No variant ${request.variant} for hook type ${request.hook_type}`);
-  }
-
-  // Build all context
-  const seasonalModifier  = resolveSeasonalModifier(seasonalData);
-  const charContext       = resolveCharacter(charRegistry, request.campaign_id, request.character_id);
-  const falProfile        = resolveFalProfile(falProfiles, request.audience_temperature, request.placement);
-  const fingerprint       = buildCompetitorFingerprint();
-
-  const basePrompt = buildPrompt(
-    variantConfig,
+  const basePrompt = buildPromptV3(
+    scene,
+    rules,
     request.hook_text,
     seasonalModifier,
-    charContext.characterDesc,
-    charContext.characterAvoid,
+    characterDesc,
+    characterAvoid,
     fingerprint.differentiation_instructions,
-    request.awareness_level,
-    request.audience_temperature
+    request.awareness_level
   );
 
   // Asset naming
-  const dateStr  = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const suffix   = Math.random().toString(36).slice(2, 6).toUpperCase();
-  const assetId  = `${request.asset_id_prefix}-${dateStr}-${request.variant}-${suffix}`;
-  const ext      = falProfile.output_format === 'png' ? 'png' : 'jpg';
-  const localDir = path.join(ROOT, 'outputs', request.business_context, 'images', request.hook_type);
+  const dateStr   = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const suffix    = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const assetId   = `${request.asset_id_prefix}-${dateStr}-${request.scene_id}-${suffix}`;
+  const ext       = falProfile.output_format === 'png' ? 'png' : 'jpg';
+  const localDir  = path.join(ROOT, 'outputs', request.business_context, 'images', found.category);
   const localPath = path.join(localDir, `${assetId}.${ext}`);
   const profileKey = request.placement === 'stories' ? 'stories_vertical'
     : request.audience_temperature === 'cold' ? 'cold_audience_static'
@@ -560,7 +643,6 @@ export async function generateImage(
     : 'retargeting_static';
 
   let currentPrompt = basePrompt;
-  let seed = charContext.seed;
   let qualityResult: QualityResult | null = null;
   let falResponse: FalResponse | null = null;
   let recoveryAttempts = 0;
@@ -569,31 +651,30 @@ export async function generateImage(
   // Generation loop — up to 3 attempts (1 initial + 2 recovery)
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      console.log(chalk.gray(`  [image-generator] Attempt ${attempt}/3 — ${request.hook_type}-${request.variant}`));
-      console.log(chalk.cyan(`  → Calling fal.ai FLUX Pro v1.1...`));
+      console.log(chalk.gray(`  [image-generator] Attempt ${attempt}/3 — ${request.scene_id} (${scene.name})`));
+      console.log(chalk.cyan('  → Calling fal.ai FLUX Pro v1.1...'));
 
       falResponse = await callFalApi(currentPrompt, seed, falProfile, falApiKey, attempt);
 
       const imageUrl = falResponse.images[0]?.url;
       if (!imageUrl) throw new Error('FAL returned no image URL');
 
-      // Download for quality evaluation
       const tempPath = localPath + `.attempt${attempt}.tmp.${ext}`;
-      console.log(chalk.cyan(`  → Downloading image...`));
+      console.log(chalk.cyan('  → Downloading image...'));
       await downloadImage(imageUrl, tempPath);
 
-      // Two-stage quality gate (stage logs emitted inside evaluateImageQuality)
-      qualityResult = await evaluateImageQuality(anthropicClient, tempPath, currentPrompt, fingerprint.competitor_patterns_to_avoid, request.hook_type);
+      qualityResult = await evaluateImageQuality(
+        anthropicClient, tempPath, currentPrompt,
+        fingerprint.competitor_patterns_to_avoid, request.scene_id
+      );
 
       if (qualityResult.passed) {
-        // Move temp file to final path
         fs.moveSync(tempPath, localPath, { overwrite: true });
         console.log(chalk.green(`  → Saved locally: ${localPath}`));
 
-        // Drive upload — non-fatal, local save is always preserved on failure
         const filename = path.basename(localPath);
         driveResult = await uploadToRawFolder(
-          localPath, filename, request.hook_type, request.variant,
+          localPath, filename, request.scene_id, found.category,
           request.placement, qualityResult.overall_score
         );
 
@@ -603,8 +684,8 @@ export async function generateImage(
             filename,
             source: 'ai_generated',
             generator: 'fal-flux-pro-v1.1',
-            hook_type: request.hook_type,
-            variant: request.variant,
+            scene_id: request.scene_id,
+            category: found.category,
             platform: request.placement,
             season: getCurrentSeason(),
             campaign_id: request.campaign_id,
@@ -637,7 +718,7 @@ export async function generateImage(
       if (attempt < 3) {
         recoveryAttempts++;
         currentPrompt = applyRecoveryMutation(basePrompt, qualityResult, attempt);
-        seed = seed + attempt * 37; // shift seed for variation
+        seed = seed + attempt * 37;
       }
 
     } catch (err) {
@@ -652,7 +733,7 @@ export async function generateImage(
   const imageUrl = falResponse.images[0]?.url;
   if (!imageUrl) return null;
 
-  // If quality never passed, save the last attempt anyway with flag
+  // Save the last attempt if quality never passed (flagged)
   if (!fs.existsSync(localPath) && imageUrl) {
     try {
       await downloadImage(imageUrl, localPath);
@@ -669,8 +750,8 @@ export async function generateImage(
     drive_url: driveResult?.driveUrl,
     prompt_used: currentPrompt,
     seed: falResponse.seed ?? seed,
-    hook_type: request.hook_type,
-    variant: request.variant,
+    scene_id: request.scene_id,
+    category: found.category,
     awareness_level: request.awareness_level,
     audience_temperature: request.audience_temperature,
     placement: request.placement,
@@ -681,34 +762,36 @@ export async function generateImage(
     generated_at: new Date().toISOString(),
   };
 
-  logAsset(assetId, 'image-generator', request.variant, qualityResult.passed ? 'ready-to-post' : 'flagged', localPath);
+  logAsset(assetId, 'image-generator', request.scene_id, qualityResult.passed ? 'ready-to-post' : 'flagged', localPath);
 
-  // Update character registry used_in
-  try {
-    const regPath = path.join(ROOT, 'intelligence-db', 'creative', 'character-registry.json');
-    const reg = JSON.parse(fs.readFileSync(regPath, 'utf-8')) as CharacterRegistry;
-    const campaign = reg.campaigns[request.campaign_id];
-    if (campaign && request.character_id) {
-      const char = campaign.characters.find(c => c.character_id === request.character_id);
-      if (char && !char.used_in.includes(assetId)) {
-        char.used_in.push(assetId);
-        fs.writeFileSync(regPath, JSON.stringify(reg, null, 2), 'utf-8');
+  // Update character registry used_in (interrupted_action_shots only)
+  if (rules.character_registry && request.character_id) {
+    try {
+      const regPath = path.join(ROOT, 'intelligence-db', 'creative', 'character-registry.json');
+      const reg = JSON.parse(fs.readFileSync(regPath, 'utf-8')) as CharacterRegistry;
+      const campaign = reg.campaigns[request.campaign_id];
+      if (campaign) {
+        const char = campaign.characters.find(c => c.character_id === request.character_id);
+        if (char && !char.used_in.includes(assetId)) {
+          char.used_in.push(assetId);
+          fs.writeFileSync(regPath, JSON.stringify(reg, null, 2), 'utf-8');
+        }
       }
-    }
-  } catch { /* non-fatal */ }
+    } catch { /* non-fatal */ }
+  }
 
   return result;
 }
 
 /**
- * Generates a pair of image variants (A + B) for a campaign ad set.
- * Called by generate.ts when skill = 'image-generator'.
+ * Generates a pair of images for a campaign ad set.
+ * Randomly selects two different scenes from the generation_priority pool
+ * for the given audience temperature and awareness level.
  */
 export async function generateImagePair(
-  hookType: string,
-  hookText: string,
-  awarenessLevel: number,
   audienceTemp: 'cold' | 'warm' | 'retargeting',
+  awarenessLevel: number,
+  hookText: string,
   placement: string,
   campaignId: string,
   businessContext: string,
@@ -718,62 +801,102 @@ export async function generateImagePair(
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
   const client = new Anthropic({ apiKey });
 
-  const base: Omit<ImageGenerationRequest, 'variant'> = {
-    hook_type: hookType,
+  const visualMap = loadJson<V3VisualMap>('knowledge-base/creative/hook-visual-map.json');
+  if (!visualMap) throw new Error('hook-visual-map.json not found');
+
+  const priorityKey = resolvePriorityKey(audienceTemp, awarenessLevel);
+  const sceneIds = selectScenesFromPriority(visualMap, priorityKey, 2);
+  const sceneAId = sceneIds[0] ?? 'O1';
+  const sceneBId = sceneIds[1] ?? 'O2';
+
+  const foundA = findScene(visualMap, sceneAId);
+  const foundB = findScene(visualMap, sceneBId);
+  if (!foundA) throw new Error(`Scene ${sceneAId} not found in visual map`);
+  if (!foundB) throw new Error(`Scene ${sceneBId} not found in visual map`);
+
+  const base = {
     hook_text: hookText,
     awareness_level: awarenessLevel,
     audience_temperature: audienceTemp,
     placement,
     campaign_id: campaignId,
-    character_id: audienceTemp === 'cold' ? 'char-A' : 'char-B',
     business_context: businessContext,
     test_id: testId,
-    asset_id_prefix: `image-${hookType}`,
   };
 
-  console.log(chalk.bold.cyan(`\n  [image-generator] Generating ${hookType} × Variant A`));
-  const variantA = await generateImage({ ...base, variant: 'A' }, client);
+  console.log(chalk.bold.cyan(`\n  [image-generator] Scene A: ${sceneAId} — ${foundA.scene.name}`));
+  const variantA = await generateImage({
+    ...base,
+    scene_id: sceneAId,
+    category: foundA.category,
+    character_id: foundA.rules.character_registry ? 'char-A' : undefined,
+    asset_id_prefix: `image-${sceneAId.toLowerCase()}`,
+  }, client);
 
-  console.log(chalk.bold.cyan(`\n  [image-generator] Generating ${hookType} × Variant B`));
-  const variantB = await generateImage({ ...base, variant: 'B' }, client);
+  console.log(chalk.bold.cyan(`\n  [image-generator] Scene B: ${sceneBId} — ${foundB.scene.name}`));
+  const variantB = await generateImage({
+    ...base,
+    scene_id: sceneBId,
+    category: foundB.category,
+    character_id: foundB.rules.character_registry ? 'char-B' : undefined,
+    asset_id_prefix: `image-${sceneBId.toLowerCase()}`,
+  }, client);
 
   return { variantA, variantB };
 }
 
 /**
- * Builds the prompt that would be sent to fal.ai for a given hook type and text,
- * without making any API call. Used by the AHRI handler to preview the prompt
- * when FAL_API_KEY is not yet configured.
+ * Builds the prompt that would be sent to fal.ai for a given scene_id,
+ * without making any API call. Used by the AHRI handler to preview the prompt.
  */
-export function buildTestPrompt(hookType: string, hookText: string): string {
-  const hookVisualMap  = loadJson<HookVisualMap>('knowledge-base/creative/hook-visual-map.json');
-  const seasonalData   = loadJson<SeasonalModifiers>('knowledge-base/creative/seasonal-visual-modifiers.json');
-  const charRegistry   = loadJson<CharacterRegistry>('intelligence-db/creative/character-registry.json');
+export function buildTestPrompt(sceneId: string, hookText: string): string {
+  const visualMap   = loadJson<V3VisualMap>('knowledge-base/creative/hook-visual-map.json');
+  const seasonalData = loadJson<SeasonalModifiers>('knowledge-base/creative/seasonal-visual-modifiers.json');
 
-  if (!hookVisualMap || !seasonalData || !charRegistry) {
-    return '[Cannot build prompt — missing data files in knowledge-base/creative/ and intelligence-db/creative/]';
+  if (!visualMap || !seasonalData) {
+    return '[Cannot build prompt — missing data files in knowledge-base/creative/]';
   }
 
-  const hookConfig = hookVisualMap.hook_types[hookType];
-  if (!hookConfig) return `[Unknown hook type: ${hookType}. Valid: ${Object.keys(hookVisualMap.hook_types).join(', ')}]`;
-
-  const variantConfig = hookConfig.variants['A'];
-  if (!variantConfig) return `[No variant A for hook type: ${hookType}]`;
+  const found = findScene(visualMap, sceneId);
+  if (!found) {
+    return `[Unknown scene: ${sceneId}. Valid IDs: ${getAllSceneIds(visualMap).join(', ')}]`;
+  }
 
   const seasonalModifier = resolveSeasonalModifier(seasonalData);
-  const charContext      = resolveCharacter(charRegistry, 'no-risk-comeback-2026-04', 'char-A');
-  const fingerprint      = buildCompetitorFingerprint();
+  const fingerprint = buildCompetitorFingerprint();
 
-  return buildPrompt(
-    variantConfig,
+  return buildPromptV3(
+    found.scene,
+    found.rules,
     hookText,
     seasonalModifier,
-    charContext.characterDesc,
-    charContext.characterAvoid,
+    '',
+    '',
     fingerprint.differentiation_instructions,
-    2,
-    'cold'
+    2
   );
+}
+
+/**
+ * Returns the generation priority pool for a given audience context.
+ * Used by the AHRI handler to show the generation plan before calling FAL.
+ */
+export function getGenerationPlan(
+  audienceTemp: 'cold' | 'warm' | 'retargeting',
+  awarenessLevel: number
+): { priorityKey: string; scenes: Array<{ id: string; name: string; category: string }> } {
+  const visualMap = loadJson<V3VisualMap>('knowledge-base/creative/hook-visual-map.json');
+  if (!visualMap) return { priorityKey: 'unknown', scenes: [] };
+
+  const priorityKey = resolvePriorityKey(audienceTemp, awarenessLevel);
+  const pool = [...new Set((visualMap.generation_priority[priorityKey] ?? []).filter(id => !id.startsWith('T')))];
+
+  const scenes = pool.map(id => {
+    const found = findScene(visualMap, id);
+    return { id, name: found?.scene.name ?? id, category: found?.category ?? 'unknown' };
+  });
+
+  return { priorityKey, scenes };
 }
 
 /** Alias used by AHRI intent handler — same as generateImagePair. */
@@ -782,35 +905,80 @@ export const generateCampaignImages = generateImagePair;
 // --- CLI entry point ---
 
 if (process.argv[1] && (process.argv[1].endsWith('image-generator.ts') || process.argv[1].endsWith('image-generator.js'))) {
-  const hookType   = process.argv[2] ?? 'pain_point';
-  const hookText   = process.argv[3] ?? 'You are tired in a way that sleep does not fix anymore.';
-  const awareness  = parseInt(process.argv[4] ?? '2', 10);
-  const audTemp    = (process.argv[5] ?? 'cold') as 'cold' | 'warm' | 'retargeting';
-  const placement  = process.argv[6] ?? 'facebook_feed';
+  const sceneId   = process.argv[2] ?? 'O1';
+  const hookText  = process.argv[3] ?? 'You are tired in a way that sleep does not fix anymore.';
+  const awareness = parseInt(process.argv[4] ?? '2', 10);
+  const audTemp   = (process.argv[5] ?? 'cold') as 'cold' | 'warm' | 'retargeting';
+  const placement = process.argv[6] ?? 'facebook_feed';
   const campaignId = process.argv[7] ?? 'no-risk-comeback-2026-04';
   const bizContext = process.argv[8] ?? 'anytime-fitness';
-  const testId     = `image-test-${Date.now()}`;
+  const testId    = `image-test-${Date.now()}`;
 
-  generateImagePair(hookType, hookText, awareness, audTemp, placement, campaignId, bizContext, testId)
-    .then(({ variantA, variantB }) => {
-      console.log('');
-      if (variantA) {
-        console.log(chalk.green(`  Variant A: ${variantA.asset_id} — ${variantA.quality_passed ? 'PASS' : 'FLAGGED'} (score ${variantA.quality_score}/10)`));
-        console.log(chalk.gray(`    Path: ${variantA.local_path}`));
-      } else {
-        console.log(chalk.red('  Variant A: generation failed'));
-      }
-      if (variantB) {
-        console.log(chalk.green(`  Variant B: ${variantB.asset_id} — ${variantB.quality_passed ? 'PASS' : 'FLAGGED'} (score ${variantB.quality_score}/10)`));
-        console.log(chalk.gray(`    Path: ${variantB.local_path}`));
-      } else {
-        console.log(chalk.red('  Variant B: generation failed'));
-      }
-      console.log('');
-      process.exit(0);
-    })
-    .catch((err: Error) => {
-      console.error(chalk.red('\n[FATAL]'), err.message);
+  // If sceneId is a category key or 'pair', generate a pair from priority
+  if (sceneId === 'pair' || ['cold', 'warm', 'retargeting'].includes(sceneId)) {
+    const temp = ['cold', 'warm', 'retargeting'].includes(sceneId) ? sceneId as 'cold' | 'warm' | 'retargeting' : audTemp;
+    generateImagePair(temp, awareness, hookText, placement, campaignId, bizContext, testId)
+      .then(({ variantA, variantB }) => {
+        console.log('');
+        if (variantA) {
+          console.log(chalk.green(`  Scene A (${variantA.scene_id}): ${variantA.quality_passed ? 'PASS' : 'FLAGGED'} — score ${variantA.quality_score}/10`));
+          console.log(chalk.gray(`    Path: ${variantA.local_path}`));
+        } else {
+          console.log(chalk.red('  Scene A: generation failed'));
+        }
+        if (variantB) {
+          console.log(chalk.green(`  Scene B (${variantB.scene_id}): ${variantB.quality_passed ? 'PASS' : 'FLAGGED'} — score ${variantB.quality_score}/10`));
+          console.log(chalk.gray(`    Path: ${variantB.local_path}`));
+        } else {
+          console.log(chalk.red('  Scene B: generation failed'));
+        }
+        console.log('');
+        process.exit(0);
+      })
+      .catch((err: Error) => {
+        console.error(chalk.red('\n[FATAL]'), err.message);
+        process.exit(1);
+      });
+  } else {
+    // Single scene generation
+    const apiKey = process.env['ANTHROPIC_API_KEY'];
+    if (!apiKey) { console.error('[FATAL] ANTHROPIC_API_KEY not set'); process.exit(1); }
+    const client = new Anthropic({ apiKey });
+
+    const visualMap = loadJson<V3VisualMap>('knowledge-base/creative/hook-visual-map.json');
+    const found = visualMap ? findScene(visualMap, sceneId) : null;
+    if (!found) {
+      console.error(`[FATAL] Unknown scene_id: ${sceneId}. Valid IDs: ${visualMap ? getAllSceneIds(visualMap).join(', ') : 'map not loaded'}`);
       process.exit(1);
-    });
+    }
+
+    generateImage({
+      scene_id: sceneId,
+      category: found.category,
+      hook_text: hookText,
+      awareness_level: awareness,
+      audience_temperature: audTemp,
+      placement,
+      campaign_id: campaignId,
+      character_id: found.rules.character_registry ? 'char-A' : undefined,
+      business_context: bizContext,
+      test_id: testId,
+      asset_id_prefix: `image-${sceneId.toLowerCase()}`,
+    }, client)
+      .then(result => {
+        console.log('');
+        if (result) {
+          console.log(chalk.green(`  ${result.scene_id} (${result.category}): ${result.quality_passed ? 'PASS' : 'FLAGGED'} — score ${result.quality_score}/10`));
+          console.log(chalk.gray(`    Path: ${result.local_path}`));
+        } else {
+          console.log(chalk.red('  Generation failed after 3 attempts'));
+        }
+        console.log('');
+        process.exit(0);
+      })
+      .catch((err: Error) => {
+        console.error(chalk.red('\n[FATAL]'), err.message);
+        process.exit(1);
+      });
+  }
 }

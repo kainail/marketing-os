@@ -1,58 +1,26 @@
 {
-  "version": "2.0.0",
+  "version": "3.0",
   "last_updated": "2026-04-27T00:00:00.000Z",
-  "schema_note": "6 hook types × 4 visual variants. Each variant is a complete image direction brief. performance_data is populated by creative-performance-updater.ts after paid results flow in.",
-  "hook_types": {
-    "pain_point": {
-      "label": "Pain Point",
-      "schwartz_levels": [2],
-      "audience_temperature": "cold",
-      "visual_strategy": "Show the emotional texture of the pain — not the gym, not the solution. The viewer should feel recognised, not sold to.",
-      "variants": {
-        "A": {
-          "variant_id": "pain_point-A",
-          "scene": "Person alone on a back porch or park bench, late afternoon. Not looking at camera — looking slightly off-frame. Coffee cup that has gone cold. Comfortable clothes. No gym imagery anywhere.",
-          "subject": "Woman or man, 40-48, real proportions, dressed in everyday clothes — not activewear",
-          "emotion": "quiet exhaustion and wistfulness — the feeling of having been meaning to do something for a long time",
-          "lighting": "golden hour or soft overcast — warm but not bright",
-          "composition": "Two-thirds portrait. Subject fills left two-thirds. Right third is soft background — blurred greenery or suburban neighbourhood.",
-          "do_not_show": "gym equipment, workout clothes, anyone in shape, before/after visual cues, staged poses, camera-facing smiles",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "B": {
-          "variant_id": "pain_point-B",
-          "scene": "Close shot of hands — wrapped around a coffee mug or resting on a kitchen table. No face visible. A phone or planner visible in soft background, slightly out of focus.",
-          "subject": "Hands only — no face. Adult hands, aged 35-55, not manicured, real daily-life wear",
-          "emotion": "still, reflective — the quiet moment before the day starts when the feeling lands",
-          "lighting": "soft indoor morning light — window light, warm kitchen tones",
-          "composition": "Tight crop. Hands centred. Background depth-of-field blurred. No text in frame.",
-          "do_not_show": "gym gear, fitness imagery, rings or jewellery as focal point, screens with content visible",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "C": {
-          "variant_id": "pain_point-C",
-          "scene": "Parent watching a child play in the background — playground or backyard. Parent is seated or leaning against something. Not participating, watching. Distance between parent and child matters — it conveys the gap.",
-          "subject": "Parent, 38-50, in casual clothes, real body type — not a fitness-level physique",
-          "emotion": "love mixed with quiet guilt — the feeling of not being able to keep up",
-          "lighting": "natural outdoor light, afternoon — warm and real",
-          "composition": "Parent in foreground slightly soft, child in background slightly soft. Both in frame but separated.",
-          "do_not_show": "gym equipment, athletic wear, parent and child playing together actively, anyone posed",
+  "philosophy": "Recognition over beauty. Interruption over reflection. Truth over aspiration.",
+  "single_test": "Would someone stop scrolling because they recognize this as their own life — not because it is beautiful?",
+  "schema_note": "Scenes are organized by creative category, not hook type. Generation priority selects scenes by audience temperature and awareness level. No character registry for object_shots or environment_shots.",
+  "categories": {
+    "object_shots": {
+      "label": "Object Shots",
+      "description": "One specific object in its natural context. No person visible. The object tells the entire story through recognition alone.",
+      "generation_rules": {
+        "no_person": true,
+        "character_registry": false,
+        "style_anchor": "iPhone snapshot of something you noticed while passing by — not arranged, not styled. Shot by someone who grabbed their phone to capture something true. Slightly imperfect angle. One corner of the object may be cut off."
+      },
+      "scenes": {
+        "O1": {
+          "scene_id": "O1",
+          "name": "gym_bag_car",
+          "scene": "A gym bag sitting in the back seat of a car — packed and ready but clearly not going anywhere today. A coffee cup in the cupholder, keys on the seat. Daylight through car windows. Bag has been there a few days. Slightly dusty.",
+          "composition": "Shot from the front seat looking back through the gap between headrest and seat. Bag centred but not perfectly. Upholstery and car interior providing context — slightly cluttered, receipts, a jacket.",
+          "lighting": "Natural daylight through car windows. Slight window glare acceptable. Not studio. No flash.",
+          "do_not_show": "Gym branding on bag clearly visible, gym signage through window, any person in the car, active workout context, aspirational car interior",
           "text_overlay_space": "upper_third",
           "performance_data": {
             "ctr": null,
@@ -63,40 +31,13 @@
             "status": "untested"
           }
         },
-        "D": {
-          "variant_id": "pain_point-D",
-          "scene": "Person looking at themselves in a bathroom mirror — not dramatically, just a moment of noticing. Not posed. The reflection shows someone pausing, not posing.",
-          "subject": "Woman or man, 40-50, in casual morning clothes — t-shirt or robe, real proportions",
-          "emotion": "recognition without drama — the quiet moment of noticing, not despair",
-          "lighting": "bathroom morning light — slightly warm, soft overhead or window light",
-          "composition": "We see them and their reflection. Neither fills the frame entirely. Intimate and private.",
-          "do_not_show": "dramatic before/after posing, body isolation shots (stomach/arms/thighs), exaggerated expressions, gym branding in mirror",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        }
-      }
-    },
-    "curiosity_gap": {
-      "label": "Curiosity Gap",
-      "schwartz_levels": [3],
-      "audience_temperature": "cold",
-      "visual_strategy": "Create visual mystery — something is happening just out of frame, or a contrast is implied without being resolved. The viewer wants to know what comes next.",
-      "variants": {
-        "A": {
-          "variant_id": "curiosity_gap-A",
-          "scene": "Person stopped mid-stride on a street or parking lot, looking at something we cannot see. Their expression shows recognition or realisation — not fear, not surprise, just the look of someone who just understood something.",
-          "subject": "Adult, 35-50, casual clothes, paused in motion",
-          "emotion": "moment of realisation — a thought landing",
-          "lighting": "natural outdoor daylight — overcast or late afternoon",
-          "composition": "Wide enough to show context but close enough to read expression. Subject slightly off-centre.",
-          "do_not_show": "gym, fitness context, anything being advertised, phone in hand",
+        "O2": {
+          "scene_id": "O2",
+          "name": "running_shoes_unused",
+          "scene": "A pair of running shoes — still white, barely worn — sitting by the front door next to regular everyday shoes. Laces still tied from last time. A coat or bag nearby from normal life.",
+          "composition": "Shoes at floor level, shot from slightly above at a casual angle. Everyday context around them — doormat, umbrella, other worn shoes. Horizontal iPhone framing.",
+          "lighting": "Hallway or entryway indoor light. Could be morning or evening. Warm and real.",
+          "do_not_show": "Brand logos clearly visible on shoes, any fitness tracking device, person wearing or holding the shoes, aspirational shoe styling",
           "text_overlay_space": "lower_third",
           "performance_data": {
             "ctr": null,
@@ -107,14 +48,13 @@
             "status": "untested"
           }
         },
-        "B": {
-          "variant_id": "curiosity_gap-B",
-          "scene": "A door partially open — any interior threshold, setting intentionally ambiguous. Warm light coming through the gap. Person's silhouette visible at the threshold but not fully inside. No gym signage or equipment visible.",
-          "subject": "Silhouette only — gender and age ambiguous",
-          "emotion": "threshold moment — between before and after, not yet decided",
-          "lighting": "backlit from the warm interior, cooler tone outside",
-          "composition": "Door takes most of the frame. Silhouette is the only human element. Dramatic but not overdone.",
-          "do_not_show": "gym equipment visible through door, gym signage, anyone athletic, any text in scene",
+        "O3": {
+          "scene_id": "O3",
+          "name": "fitness_app_streak",
+          "scene": "A phone screen showing a fitness or habit tracking app with a broken streak — the current streak is 0 or 1 days, but a longer streak is visible from months ago. The phone is resting on a surface, not being held actively.",
+          "composition": "Phone screen fills most of frame. App streak chart visible but no identifiable app branding. Resting on couch arm or desk. Slight angle — not perfectly flat.",
+          "lighting": "Screen glow as primary light. Ambient room light. Evening or early morning context.",
+          "do_not_show": "Identifiable app logos or brand, person holding the phone, fitness transformation imagery on screen, readable personal data",
           "text_overlay_space": "upper_third",
           "performance_data": {
             "ctr": null,
@@ -125,218 +65,13 @@
             "status": "untested"
           }
         },
-        "C": {
-          "variant_id": "curiosity_gap-C",
-          "scene": "Phone screen visible in someone's hand — not showing the content clearly, just that they have paused on something. Their face is not shown but their body language suggests they are considering something seriously.",
-          "subject": "Hands holding phone, partial wrist and arm visible, casual sleeve",
-          "emotion": "consideration — the moment before a decision",
-          "lighting": "soft indoor light, phone glow mixing with ambient warm light",
-          "composition": "Phone centred, screen content blurred or unreadable, surrounding context soft",
-          "do_not_show": "readable screen content, gym app, anything that reveals the ad context, gym branding",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "D": {
-          "variant_id": "curiosity_gap-D",
-          "scene": "Two people in conversation inside a gym — gym is background context only. One person gesturing, the other listening and leaning in. Warm/retargeting audiences only (awareness level 4+) — do not use for cold campaigns.",
-          "subject": "Coach or staff member and a member in mid-conversation — neither is athletic-looking",
-          "emotion": "engaged, attentive — something important is being said",
-          "lighting": "natural gym light from windows, warm and grounded",
-          "composition": "Medium shot. Both in frame. Faces partially visible but not the focal point — the body language is the story.",
-          "do_not_show": "gym equipment as focal point, anyone working out, fitness bodies, staged coaching poses",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        }
-      }
-    },
-    "bold_claim": {
-      "label": "Bold Claim",
-      "schwartz_levels": [4],
-      "audience_temperature": "warm",
-      "visual_strategy": "The image supports the specificity of the claim — it looks real, operational, trustworthy. The creative direction focuses on evidence of systems and care, not excitement.",
-      "variants": {
-        "A": {
-          "variant_id": "bold_claim-A",
-          "scene": "Coach writing on a whiteboard or reviewing a printed plan with a member — the plan is visible but blurred. The act of planning is the content, not what is written. Alternative grounded setting: person standing in their kitchen in the morning, still in pajamas, looking at their phone with one eye barely open. Kitchen counter with dishes from last night still visible — real morning, not curated.",
-          "subject": "Coach, 35-50, clearly competent but not intimidating. Member looking at the plan with interest.",
-          "emotion": "collaborative, purposeful — this is what having a real system looks like",
-          "lighting": "clean gym lighting — functional and honest, not dramatic",
-          "composition": "Medium shot. Coach and plan both in frame. Member partially in frame — showing this is for them.",
-          "do_not_show": "workout in progress, athletic bodies, before/after framing, anyone posed for the camera",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "B": {
-          "variant_id": "bold_claim-B",
-          "scene": "Close-up of a text message thread on a phone — the thread shows regular two-way messages, clearly ongoing check-ins. The content of messages is not readable but the rhythm of back-and-forth is visible.",
-          "subject": "Phone in hand, no face shown",
-          "emotion": "reliability — someone is actually there",
-          "lighting": "soft indoor light mixed with phone screen glow",
-          "composition": "Phone fills most of frame. Thread fills screen. Clean, simple, honest.",
-          "do_not_show": "readable message content that makes specific claims, gym branding, fitness imagery",
-          "text_overlay_space": "upper_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "C": {
-          "variant_id": "bold_claim-C",
-          "scene": "Split scene or sequential diptych — Day 1 (person walking in, uncertain) and Day 30 (same person, easier body language, familiar with the space). No visible body change — the change is in ease and belonging.",
-          "subject": "Same person, real body type — the change is posture and ease, not physique",
-          "emotion": "quiet transformation — not dramatic, just someone who now belongs here",
-          "lighting": "consistent between panels — same gym, different energy",
-          "composition": "Two equal panels side by side. Clean centre divide. No before/after labels.",
-          "do_not_show": "body composition change, weight, anything that suggests physique transformation, dramatic expressions",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "D": {
-          "variant_id": "bold_claim-D",
-          "scene": "Calendar or planner with consistent check-marks across 30 days — real paper planner, not digital, showing a streak of attendance. A coffee cup nearby. Normal desk environment.",
-          "subject": "No person visible — just the evidence of showing up",
-          "emotion": "satisfaction of consistency — the habit has formed",
-          "lighting": "natural desk light — window light, morning feel",
-          "composition": "Calendar centred. Coffee cup as supporting element. Clean, organised, personal.",
-          "do_not_show": "gym branding on calendar, any specific dates or names visible, digital app screenshot",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        }
-      }
-    },
-    "relatability": {
-      "label": "Relatability",
-      "schwartz_levels": [2, 3],
-      "audience_temperature": "cold",
-      "visual_strategy": "The image should feel like something the viewer would share with a friend. It captures a universal experience without naming it as a gym ad. High share potential.",
-      "variants": {
-        "A": {
-          "variant_id": "relatability-A",
-          "scene": "Gym bag sitting by a front door, untouched — still packed from a week ago. A sticky note on top. The rest of the scene is the normal chaos of daily life. Alternative: person sitting in their car after work, engine off, not ready to go inside yet — workplace parking lot visible through windshield, fluorescent building light coming through the glass.",
-          "subject": "No person — just the still life of good intentions",
-          "emotion": "wry recognition — everyone has done this",
-          "lighting": "everyday home light — hallway or entrance area",
-          "composition": "Bag centred in foreground. Home context visible in background, slightly out of focus.",
-          "do_not_show": "brand logos on bag, gym equipment, anything aspirational — this is the relatable fail, not the solution",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "B": {
-          "variant_id": "relatability-B",
-          "scene": "Alarm going off on a phone — 5:30am — and a hand reaching to silence it. The person is clearly not getting up for the gym. Bedside context is visible. Real and honest.",
-          "subject": "Hand reaching to phone, bedside visible — unmistakably a snooze moment",
-          "emotion": "universal failure — nobody gets up at 5:30 without accountability",
-          "lighting": "dark bedroom with phone screen as primary light source",
-          "composition": "Phone centred, alarm time clearly visible but not branded, bedside soft focus",
-          "do_not_show": "gym content on phone, athletic imagery, aspirational morning context",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "C": {
-          "variant_id": "relatability-C",
-          "scene": "Person scrolling through their phone on the couch, TV on in background, evening light. Not sedentary in a judgmental way — just a normal evening that replaced what was supposed to be a gym visit.",
-          "subject": "Adult, 38-50, casual home clothes, relaxed but slightly distracted",
-          "emotion": "comfortable inertia — the pull of not going that everyone understands",
-          "lighting": "warm TV glow and lamp light — cosy but a bit numbing",
-          "composition": "Medium shot. Couch context clear. TV visible in background, out of focus. Person is real, not staged.",
-          "do_not_show": "phone screen content visible, gym on TV, anyone athletic, judgmental framing",
-          "text_overlay_space": "upper_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "D": {
-          "variant_id": "relatability-D",
-          "scene": "Person checking themselves in a dressing room or shop mirror while trying on clothes — the expression is not horror, just a familiar recognition. Normal clothes, not gym wear.",
-          "subject": "Adult, 38-52, in regular clothing being tried on, real body proportions",
-          "emotion": "quiet recognition — the kind that happens when fitting rooms are honest",
-          "lighting": "dressing room lighting — slightly harsh fluorescent mixed with warm ambient",
-          "composition": "Person and reflection both in frame. Intimate. Private moment made relatable.",
-          "do_not_show": "dramatic expressions, scale, measuring tape, anything clinical or before/after adjacent",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        }
-      }
-    },
-    "pattern_interrupt": {
-      "label": "Pattern Interrupt",
-      "schwartz_levels": [3, 4],
-      "audience_temperature": "cold_warm",
-      "visual_strategy": "Subvert the viewer's expectation of what a gym ad looks like. Use the opposite of every visual cue they expect. The interruption is the point.",
-      "variants": {
-        "A": {
-          "variant_id": "pattern_interrupt-A",
-          "scene": "Person sitting at their kitchen table in the early morning, fully dressed and ready to leave, but just staring out the window at nothing. Coffee cup going cold beside them. Not sad, not energised — just in the in-between moment of stillness before the day has any demands. No gym context anywhere in the scene.",
-          "subject": "Adult, 38-52, dressed for the day in work clothes or smart casual — sitting quietly. Not in athletic wear.",
-          "emotion": "pre-decision stillness — the moment before the narrative of the day begins",
-          "lighting": "soft early morning window light, warm but quiet, kitchen ambient",
-          "composition": "Medium shot. Person at left third of frame. Window and outside visible on right, soft focus. Coffee cup in foreground slightly out of focus.",
-          "do_not_show": "gym equipment, athletic gear, fitness context, motivational imagery, anything that reads as a gym ad",
+        "O4": {
+          "scene_id": "O4",
+          "name": "gym_bag_door",
+          "scene": "Gym bag propped against a front door or hallway wall — unzipped slightly, showing what is inside but clearly not leaving the house today. Water bottle tucked in the side pocket. A pair of shoes beside it.",
+          "composition": "Bag fills most of the left side of frame. Door or wall behind it. Slightly messy context — real hallway, not staged. Close enough to see the bag is packed but not going anywhere.",
+          "lighting": "Indoor hallway light — morning. Warm overhead.",
+          "do_not_show": "Any person visible, gym branding dominant, bag being actively packed or unpacked, aspirational context, staged styling",
           "text_overlay_space": "right_third",
           "performance_data": {
             "ctr": null,
@@ -347,14 +82,13 @@
             "status": "untested"
           }
         },
-        "B": {
-          "variant_id": "pattern_interrupt-B",
-          "scene": "Person mid-sentence talking to someone off camera, caught in the middle of saying something true about themselves. They are not performing — this is a candid moment of honest conversation caught on camera. Kitchen or living room setting, daytime.",
-          "subject": "Adult, 38-52, casual everyday clothes, mid-conversation — face partially turned, animated expression, completely unaware of the camera",
-          "emotion": "candid honesty — the look of someone saying something they actually mean, not something they rehearsed",
-          "lighting": "kitchen or living room, daytime, natural window light — no overhead fluorescent, no ring light, no studio setup",
-          "composition": "Three-quarter portrait. Person slightly off-centre. Off-camera conversational partner implied by their gaze and body language.",
-          "do_not_show": "gym exterior, gym parking lot, anxious body-related expressions, anyone in workout gear, any fitness context, staged conversation, direct camera eye contact",
+        "O5": {
+          "scene_id": "O5",
+          "name": "calendar_monday",
+          "scene": "A physical paper calendar or planner — Monday is circled or starred in a week that has a hand-written note about working out or going to the gym. The note was clearly written weeks ago. The surrounding days are filled with real life — appointments, grocery lists, normal things.",
+          "composition": "Calendar flat on desk or pinned to wall. Close enough to see the note but not clearly readable. Coffee ring stain acceptable on corner. Slightly warped paper — real use.",
+          "lighting": "Desk lamp or window light. Morning feel. Warm and lived-in.",
+          "do_not_show": "Gym branding on calendar, any specific gym name visible, digital calendar, aspirational desk styling",
           "text_overlay_space": "lower_third",
           "performance_data": {
             "ctr": null,
@@ -365,33 +99,14 @@
             "status": "untested"
           }
         },
-        "C": {
-          "variant_id": "pattern_interrupt-C",
-          "scene": "Two people at a coffee shop or kitchen table — not a gym — but one is clearly the coach and the other the member, mid-conversation. The conversation is happening in ordinary life, not in a gym context.",
-          "subject": "Coach-like figure and a member-like figure in everyday clothes, in a regular setting",
-          "emotion": "relationship and trust — this is what a real coaching relationship looks like, not a training session",
-          "lighting": "coffee shop or kitchen — warm, natural, lived-in",
-          "composition": "Equal frame for both people. The connection between them is the visual subject.",
-          "do_not_show": "gym equipment, workout clothes, anything that signals a gym ad at first glance",
+        "O6": {
+          "scene_id": "O6",
+          "name": "water_bottle_cabinet",
+          "scene": "A full, unopened water bottle sitting in a kitchen cabinet — behind coffee mugs and normal kitchen items. Still full. Has been there for a while. Slightly dusty cap.",
+          "composition": "Cabinet open, water bottle visible among everyday kitchen items. Not centred perfectly — caught in a moment of noticing. Close crop. Cabinet context clear.",
+          "lighting": "Kitchen interior light — cabinet slightly darker than main kitchen. Warm ambient.",
+          "do_not_show": "Brand logos on bottle clearly visible, gym context in surrounding area, any person visible, aspirational kitchen styling",
           "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "D": {
-          "variant_id": "pattern_interrupt-D",
-          "scene": "Empty gym at 6am — all equipment present but nobody working out. Just the space itself, quiet and waiting. Clean but lived-in. Not a studio shoot. Warm/retargeting audiences only (awareness level 4+) — do not use for cold campaigns.",
-          "subject": "No people — just the space",
-          "emotion": "anticipation without pressure — this place exists for you when you are ready",
-          "lighting": "early morning gym light — a few lights on, some natural light beginning, atmospheric",
-          "composition": "Wide shot of gym floor. Depth and space are the subject. Equipment is context, not featured.",
-          "do_not_show": "people working out, motivational posters visible, aggressive lighting, any stock-photo gym feel",
-          "text_overlay_space": "centre",
           "performance_data": {
             "ctr": null,
             "cpl": null,
@@ -403,56 +118,22 @@
         }
       }
     },
-    "identity_shift": {
-      "label": "Identity Shift",
-      "schwartz_levels": [3, 4, 5],
-      "audience_temperature": "warm_retargeting",
-      "visual_strategy": "Show the identity the prospect wants — not as a distant aspiration but as something already beginning. This is the resolution creative. Used after pain_point has landed.",
-      "variants": {
-        "A": {
-          "variant_id": "identity_shift-A",
-          "scene": "Person walking into a gym alone, confident — not posing, just walking in with the ease of someone who belongs there now. Gym entrance, morning or late afternoon. Real person, not athletic.",
-          "subject": "Adult, 40-50, casual gym-appropriate clothes but not athletic gear — just someone who goes now",
-          "emotion": "quiet ownership — this is just what they do now",
-          "lighting": "warm gym entrance light — welcoming, not dramatic",
-          "composition": "Shot from behind or three-quarter view — we see them entering, not posing for us.",
-          "do_not_show": "dramatic transformation, athletic body, anyone posed at camera, motivational pose",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "B": {
-          "variant_id": "identity_shift-B",
-          "scene": "Person keeping up with their kids — outdoor activity, park, hiking trail. The adult is clearly able to participate now. Not a fitness ad — a life moment. The child and parent are in it together.",
-          "subject": "Parent, 38-52, with child aged 6-14, both in motion together",
-          "emotion": "the resolution the avatar actually wants — not a six-pack, being able to keep up",
-          "lighting": "outdoor natural light, warm, afternoon",
-          "composition": "Both parent and child in frame, parent is clearly participating not watching, joyful and real",
-          "do_not_show": "gym imagery, workout context, athletic bodies, any staged family stock photo feel",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "C": {
-          "variant_id": "identity_shift-C",
-          "scene": "Person in a locker room, finished with a workout — not pumped and sweaty in a dramatic way, just done. Sitting, normal clothes back on, a small expression of quiet satisfaction. Everyday, not theatrical.",
-          "subject": "Adult, 38-52, getting ready to leave after a session — the small satisfaction of having gone",
-          "emotion": "low-key accomplishment — this is what it feels like to be someone who goes",
-          "lighting": "locker room light — functional, honest, not flattering but real",
-          "composition": "Medium shot. Context of locker room clear. Expression is subtle — not a victory pose.",
-          "do_not_show": "dramatic sweat, athletic body showcase, mirror selfie pose, before/after framing",
+    "environment_shots": {
+      "label": "Environment Shots",
+      "description": "A specific space that tells a story. No person visible, or person seen only from behind. The space itself is the subject. Recognition comes from the environment, not a face.",
+      "generation_rules": {
+        "no_person_or_behind_only": true,
+        "character_registry": false,
+        "style_anchor": "Documentary-style. Shot by someone walking into a space and capturing it before it changes. Not arranged. Slightly imperfect angle. Hand-held feel — horizon not perfectly level."
+      },
+      "scenes": {
+        "E1": {
+          "scene_id": "E1",
+          "name": "car_parked_gym",
+          "scene": "Inside view of a car parked in a gym parking lot — steering wheel and dashboard in foreground, gym entrance visible through windshield at mid-distance. Engine off. No one in the car. A coffee cup in the cupholder. Morning light.",
+          "composition": "Shot from the passenger seat or rear seat looking forward through the gap. Gym visible through windshield — close enough to be recognisable but not close enough to read signage. Dashboard provides grounding. Real car interior — not clean, not staged.",
+          "lighting": "Early morning or late afternoon. Low sun through windshield. Dashboard instruments off. Windshield slightly fogged at corners.",
+          "do_not_show": "Any person in car, gym signage that clearly displays a real brand, anyone entering the gym, any motivational imagery, clean aspirational car interior",
           "text_overlay_space": "upper_third",
           "performance_data": {
             "ctr": null,
@@ -463,14 +144,155 @@
             "status": "untested"
           }
         },
-        "D": {
-          "variant_id": "identity_shift-D",
-          "scene": "Morning routine — person dressed and ready to leave, gym bag by the door, coffee in hand. The bag is packed and going with them this time. Normal home context. Alternative: person looking in the bathroom mirror while brushing teeth — not dramatically, just the ordinary morning mirror moment. Bathroom with real clutter visible — toothpaste on counter, everyday products, real bathroom not staged.",
-          "subject": "Adult, 38-52, in everyday clothes, ready to head out — the bag is going with them",
-          "emotion": "this is just what mornings look like now — habit without drama",
-          "lighting": "morning home light — warm kitchen or hallway",
-          "composition": "Person and bag both in frame. Coffee as a normalising element. Clean and real.",
-          "do_not_show": "dramatic transformation, athletic build, anything aspirational or promotional-looking",
+        "E2": {
+          "scene_id": "E2",
+          "name": "kitchen_6am",
+          "scene": "A kitchen at 6am — dishes from last night still in the sink, coffee maker running, one light on. A gym bag visible in the corner of the room but the counter has the chaos of a morning already getting away from someone.",
+          "composition": "Wide kitchen shot. Counter with coffee maker as anchor. Sink with dishes in background. Bag visible at edge of frame but not the focal point. Slightly cluttered — real home, not staged.",
+          "lighting": "One overhead kitchen light on. Early morning exterior light barely starting through window. Warm but dim and slightly yellow.",
+          "do_not_show": "Any person visible, magazine-ready kitchen, organised aspirational morning context, gym equipment as focal point, aspirational lifestyle staging",
+          "text_overlay_space": "lower_third",
+          "performance_data": {
+            "ctr": null,
+            "cpl": null,
+            "thumbstop_rate": null,
+            "test_runs": 0,
+            "last_tested": null,
+            "status": "untested"
+          }
+        },
+        "E3": {
+          "scene_id": "E3",
+          "name": "bedroom_corner",
+          "scene": "A bedroom corner with home exercise equipment — dumbbells, a resistance band, a yoga mat still rolled up — that clearly has not been used in weeks. A pile of clothes draped over a nearby chair.",
+          "composition": "Corner of bedroom. Equipment on the floor or a small rack. Chair with clothes beside it. Real bedroom — not a home gym shoot. Equipment is background context, the corner tells the story.",
+          "lighting": "Bedroom natural light from window. Morning. Slightly warm.",
+          "do_not_show": "Any person visible, organised home gym aesthetic, equipment that looks new and aspirational, brand logos clearly visible",
+          "text_overlay_space": "lower_third",
+          "performance_data": {
+            "ctr": null,
+            "cpl": null,
+            "thumbstop_rate": null,
+            "test_runs": 0,
+            "last_tested": null,
+            "status": "untested"
+          }
+        },
+        "E4": {
+          "scene_id": "E4",
+          "name": "parking_lot_morning",
+          "scene": "A gym parking lot at early morning — a few cars parked, the gym entrance visible at mid-distance but nobody going in right now. The frame captures the stillness of a moment between decisions. No person visible.",
+          "composition": "Wide shot of parking lot. Gym entrance at mid-distance. A few cars scattered. Empty spaces. Morning light through. No close-up of signage — gym is context, not subject.",
+          "lighting": "Early morning — first light. Cool tones. Long shadows across the tarmac. Quiet.",
+          "do_not_show": "Dominant gym branding clearly legible, any people visible, active workout context, anyone entering or leaving the gym, aspirational gym exterior shoot",
+          "text_overlay_space": "upper_third",
+          "performance_data": {
+            "ctr": null,
+            "cpl": null,
+            "thumbstop_rate": null,
+            "test_runs": 0,
+            "last_tested": null,
+            "status": "untested"
+          }
+        }
+      }
+    },
+    "interrupted_action_shots": {
+      "label": "Interrupted Action Shots",
+      "description": "A person caught mid-something — never sitting quietly, never posed, never looking into the camera with intention. The subject is always in the middle of an action that got interrupted by a thought or a moment. Real people, real bodies, real expressions.",
+      "generation_rules": {
+        "no_person": false,
+        "no_posed_portraits": true,
+        "no_camera_facing": true,
+        "character_registry": true,
+        "style_anchor": "Candid — like someone took the photo mid-conversation. The subject does not know this is a photo worth keeping. Slightly motion-blurred at edges. Not perfectly in focus."
+      },
+      "scenes": {
+        "P1": {
+          "scene_id": "P1",
+          "name": "mid_eyeroll",
+          "scene": "Person caught mid-eyeroll or mid-exhale — not at the camera, reacting to something they just thought of or heard. Kitchen or living room. The expression is wry and real, not performed. This is the face of someone who has made this joke to themselves before.",
+          "subject": "Adult, 38-52, real body type, casual everyday clothes. Mid-expression — the eyeroll is the moment, not the setup for one.",
+          "emotion": "dry self-awareness — the face of someone who knows exactly what they keep doing and finds it slightly funny",
+          "lighting": "Kitchen or living room natural light. Daytime window light. Not overhead fluorescent. Warm and real.",
+          "composition": "Three-quarter portrait, slightly off-centre. Expression is the subject. Person is mid-motion, not settled. Slightly imperfect framing as if the camera caught this accidentally.",
+          "do_not_show": "Camera-facing pose, full planned smile, athletic context, gym setting, anyone who appears to be performing an expression for a camera",
+          "text_overlay_space": "lower_third",
+          "performance_data": {
+            "ctr": null,
+            "cpl": null,
+            "thumbstop_rate": null,
+            "test_runs": 0,
+            "last_tested": null,
+            "status": "untested"
+          }
+        },
+        "P2": {
+          "scene_id": "P2",
+          "name": "phone_stop",
+          "scene": "Person has stopped mid-scroll on their phone — they just hit something that made them pause. Not reading — just paused. Their expression shifts slightly. Could be standing in a kitchen, sitting on a couch, or standing in a hallway.",
+          "subject": "Adult, 38-52, phone in hand, body partially turned or stationary — not posed, just stopped. Real clothes, real body.",
+          "emotion": "the half-second of recognition before you decide whether to keep scrolling or stop",
+          "lighting": "Interior home light mixed with phone screen glow. Evening or early morning.",
+          "composition": "Three-quarter shot. Phone visible in hand. Face partially visible — focus is on the pause, not the face. Subject is in the middle of the frame but not centred intentionally.",
+          "do_not_show": "Screen content visible or readable, gym app context on screen, posed phone-scrolling, anyone who looks like a stock photo model, camera-facing gaze",
+          "text_overlay_space": "right_third",
+          "performance_data": {
+            "ctr": null,
+            "cpl": null,
+            "thumbstop_rate": null,
+            "test_runs": 0,
+            "last_tested": null,
+            "status": "untested"
+          }
+        },
+        "P3": {
+          "scene_id": "P3",
+          "name": "walking_in_from_behind",
+          "scene": "Person walking into a gym from behind — we see only the back of their head and shoulders, gym entrance ahead of them. The walk is normal, unhurried — the ease of someone who belongs here now. Not dramatic. Just someone going in.",
+          "subject": "Adult, 38-52, seen from behind only. Casual gym-appropriate clothes but not athletic gear — just someone going somewhere they know. Real body type visible from behind.",
+          "emotion": "quiet belonging — this is just what they do now",
+          "lighting": "Gym entrance light — morning. Natural light from outside mixing with gym interior light.",
+          "composition": "Shot from behind and slightly to the side. Person off-centre. Entrance ahead — visible but not the focal point. Candid angle, not perfectly framed.",
+          "do_not_show": "Person's face visible, posed entry shot, athletic gear, dominant gym branding, anyone looking at camera, stock gym shoot aesthetic",
+          "text_overlay_space": "lower_third",
+          "performance_data": {
+            "ctr": null,
+            "cpl": null,
+            "thumbstop_rate": null,
+            "test_runs": 0,
+            "last_tested": null,
+            "status": "untested"
+          }
+        },
+        "P4": {
+          "scene_id": "P4",
+          "name": "mid_laugh_real",
+          "scene": "Person caught mid-laugh during a real conversation — not performed, not at the camera. They are laughing with someone off-camera. Could be at a gym, a coffee shop, or a kitchen. The location is secondary — the laugh is the content.",
+          "subject": "Adult, 38-52, real body type, casual clothes. Mid-laugh, looking off-camera at whoever they are talking to. Completely unaware of the camera.",
+          "emotion": "genuine amusement — the kind that happens when you are comfortable somewhere and something actually lands",
+          "lighting": "Natural light. Could be indoor or outdoor. Warm and real. Not studio.",
+          "composition": "Three-quarter portrait. Subject is mid-motion, head slightly turned, completely unaware of being photographed. Slightly imperfect crop — as if the photographer was also mid-laugh.",
+          "do_not_show": "Camera-facing laugh, posed smile, gym equipment prominent, anyone who looks like a fitness model, staged group interaction",
+          "text_overlay_space": "lower_third",
+          "performance_data": {
+            "ctr": null,
+            "cpl": null,
+            "thumbstop_rate": null,
+            "test_runs": 0,
+            "last_tested": null,
+            "status": "untested"
+          }
+        },
+        "P5": {
+          "scene_id": "P5",
+          "name": "coach_member_real",
+          "scene": "Coach and member caught in a real moment mid-conversation — the coach is explaining something with hands, the member is listening and nodding. Not a training session. Could be in a gym hallway, near the front desk, or at a coffee shop. The relationship is the subject.",
+          "subject": "Coach figure, 30-45, and member figure, 38-52, both in real everyday clothes or casual gym attire. Not a training pose. Both look like actual people, not stock fitness models.",
+          "emotion": "genuine connection — someone who is actually seen and heard by another person",
+          "lighting": "Natural light — gym entrance, window, or coffee shop. Not studio lighting.",
+          "composition": "Both people in frame. Neither is posing. The coach's gesture and the member's attention are the story. Medium shot. Equal visual weight.",
+          "do_not_show": "Workout in progress, gym equipment dominant, athletic body showcase, posed coaching moment, anyone who looks like a stock photo personal trainer, camera-facing poses",
           "text_overlay_space": "lower_third",
           "performance_data": {
             "ctr": null,
@@ -482,6 +304,51 @@
           }
         }
       }
+    },
+    "text_creative": {
+      "label": "Text Creative",
+      "description": "Portal-rendered text only — not generated by Flux. These templates are rendered by the marketing-portal as styled social posts. No image generation required.",
+      "generation_rules": {
+        "flux_generation": false,
+        "portal_rendered": true,
+        "character_registry": false
+      },
+      "templates": {
+        "T1": {
+          "template_id": "T1",
+          "name": "single_line",
+          "description": "One bold statement. White text on dark background or brand colour. High contrast. No imagery. Used for cold and pattern-interrupt placements.",
+          "use_for": ["cold_audience_awareness_2", "cold_audience_awareness_3"],
+          "text_overlay_space": "full_frame"
+        },
+        "T2": {
+          "template_id": "T2",
+          "name": "three_line_offer",
+          "description": "Offer breakdown: Line 1 = the problem, Line 2 = the solution, Line 3 = the offer. Used for retargeting and most-aware audiences.",
+          "use_for": ["retargeting"],
+          "text_overlay_space": "full_frame"
+        }
+      }
     }
-  }
+  },
+  "generation_priority": {
+    "cold_audience_awareness_2": ["O1", "O2", "O4", "O6", "E2", "E3", "P1", "P2"],
+    "cold_audience_awareness_3": ["O3", "O5", "E1", "E4", "P1", "P2", "O1", "O4"],
+    "warm_audience": ["P3", "P4", "P5", "E1", "E2", "O3"],
+    "retargeting": ["P5", "P3", "P4"]
+  },
+  "retired_permanently": [
+    "solo portrait reflective — person gazing into distance with staged emotion",
+    "person gazing out window — beautiful light, melancholic expression",
+    "person alone with coffee in beautiful light — curated morning stillness",
+    "cinematic golden hour portrait — backlit subject in field or outdoors",
+    "woman sitting alone feeling something — soft focus, private moment",
+    "gym interior as primary setting for cold audience (awareness levels 2-3)",
+    "motivational poster aesthetic",
+    "before/after visual framing of any kind",
+    "athletic physique showcase",
+    "stock photo fitness model",
+    "person looking at bathroom mirror dramatically",
+    "parent watching child play from a distance — pain-point distance metaphor"
+  ]
 }

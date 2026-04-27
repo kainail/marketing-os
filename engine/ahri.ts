@@ -1372,22 +1372,29 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
   console.log(chalk.red('  [BUDGET REQUIRED] — each image costs ~$0.05 via fal.ai'));
   console.log('');
 
-  const { buildTestPrompt, generateCampaignImages } = await import('./image-generator.js');
+  const { buildTestPrompt, generateCampaignImages, getGenerationPlan } = await import('./image-generator.js');
 
   // --- No API key: show what would be sent ---
   if (!process.env['FAL_API_KEY']) {
     console.log(chalk.red('  FAL_API_KEY not configured.'));
     console.log(chalk.gray('  Add FAL_API_KEY=<your_key> to .env to enable image generation.'));
     console.log('');
-    console.log(chalk.bold.cyan('  PROMPT THAT WOULD BE SENT TO FAL.AI:'));
-    console.log(chalk.gray('  (hook_type: pain_point, variant: A, audience: cold, placement: facebook_feed)'));
+    console.log(chalk.bold.cyan('  v3.0 CATEGORY-BASED CREATIVE SYSTEM'));
+    console.log(chalk.gray('  Philosophy: Recognition over beauty. Interruption over reflection.'));
+    console.log(chalk.gray('  Single test: Would someone stop scrolling because they recognise this as their own life?'));
+    console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+    console.log('');
+
+    const plan = getGenerationPlan('cold', 2);
+    console.log(chalk.gray(`  Priority pool (cold/L2): ${plan.scenes.map(s => `${s.id}:${s.name}`).join(', ')}`));
+    console.log('');
+    console.log(chalk.bold.cyan('  PROMPT PREVIEW — Scene O1 (gym_bag_car):'));
     console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
     console.log('');
 
     const previewHook = 'You are tired in a way that sleep does not fix anymore.';
-    const prompt = buildTestPrompt('pain_point', previewHook);
+    const prompt = buildTestPrompt('O1', previewHook);
 
-    // Word-wrap at 72 chars
     const words = prompt.split(' ');
     let line = '  ';
     for (const word of words) {
@@ -1405,60 +1412,59 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
     return;
   }
 
-  // --- FAL_API_KEY set: first-run mode (1 image, ~$0.05) ---
-  const biz      = parsed.context || ctx.activeBusiness;
-  const testId   = `image-${Date.now()}`;
-  const hookTypes = ['pain_point', 'curiosity_gap', 'bold_claim', 'relatability', 'pattern_interrupt', 'identity_shift'];
+  // --- FAL_API_KEY set: first-run mode (1 scene pair, ~$0.05 per image) ---
+  const biz     = parsed.context || ctx.activeBusiness;
+  const testId  = `image-${Date.now()}`;
   const defaultHook = 'You are tired in a way that sleep does not fix anymore.';
 
-  console.log(chalk.bold.yellow('  FIRST TEST RUN — 1 image (~$0.05) to verify the full pipeline'));
-  console.log(chalk.gray('  Available hook types: ' + hookTypes.join(', ')));
+  // Show the v3.0 generation plan
+  console.log(chalk.bold.yellow('  v3.0 CATEGORY-BASED CREATIVE SYSTEM'));
+  console.log(chalk.gray('  Philosophy: Recognition over beauty. Interruption over reflection. Truth over aspiration.'));
+  console.log('');
+  console.log(chalk.gray('  Categories:'));
+  console.log(chalk.gray('    Object shots   (O1-O6) — one specific object, no person, recognition only'));
+  console.log(chalk.gray('    Environment    (E1-E4) — a specific space, no person or behind-only'));
+  console.log(chalk.gray('    Interrupted    (P1-P5) — person caught mid-action, never posed'));
   console.log('');
 
-  const hookTypeInput = await ask(rl, chalk.yellow('  Hook type (press Enter for pain_point): '));
-  const testHookType = hookTypes.includes(hookTypeInput.trim()) ? hookTypeInput.trim() : 'pain_point';
+  const coldPlan = getGenerationPlan('cold', 2);
+  console.log(chalk.gray('  Priority pool (cold/L2): ' + coldPlan.scenes.map(s => `${s.id}:${s.name}`).join(', ')));
+  console.log('');
 
-  console.log(chalk.gray(`  hook_type: ${testHookType} | variant: A | placement: facebook_feed`));
+  const audInput = await ask(rl, chalk.yellow('  Audience (cold/warm/retargeting, Enter for cold): '));
+  const audTemp = (['cold', 'warm', 'retargeting'] as const).includes(audInput.trim() as 'cold') ? audInput.trim() as 'cold' | 'warm' | 'retargeting' : 'cold';
+
+  const levelInput = await ask(rl, chalk.yellow('  Awareness level (2-5, Enter for 2): '));
+  const awarenessLevel = [2, 3, 4, 5].includes(parseInt(levelInput.trim())) ? parseInt(levelInput.trim()) : 2;
+
+  const plan = getGenerationPlan(audTemp, awarenessLevel);
+  console.log('');
+  console.log(chalk.gray(`  Priority pool (${audTemp}/L${awarenessLevel}): ${plan.scenes.map(s => `${s.id}:${s.name}`).join(', ')}`));
+  console.log(chalk.gray('  System will randomly select 2 scenes from this pool for the test pair.'));
   console.log('');
 
   const hookTextInput = await ask(rl, chalk.yellow('  Hook text (press Enter for default): '));
   const hookText = hookTextInput.trim() || defaultHook;
 
   console.log('');
-  console.log(chalk.gray('  PROMPT PREVIEW:'));
-  const promptPreview = buildTestPrompt(testHookType, hookText);
-  const previewLines = promptPreview.split(' ');
-  let pLine = '  ';
-  for (const word of previewLines.slice(0, 60)) { // first ~60 words
-    if (pLine.length + word.length > 74) {
-      console.log(chalk.gray(pLine.trimEnd()));
-      pLine = '  ' + word + ' ';
-    } else {
-      pLine += word + ' ';
-    }
-  }
-  if (pLine.trim()) console.log(chalk.gray(pLine.trimEnd()));
-  if (previewLines.length > 60) console.log(chalk.gray('  [...prompt continues...]'));
-  console.log('');
-
-  const confirm = await ask(rl, chalk.yellow('  Send this to fal.ai now? (y/n) > '));
+  console.log(chalk.bold.yellow('  FIRST TEST RUN — 1 scene (~$0.05) to verify the full pipeline'));
+  const confirm = await ask(rl, chalk.yellow('  Send to fal.ai now? (y/n) > '));
   if (confirm.trim().toLowerCase() !== 'y') {
     console.log(chalk.gray('  Cancelled.\n'));
     return;
   }
 
-  console.log('');
-  console.log(chalk.bold.cyan(`  Generating variant A of ${testHookType}...`));
-
   let generated = 0;
   let flagged = 0;
 
   try {
+    console.log('');
+    console.log(chalk.bold.cyan('  Selecting scene from priority pool and generating...'));
+
     const { variantA } = await generateCampaignImages(
-      testHookType,
+      audTemp,
+      awarenessLevel,
       hookText,
-      2,
-      'cold',
       'facebook_feed',
       'no-risk-comeback-2026-04',
       biz,
@@ -1473,6 +1479,7 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
     if (variantA) {
       const statusLabel = variantA.quality_passed ? chalk.green('PASS') : chalk.yellow('FLAGGED');
       console.log(chalk.gray('  Asset ID:       ') + chalk.white(variantA.asset_id));
+      console.log(chalk.gray('  Scene:          ') + chalk.white(`${variantA.scene_id} — ${variantA.category}`));
       console.log(chalk.gray('  Quality result: ') + statusLabel + chalk.gray(` — score ${variantA.quality_score}/10`));
       console.log(chalk.gray('  Quality notes:  ') + chalk.white(variantA.quality_notes));
       console.log(chalk.gray('  Recovery runs:  ') + chalk.white(String(variantA.recovery_attempts)));
@@ -1481,35 +1488,36 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
       console.log(chalk.gray('  Saved to:       ') + chalk.white(variantA.local_path));
       variantA.quality_passed ? generated++ : flagged++;
     } else {
-      console.log(chalk.red('  Variant A: generation failed after 3 attempts — check logs/errors.csv'));
+      console.log(chalk.red('  Scene A: generation failed after 3 attempts — check logs/errors.csv'));
     }
 
     console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
     console.log('');
 
     if (variantA?.quality_passed) {
-      // Offer full run
-      console.log(chalk.green('  Pipeline verified. Ready to generate full set.'));
-      console.log(chalk.gray('  Full set = 6 hook types × 2 variants = 12 images (~$0.60 total)'));
+      // Offer full run — all scenes in the priority pool
+      console.log(chalk.green('  Pipeline verified. Ready to generate full scene set.'));
+      const allScenes = plan.scenes;
+      const estimatedCost = (allScenes.length * 0.05).toFixed(2);
+      console.log(chalk.gray(`  Full set = ${allScenes.length} scenes from ${plan.priorityKey} pool (~$${estimatedCost} total)`));
+      console.log(chalk.gray('  ' + allScenes.map(s => `${s.id}:${s.name}`).join(', ')));
       console.log('');
-      const fullRun = await ask(rl, chalk.yellow('  Generate full campaign image set now? (y/n) > '));
+      const fullRun = await ask(rl, chalk.yellow('  Generate full scene set now? (y/n) > '));
 
       if (fullRun.trim().toLowerCase() === 'y') {
         console.log('');
-        for (const hookType of hookTypes) {
-          if (hookType === testHookType) { // already generated A, skip to B then continue
-            console.log(chalk.bold.cyan(`\n  Generating remaining variants for ${hookType}...`));
-          } else {
-            console.log(chalk.bold.cyan(`\n  Generating ${hookType}...`));
-          }
+        for (const sceneInfo of allScenes) {
+          console.log(chalk.bold.cyan(`\n  Generating ${sceneInfo.id}: ${sceneInfo.name}...`));
           try {
-            const { variantA: a, variantB: b } = await generateCampaignImages(
-              hookType, hookText, 2, 'cold', 'facebook_feed', 'no-risk-comeback-2026-04', biz, testId
+            const { variantA: a } = await generateCampaignImages(
+              audTemp, awarenessLevel, hookText, 'facebook_feed', 'no-risk-comeback-2026-04', biz, testId
             );
-            if (a) { console.log(chalk.green(`  ${hookType}-A: ${a.quality_passed ? 'PASS' : 'FLAGGED'} — score ${a.quality_score}/10`)); a.quality_passed ? generated++ : flagged++; }
-            if (b) { console.log(chalk.green(`  ${hookType}-B: ${b.quality_passed ? 'PASS' : 'FLAGGED'} — score ${b.quality_score}/10`)); b.quality_passed ? generated++ : flagged++; }
+            if (a) {
+              console.log(chalk.green(`  ${a.scene_id}: ${a.quality_passed ? 'PASS' : 'FLAGGED'} — score ${a.quality_score}/10`));
+              a.quality_passed ? generated++ : flagged++;
+            }
           } catch (err) {
-            console.log(chalk.red(`  ${hookType}: failed — ${(err as Error).message}`));
+            console.log(chalk.red(`  ${sceneInfo.id}: failed — ${(err as Error).message}`));
           }
         }
 
@@ -1521,7 +1529,7 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
       }
     } else if (variantA) {
       console.log(chalk.yellow('  Image flagged — review quality notes above before running full set.'));
-      console.log(chalk.gray('  Fix: adjust FAL_PARAMETER_PROFILES or regenerate with a different hook type.'));
+      console.log(chalk.gray('  The scene selection is random — regenerate to try a different scene from the pool.'));
       console.log('');
     }
 
@@ -1531,7 +1539,7 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
   }
 
   ctx.sessionActions.push(`Campaign images: ${generated} passed, ${flagged} flagged`);
-  logAction('generate_campaign_images', [testHookType], generated + flagged, true, `${generated} passed ${flagged} flagged`);
+  logAction('generate_campaign_images', [`${audTemp}/L${awarenessLevel}`], generated + flagged, true, `${generated} passed ${flagged} flagged`);
 }
 
 async function handleCheckCreativePerformance(): Promise<void> {
