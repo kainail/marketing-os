@@ -363,6 +363,34 @@
         "ctr": null,
         "updated_at": null
       }
+    },
+    {
+      "file_id": "1bwBDm6hU3ErDZe4TCKRgha6o3CD3Trfx",
+      "filename": "image-o6-20260427-O6-N51P.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "O6",
+      "category": "object_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Photorealistic photograph. A full, unopened water bottle sitting in a kitchen cabinet — behind coffee mugs and normal kitchen items. Still full. Has been there for a while. Slightly dusty cap. Lighting: Kitchen interior light — cabinet slightly darker than main kitchen. Warm ambient.. Composition: Cabinet open, water bottle visible among everyday kitchen items. Not centred perfectly — caught in a moment of noticing. Close crop. Cabinet context clear.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: iPhone snapshot of something you noticed while passing by — not arranged, not styled. Shot by someone who grabbed their phone to capture something true. Slightly imperfect angle. One corner of the object may be cut off. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Brand logos on bottle clearly visible, gym context in surrounding area, any person visible, aspirational kitchen styling, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, any person visible anywhere in the frame. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1bwBDm6hU3ErDZe4TCKRgha6o3CD3Trfx/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\object_shots\\image-o6-20260427-O6-N51P.jpg",
+      "created_at": "2026-04-27T23:55:02.865Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      }
     }
   ]
 }
