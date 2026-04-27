@@ -10,7 +10,13 @@ const app = express();
 const PORT = process.env.PORT || 3003;
 
 // --- Path constants ---
-const ROOT      = path.join(__dirname, '..');
+// REPO_ROOT lets Railway override when service root ≠ monorepo root.
+// Without it, __dirname is /app/marketing-portal → ROOT = /app (correct).
+// If Railway deploys marketing-portal/ as service root, __dirname = /app → ROOT = / (wrong).
+// Set REPO_ROOT=/app in Railway env vars to fix that case.
+const ROOT      = process.env.REPO_ROOT
+  ? path.resolve(process.env.REPO_ROOT)
+  : path.join(__dirname, '..');
 const INTEL     = path.join(ROOT, 'intelligence-db');
 const QUEUE     = path.join(ROOT, 'distribution', 'queue', 'pending-review');
 const POSTED    = path.join(ROOT, 'distribution', 'queue', 'posted');
@@ -136,6 +142,7 @@ const KNOWN_TASK_FILES = [
   'gbp-optimization.md',
   'monthly-report.md',
   'content-posting.md',
+  'paid-ads-setup.md',
 ];
 
 const TASK_TYPE_MAP = {
@@ -154,6 +161,7 @@ const TASK_TYPE_MAP = {
   'gbp-optimization.md': 'gbp-optimization',
   'monthly-report.md': 'monthly-report',
   'content-posting.md': 'content-posting',
+  'paid-ads-setup.md': 'paid-ads-setup',
 };
 
 const TASK_OUTPUT_PATHS = {
@@ -699,29 +707,28 @@ app.get('/api/manus-tasks/:filename', (req, res) => {
 });
 
 app.get('/api/hooks-library', (req, res) => {
-  const assetLog = parseCsvRows(safeRead(ASSET_LOG));
-  const metaPerf = safeReadJSON(path.join(INTEL, 'paid', 'meta-performance.json'));
+  // Correct source: /app/intelligence-db/assets/hooks.json (repo file).
+  // Previous code read from asset-log.csv which has no hook_text column — fell back to asset_id strings.
+  // Perf overlay reads from PERSISTENT_DATA_DIR (volume) because Manus writes meta-performance there.
+  const hooksRaw = safeReadJSON(path.join(ROOT, 'intelligence-db', 'assets', 'hooks.json'));
+  const hooks = Array.isArray(hooksRaw) ? hooksRaw : (hooksRaw.hooks || []);
+  const metaPerf = safeReadJSON(path.join(PERSISTENT_DATA_DIR, 'paid', 'meta-performance.json'));
   const perfMap = {};
   (metaPerf.hooks || []).forEach(h => { if (h.hook_text) perfMap[h.hook_text.slice(0, 40)] = h; });
 
-  const hooks = assetLog
-    .filter(r => r.skill === 'hook-writer' || r.type === 'hook')
-    .map(r => {
-      const perfKey = Object.keys(perfMap).find(k => (r.asset_id || '').includes(k));
-      const perf = perfKey ? perfMap[perfKey] : {};
-      return {
-        hook_text: r.hook_text || r.preview || r.asset_id || '',
-        hook_type: r.hook_type || 'unknown',
-        cpl: perf.cpl || null,
-        ctr: perf.ctr || null,
-        thumbstop_rate: perf.thumbstop || null,
-        status: perf.cpl ? (perf.cpl <= 30 ? 'winner' : 'testing') : 'pending',
-        created_date: r.date || '',
-        campaign: r.context || ''
-      };
-    });
+  const enriched = hooks.map(hook => {
+    const perfKey = Object.keys(perfMap).find(k => (hook.hook_text || '').startsWith(k));
+    const perf = perfKey ? perfMap[perfKey] : {};
+    return {
+      ...hook,
+      cpl: hook.cpl ?? perf.cpl ?? null,
+      ctr: hook.ctr ?? perf.ctr ?? null,
+      thumbstop_rate: hook.thumbstop_rate ?? perf.thumbstop ?? null,
+      status: hook.status || (perf.cpl ? (perf.cpl <= 30 ? 'winner' : 'testing') : 'pending'),
+    };
+  });
 
-  res.json({ hooks, total: hooks.length, has_performance_data: hooks.some(h => h.cpl) });
+  res.json({ hooks: enriched, total: enriched.length, has_performance_data: enriched.some(h => h.cpl) });
 });
 
 app.get('/api/nurture', (req, res) => {
