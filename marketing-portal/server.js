@@ -46,6 +46,29 @@ const DATA_DIR = path.join(__dirname, 'data');
 const TASK_RUNS_FILE = path.join(DATA_DIR, 'task-runs.json');
 const SCHEMAS_DIR = path.join(ROOT, 'schemas', 'manus-outputs');
 
+const PERSISTENT_DATA_DIR = (() => {
+  if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+    const volumePath = path.join(
+      process.env.RAILWAY_VOLUME_MOUNT_PATH,
+      'intelligence-db'
+    );
+    try {
+      fs.mkdirSync(volumePath, { recursive: true });
+      console.log('[Storage] Using Railway volume:', volumePath);
+      return volumePath;
+    } catch (e) {
+      console.warn('[Storage] Volume mkdir failed:', e.message);
+    }
+  }
+  const localPath = path.join(__dirname, '..', 'intelligence-db');
+  console.log('[Storage] Using local path:', localPath);
+  return localPath;
+})();
+
+if (!process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+  console.warn('⚠ RAILWAY_VOLUME_MOUNT_PATH not set. Intelligence files will not persist across deploys. Add a Railway volume mounted at /data to fix this.');
+}
+
 // --- Helpers ---
 
 function safeRead(p) {
@@ -135,21 +158,21 @@ const TASK_TYPE_MAP = {
 
 const TASK_OUTPUT_PATHS = {
   'competitor-research': [
-    { key: 'competitor_ads', path: path.join(INTEL, 'market', 'competitor-ads.json') },
-    { key: 'competitor_offers', path: path.join(INTEL, 'market', 'competitor-offers.json') },
-    { key: 'hook_saturation', path: path.join(INTEL, 'market', 'hook-saturation.json') },
+    { key: 'competitor_ads', path: path.join(PERSISTENT_DATA_DIR, 'market', 'competitor-ads.json') },
+    { key: 'competitor_offers', path: path.join(PERSISTENT_DATA_DIR, 'market', 'competitor-offers.json') },
+    { key: 'hook_saturation', path: path.join(PERSISTENT_DATA_DIR, 'market', 'hook-saturation.json') },
   ],
-  'trend-monitoring': [{ key: null, path: path.join(ROOT, 'intelligence-db', 'patterns', 'trend-hypotheses.json') }],
-  'paid-ads-analyzer': [{ key: null, path: path.join(INTEL, 'paid', 'meta-performance.json') }],
-  'google-ads-analyzer': [{ key: null, path: path.join(INTEL, 'paid', 'google-performance.json') }],
-  'budget-pacing-tracker': [{ key: null, path: path.join(INTEL, 'paid', 'pacing-log.json') }],
-  'lead-journey-tracker': [{ key: null, path: path.join(INTEL, 'lead-journey', 'attribution-report.json') }],
-  'clarity-analyzer': [{ key: null, path: path.join(INTEL, 'clarity', 'heatmap-insights.json') }],
-  'nurture-performance-analyzer': [{ key: null, path: path.join(INTEL, 'nurture', 'sequence-performance.json') }],
-  'retention-early-warning': [{ key: null, path: path.join(INTEL, 'retention', 'dropout-alerts.json') }],
-  'review-monitoring': [{ key: null, path: path.join(INTEL, 'market', 'review-log.json') }],
+  'trend-monitoring': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'patterns', 'trend-hypotheses.json') }],
+  'paid-ads-analyzer': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'paid', 'meta-performance.json') }],
+  'google-ads-analyzer': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'paid', 'google-performance.json') }],
+  'budget-pacing-tracker': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'paid', 'pacing-log.json') }],
+  'lead-journey-tracker': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'lead-journey', 'attribution-report.json') }],
+  'clarity-analyzer': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'clarity', 'heatmap-insights.json') }],
+  'nurture-performance-analyzer': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'nurture', 'sequence-performance.json') }],
+  'retention-early-warning': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'retention', 'dropout-alerts.json') }],
+  'review-monitoring': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'market', 'review-log.json') }],
   'crm-hygiene': [{ key: null, path: path.join(ROOT, 'logs', 'crm-hygiene-log.json') }],
-  'referral-tracker': [{ key: null, path: path.join(INTEL, 'market', 'referral-log.json') }],
+  'referral-tracker': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'market', 'referral-log.json') }],
   'gbp-optimization': [{ key: null, path: path.join(ROOT, 'logs', 'gbp-audit-log.json') }],
   'monthly-report': [], // written by Manus directly to outputs/anytime-fitness/monthly-reports/
   'content-posting': [], // posting log written by Manus directly
@@ -215,11 +238,11 @@ function verifyWebhookSignature(req, secret) {
   }
 }
 
-function atomicWriteJSON(filePath, data) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+async function atomicWriteJSON(filePath, data) {
+  await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
   const tmp = filePath + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  fs.renameSync(tmp, filePath);
+  await fs.promises.writeFile(tmp, JSON.stringify(data, null, 2));
+  await fs.promises.rename(tmp, filePath);
 }
 
 // Placeholder performance data — used when intelligence-db/paid/ files are empty
@@ -944,7 +967,7 @@ app.post('/api/manus/callback', (req, res) => {
   res.json({ ok: true, received: true });
 
   // Async processing after response sent
-  setImmediate(() => {
+  setImmediate(async () => {
     try {
       const raw = req.body;
       let parsed = null;
@@ -981,7 +1004,7 @@ app.post('/api/manus/callback', (req, res) => {
         try {
           const payload = output.key ? (data || {})[output.key] : data;
           if (payload && typeof payload === 'object') {
-            atomicWriteJSON(output.path, payload);
+            await atomicWriteJSON(output.path, payload);
             console.log(`[manus/callback] wrote ${output.path}`);
           }
         } catch (writeErr) {
@@ -1006,6 +1029,19 @@ app.get('/api/manus/recent-runs', (req, res) => {
   res.json({ runs: sorted, total: Object.keys(runs).length });
 });
 
+app.get('/api/intelligence/:category/:file', async (req, res) => {
+  const filePath = path.join(
+    PERSISTENT_DATA_DIR,
+    req.params.category,
+    req.params.file
+  );
+  const content = safeReadJSON(filePath);
+  if (!content || Object.keys(content).length === 0) {
+    return res.status(404).json({ error: 'Intelligence file not found', path: filePath });
+  }
+  res.json(content);
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -1016,3 +1052,55 @@ app.listen(PORT, () => {
   console.log(`  Gym: ${process.env.GYM_NAME || 'GymSuite AI'}`);
   console.log(`  Reading from: ${ROOT}`);
 });
+
+async function seedIntelligenceIfEmpty() {
+  const competitorAdsPath = path.join(PERSISTENT_DATA_DIR, 'market', 'competitor-ads.json');
+
+  try {
+    await fs.promises.access(competitorAdsPath);
+    console.log('[Seed] competitor-ads.json exists — skipping');
+  } catch {
+    console.log('[Seed] Writing seed data...');
+
+    await fs.promises.mkdir(path.join(PERSISTENT_DATA_DIR, 'market'), { recursive: true });
+
+    const seedData = {
+      last_updated: '2026-04-26T16:00:00Z',
+      city: 'Bloomington, IN',
+      total_ads_found: 13,
+      searches_run: ['gym', 'fitness center', 'personal training', 'anytime fitness', 'workout'],
+      active_competitors: ['Orangetheory Fitness', 'Club Pilates', 'Anytime Fitness Bloomington'],
+      saturated_hooks: [
+        { hook_type: 'risk-free-trial', appears_in_count: 8, example_advertisers: ['Orangetheory Fitness'] },
+        { hook_type: 'free-intro-class', appears_in_count: 4, example_advertisers: ['Club Pilates'] },
+        { hook_type: 'transformation', appears_in_count: 4, example_advertisers: ['Orangetheory Fitness', 'Club Pilates'] },
+      ],
+      common_offers: ['30-Day Risk-Free Trial', 'Free Intro Class', '2 Months Free'],
+      winning_ads: [
+        {
+          advertiser: 'Orangetheory Fitness Bloomington',
+          hook_type: 'transformation-curiosity',
+          offer_type: '30-day-risk-free-trial',
+          days_running: 33,
+          creative_description: 'Lifestyle and transformation imagery with members training',
+          primary_text_preview: "You have 30 days to fall in love with your results. Start with your first class FREE. If you don't love it, walk away free. No pressure. No long-term commitment.",
+          headline: 'Train risk-free for 30 days.',
+          cta: 'Book Now',
+          what_works: 'Strong risk-removal frame with transformation promise — 33+ days indicates profitable CPA',
+        },
+      ],
+      new_this_week: [
+        { advertiser: 'Club Pilates', summary: 'Two shorter video cuts of Spring campaign — split-testing video lengths' },
+        { advertiser: 'Anytime Fitness Bloomington', summary: 'New campaign launched April 24 — 2 months FREE offer' },
+      ],
+      disappeared_this_week: [],
+      absent_competitors: ['Planet Fitness', 'YMCA', 'Force Fitness & Performance', 'Iron Pit Gym'],
+      recommendation_for_ahri: 'Pivot away from free time and discount offers — saturated by Orangetheory and Club Pilates. Attack schedule constraints: run 24/7 access and no-waitlist hooks targeting prospects frustrated by fixed class times.',
+    };
+
+    await atomicWriteJSON(competitorAdsPath, seedData);
+    console.log('[Seed] competitor-ads.json written successfully');
+  }
+}
+
+seedIntelligenceIfEmpty().catch(console.error);
