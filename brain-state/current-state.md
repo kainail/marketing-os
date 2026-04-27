@@ -2,7 +2,7 @@
 # AHRI reads this file before every generation. Keep it current.
 
 ## Sessions Complete
-Sessions 0–16 | Version: v1.9 | Last updated: 2026-04-26
+Sessions 0–17 | Version: v1.9 | Last updated: 2026-04-27
 
 ## Active Offer
 The No-Risk Comeback — 30 Days Coached, $1 to Start
@@ -69,7 +69,7 @@ Manus tasks (first Monday of month):
 Manus tasks (on-demand):
 - content-posting (after Kai approves queue)
 
-## Manus Tasks Ready: 15 of 15
+## Manus Tasks Ready: 16 of 16
 - manus-tasks/content-posting.md
 - manus-tasks/competitor-research.md
 - manus-tasks/trend-monitoring.md
@@ -85,38 +85,52 @@ Manus tasks (on-demand):
 - manus-tasks/referral-tracker.md
 - manus-tasks/gbp-optimization.md
 - manus-tasks/monthly-report.md
+- manus-tasks/paid-ads-setup.md (task #16 — added Session 17)
 
 ## Last Session Notes
-Sessions 0–16 complete (2026-04-26). Manus Autonomous Intelligence Loop built and tested.
-Session 16: 16 JSON Schema files, OUTPUT CONTRACT added to all 15 manus task files,
-4 new server.js endpoints (trigger/status/callback/recent-runs), 6-state LAUNCH button in portal,
-Recent Runs panel, ahri.ts portal API integration, seed data for competitor-ads + hook-saturation.
-v1.9 tagged.
+Session 16 fully verified and complete. Manus autonomous intelligence loop confirmed working end-to-end.
 
-Session 17 (2026-04-26 — in progress):
-- Neural OS brain shape anatomical rewrite in progress: anatomically accurate bilateral hemispheres,
-  longitudinal fissure, temporal wings, Sylvian fissures, directional gyral texture (3-layer sine),
-  correct cerebellum position (rear-bottom, pz -0.55→-0.95), brainstem tapered cylinder.
-  Rejection sampling + binary-search surface detection. TOTAL bumped to 85,000 particles.
-  All REGIONS centers updated per anatomical coordinates. Visual verification pending.
-- marketing-portal/server.js: manus-tasks/ path resolution fix for Railway deployed (commit f1237aa).
-  MANUS path now resolves with fs.existsSync → MANUS_TASKS_DIR env var fallback.
-  KNOWN_TASK_FILES hardcoded list ensures frontend always shows all 15 tasks.
+Verified working:
+- LAUNCH button triggers Manus API correctly
+- Webhook receives progress and completion events
+- task_stopped handled as completion event
+- Three intelligence files written to Railway volume:
+  /data/intelligence-db/market/competitor-ads.json
+  /data/intelligence-db/market/competitor-offers.json
+  /data/intelligence-db/market/hook-saturation.json
+- Seed data confirmed on volume
+- Competitor research ran twice successfully
+- Second run found 5 national competitors with detailed intelligence
+
+Key intelligence finding:
+All competitors lead with price (dollar-down, free months). Zero coaching angle. Zero
+parent/older adult targeting. AHRI's coached onboarding and accountability positioning
+is uncontested in this market.
+
+New file added:
+manus-tasks/paid-ads-setup.md — task #16
+marketing-portal/manus-tasks/paid-ads-setup.md
+Campaign brief: 30-Day Kickstart, $25/day, Hook A cold + Hook E warm, test account first
+
+Pending before first real ad launch:
+1. Confirm test Meta ad account is set up
+2. Run paid-ads-setup.md via LAUNCH (test account)
+3. GHL API key regeneration (old key exposed)
+4. GHL Workflow 1 archetype tagging (3 steps)
+5. Verify paid-ads-setup.md committed to GitHub
 
 ## Outstanding Issues
-- Manus LAUNCH button not working on Railway — task files not bundled with marketing-portal/
-  deployment. Fix needed: copy manus-tasks/ into marketing-portal/manus-tasks/ and redeploy,
-  OR set MANUS_TASKS_DIR env var on Railway pointing to uploaded task files.
-- Session 16 end-to-end loop not yet verified with a real Manus run.
-- Neural OS brain shape visual verification pending (localhost:3001 — verify all angles).
-- All previous external setup still pending:
-  GHL API key regeneration
-  Workflow 1 archetype tagging (3 steps)
-  Make scenario columns M and R
-  Landing page UTM hidden fields
-  Clarity project ID
-  CAPI tokens
-  GBP links updated to tracking redirect
+- Approval queue persistence (assets not visible on Railway — GitHub asset store fix needed)
+- GymSuite AI dashboard rendering bug
+- Tracking redirect not deployed to Railway
+- Clarity project ID not set
+- CAPI tokens not set
+- GBP links still pointing to AF.com (not tracking redirect)
+- Neural OS anatomical brain shape not pushed
+- GHL API key regeneration (critical — old key exposed)
+- GHL Workflow 1 archetype tagging (3 steps pending)
+- Make scenario columns M and R
+- Landing page UTM hidden fields
 
 ## Session 16 — What Was Built
 - schemas/manus-outputs/ — 16 JSON Schema Draft 2020-12 files (1 meta + 15 task-specific)
@@ -168,14 +182,15 @@ Session 17 (2026-04-26 — in progress):
 11. Deploy marketing-portal/ as new Railway service → set env vars: GYM_NAME, OPS_URL, NEURAL_URL, ELEVENLABS_AGENT_ID, ANTHROPIC_API_KEY
 
 ## Next Session Priorities
-1. Fix Manus task file bundling in portal (copy manus-tasks/ into marketing-portal/ or set MANUS_TASKS_DIR on Railway)
-2. Verify Session 16 loop end-to-end with a real Manus run via LAUNCH button
-3. Run competitor research via LAUNCH button — first live intelligence pull
-4. Approve assets in queue (distribution/queue/pending-review/)
-5. Get first ad live (Meta $25/day — Kai approval required)
+1. Run paid-ads-setup.md via LAUNCH (test Meta ad account)
+2. GHL Workflow 1 archetype tagging
+3. Fix approval queue persistence (assets not visible on Railway)
+4. Session 17 — scheduled auto-triggers
 
-Then clear remaining external setup (items 1–11 from pre-launch checklist below).
-Portal is ready to deploy to Railway. Add MANUS_API_KEY + MANUS_WEBHOOK_SECRET to Railway env vars when deploying portal.
+## Future Sessions
+- Session 17: agentic rules engine, scheduled triggers, action tasks
+- Session 18: Meta Marketing API
+- Session 20: Cloudflare R2 migration (before second gym location onboarding)
 
 ## Cross-Brain Insights (updated 2026-04-24 — 75 calls analyzed)
 - INSIGHT 1: Source attribution is null for 3 of 75 calls (4%). AHRI enforces UTM injection on all assets. Default source value "direct_untagged" appended to all untagged leads.
