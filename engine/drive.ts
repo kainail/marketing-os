@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { google, drive_v3, sheets_v4 } from 'googleapis';
+import { Readable } from 'stream';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -279,6 +280,49 @@ export async function readSheet(spreadsheetId: string, range: string): Promise<s
   } catch (err) {
     logDriveError('readSheet', err as Error);
     return [];
+  }
+}
+
+/**
+ * Uploads a Buffer as a file to a Drive folder.
+ * Returns the file ID and web view link.
+ */
+export async function uploadFileToDrive(params: {
+  buffer: Buffer;
+  filename: string;
+  mimeType: string;
+  folderId: string;
+  description?: string;
+}): Promise<{ id: string; webViewLink: string }> {
+  await sleep(100);
+  const drive = getDrive();
+  const stream = Readable.from(params.buffer);
+
+  try {
+    const response = await drive.files.create({
+      supportsAllDrives: true,
+      requestBody: {
+        name: params.filename,
+        parents: [params.folderId],
+        description: params.description ?? '',
+      },
+      media: {
+        mimeType: params.mimeType,
+        body: stream,
+      },
+      fields: 'id, webViewLink, name',
+    });
+
+    if (!response.data.id) throw new Error('Drive upload returned no file ID');
+
+    return {
+      id: response.data.id,
+      webViewLink: response.data.webViewLink
+        ?? `https://drive.google.com/file/d/${response.data.id}/view`,
+    };
+  } catch (err) {
+    logDriveError('uploadFileToDrive', err as Error);
+    throw err;
   }
 }
 

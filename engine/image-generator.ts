@@ -5,10 +5,20 @@ import path from 'path';
 import chalk from 'chalk';
 import { buildCompetitorFingerprint } from './competitor-visual-fingerprinter.js';
 import { evaluateImageQuality, QualityResult } from './image-quality-evaluator.js';
+import { uploadFileToDrive } from './drive.js';
 
 const ROOT = process.cwd();
 const ERRORS_CSV = path.join(ROOT, 'logs', 'errors.csv');
 const ASSET_LOG  = path.join(ROOT, 'performance', 'asset-log.csv');
+const DRIVE_RAW_FOLDER_ID = process.env['GOOGLE_DRIVE_RAW_FOLDER_ID'];
+const MEDIA_INDEX_PATH = path.join(ROOT, 'intelligence-db', 'assets', 'media-index.json');
+const PORTAL_MEDIA_INDEX_PATH = path.join(ROOT, 'marketing-portal', 'intelligence-db', 'assets', 'media-index.json');
+
+if (!DRIVE_RAW_FOLDER_ID) {
+  console.warn('[image-generator] ⚠ GOOGLE_DRIVE_RAW_FOLDER_ID not set');
+  console.warn('[image-generator] Images will save locally only');
+  console.warn('[image-generator] Add to .env to enable Drive upload');
+}
 
 // --- Types ---
 
@@ -30,6 +40,8 @@ export interface GeneratedImage {
   asset_id: string;
   fal_image_url: string;
   local_path: string;
+  drive_file_id?: string;
+  drive_url?: string;
   prompt_used: string;
   seed: number;
   hook_type: string;
@@ -114,6 +126,31 @@ interface CharacterRegistry {
   campaigns: Record<string, CampaignEntry>;
 }
 
+interface MediaIndexEntry {
+  file_id: string;
+  filename: string;
+  source: 'ai_generated';
+  generator: string;
+  hook_type: string;
+  variant: string;
+  platform: string;
+  season: string;
+  campaign_id: string;
+  quality_scores: { differentiation: number; authenticity: number; overall: number };
+  prompt_used: string;
+  parameter_profile: string;
+  status: 'pending_review';
+  approved_at: null;
+  drive_url: string;
+  local_path: string;
+  created_at: string;
+  performance: { thumbstop_rate: null; ctr: null; updated_at: null };
+}
+
+interface MediaIndex {
+  assets: MediaIndexEntry[];
+}
+
 // --- Logging ---
 
 function logError(operation: string, error: Error): void {
@@ -136,6 +173,86 @@ function logAsset(assetId: string, skill: string, variant: string, status: strin
     fs.appendFileSync(ASSET_LOG, row);
   } catch {
     /* non-fatal */
+  }
+}
+
+// --- Season helper ---
+
+function getCurrentSeason(): string {
+  const month = new Date().getMonth() + 1;
+  if (month <= 2) return 'new_year';
+  if (month === 3) return 'early_spring';
+  if (month <= 5) return 'late_spring';
+  if (month <= 8) return 'summer';
+  if (month <= 10) return 'back_to_routine';
+  return 'holiday_stretch';
+}
+
+// --- Drive upload ---
+
+async function uploadToRawFolder(
+  localPath: string,
+  filename: string,
+  hookType: string,
+  variant: string,
+  platform: string,
+  qualityScore: number
+): Promise<{ driveFileId: string; driveUrl: string } | null> {
+  if (!DRIVE_RAW_FOLDER_ID) {
+    console.log(chalk.gray('  [drive-upload] GOOGLE_DRIVE_RAW_FOLDER_ID not set — skipping Drive upload'));
+    return null;
+  }
+  try {
+    console.log(chalk.cyan('  → Uploading to Google Drive raw/...'));
+    const fileBuffer = await fs.promises.readFile(localPath);
+    const mimeType = localPath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    const driveFile = await uploadFileToDrive({
+      buffer: fileBuffer,
+      filename,
+      mimeType,
+      folderId: DRIVE_RAW_FOLDER_ID,
+      description: JSON.stringify({
+        hook_type: hookType,
+        variant,
+        platform,
+        quality_score: qualityScore,
+        source: 'ai_generated',
+        generator: 'fal-flux-pro-v1.1',
+        created_at: new Date().toISOString(),
+      }),
+    });
+    console.log(chalk.green(`  → Uploaded to Drive: ${driveFile.webViewLink}`));
+    return { driveFileId: driveFile.id, driveUrl: driveFile.webViewLink };
+  } catch (error) {
+    logError('uploadToRawFolder', error as Error);
+    console.log(chalk.yellow(`  [drive-upload] Failed: ${(error as Error).message}`));
+    console.log(chalk.gray('  [drive-upload] Continuing with local save only'));
+    return null;
+  }
+}
+
+// --- Media index ---
+
+function updateMediaIndex(entry: MediaIndexEntry): void {
+  try {
+    let index: MediaIndex = { assets: [] };
+    if (fs.existsSync(MEDIA_INDEX_PATH)) {
+      index = JSON.parse(fs.readFileSync(MEDIA_INDEX_PATH, 'utf-8')) as MediaIndex;
+      if (!Array.isArray(index.assets)) index.assets = [];
+    }
+    index.assets.push(entry);
+    const json = JSON.stringify(index, null, 2);
+    fs.ensureDirSync(path.dirname(MEDIA_INDEX_PATH));
+    fs.writeFileSync(MEDIA_INDEX_PATH, json, 'utf-8');
+    const portalRoot = path.join(ROOT, 'marketing-portal');
+    if (fs.existsSync(portalRoot)) {
+      fs.ensureDirSync(path.dirname(PORTAL_MEDIA_INDEX_PATH));
+      fs.writeFileSync(PORTAL_MEDIA_INDEX_PATH, json, 'utf-8');
+    }
+    console.log(chalk.green(`  → Media index updated: ${index.assets.length} asset(s)`));
+  } catch (err) {
+    logError('updateMediaIndex', err as Error);
+    console.log(chalk.yellow('  [media-index] Failed to update media index — non-fatal'));
   }
 }
 
@@ -437,12 +554,17 @@ export async function generateImage(
   const ext      = falProfile.output_format === 'png' ? 'png' : 'jpg';
   const localDir = path.join(ROOT, 'outputs', request.business_context, 'images', request.hook_type);
   const localPath = path.join(localDir, `${assetId}.${ext}`);
+  const profileKey = request.placement === 'stories' ? 'stories_vertical'
+    : request.audience_temperature === 'cold' ? 'cold_audience_static'
+    : request.audience_temperature === 'warm' ? 'warm_audience_static'
+    : 'retargeting_static';
 
   let currentPrompt = basePrompt;
   let seed = charContext.seed;
   let qualityResult: QualityResult | null = null;
   let falResponse: FalResponse | null = null;
   let recoveryAttempts = 0;
+  let driveResult: { driveFileId: string; driveUrl: string } | null = null;
 
   // Generation loop — up to 3 attempts (1 initial + 2 recovery)
   for (let attempt = 1; attempt <= 3; attempt++) {
@@ -466,7 +588,44 @@ export async function generateImage(
       if (qualityResult.passed) {
         // Move temp file to final path
         fs.moveSync(tempPath, localPath, { overwrite: true });
-        console.log(chalk.green(`  → Saved to ${localPath}`));
+        console.log(chalk.green(`  → Saved locally: ${localPath}`));
+
+        // Drive upload — non-fatal, local save is always preserved on failure
+        const filename = path.basename(localPath);
+        driveResult = await uploadToRawFolder(
+          localPath, filename, request.hook_type, request.variant,
+          request.placement, qualityResult.overall_score
+        );
+
+        if (driveResult) {
+          updateMediaIndex({
+            file_id: driveResult.driveFileId,
+            filename,
+            source: 'ai_generated',
+            generator: 'fal-flux-pro-v1.1',
+            hook_type: request.hook_type,
+            variant: request.variant,
+            platform: request.placement,
+            season: getCurrentSeason(),
+            campaign_id: request.campaign_id,
+            quality_scores: {
+              differentiation: qualityResult.differentiation_score,
+              authenticity: qualityResult.authenticity_score,
+              overall: qualityResult.overall_score,
+            },
+            prompt_used: currentPrompt,
+            parameter_profile: profileKey,
+            status: 'pending_review',
+            approved_at: null,
+            drive_url: driveResult.driveUrl,
+            local_path: localPath,
+            created_at: new Date().toISOString(),
+            performance: { thumbstop_rate: null, ctr: null, updated_at: null },
+          });
+        } else {
+          console.log(chalk.gray('  [drive-upload] Manual upload needed to Drive raw/ folder'));
+        }
+
         console.log(chalk.green(`  [image-generator] PASS — score ${qualityResult.overall_score}/10`));
         break;
       }
@@ -506,6 +665,8 @@ export async function generateImage(
     asset_id: assetId,
     fal_image_url: imageUrl,
     local_path: localPath,
+    drive_file_id: driveResult?.driveFileId,
+    drive_url: driveResult?.driveUrl,
     prompt_used: currentPrompt,
     seed: falResponse.seed ?? seed,
     hook_type: request.hook_type,
