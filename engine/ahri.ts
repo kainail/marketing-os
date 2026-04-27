@@ -1412,7 +1412,13 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
   const defaultHook = 'You are tired in a way that sleep does not fix anymore.';
 
   console.log(chalk.bold.yellow('  FIRST TEST RUN — 1 image (~$0.05) to verify the full pipeline'));
-  console.log(chalk.gray('  hook_type: pain_point | variant: A | placement: facebook_feed'));
+  console.log(chalk.gray('  Available hook types: ' + hookTypes.join(', ')));
+  console.log('');
+
+  const hookTypeInput = await ask(rl, chalk.yellow('  Hook type (press Enter for pain_point): '));
+  const testHookType = hookTypes.includes(hookTypeInput.trim()) ? hookTypeInput.trim() : 'pain_point';
+
+  console.log(chalk.gray(`  hook_type: ${testHookType} | variant: A | placement: facebook_feed`));
   console.log('');
 
   const hookTextInput = await ask(rl, chalk.yellow('  Hook text (press Enter for default): '));
@@ -1420,7 +1426,7 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
 
   console.log('');
   console.log(chalk.gray('  PROMPT PREVIEW:'));
-  const promptPreview = buildTestPrompt('pain_point', hookText);
+  const promptPreview = buildTestPrompt(testHookType, hookText);
   const previewLines = promptPreview.split(' ');
   let pLine = '  ';
   for (const word of previewLines.slice(0, 60)) { // first ~60 words
@@ -1442,14 +1448,14 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
   }
 
   console.log('');
-  console.log(chalk.bold.cyan('  Generating variant A of pain_point...'));
+  console.log(chalk.bold.cyan(`  Generating variant A of ${testHookType}...`));
 
   let generated = 0;
   let flagged = 0;
 
   try {
     const { variantA } = await generateCampaignImages(
-      'pain_point',
+      testHookType,
       hookText,
       2,
       'cold',
@@ -1491,7 +1497,7 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
       if (fullRun.trim().toLowerCase() === 'y') {
         console.log('');
         for (const hookType of hookTypes) {
-          if (hookType === 'pain_point') { // already generated A, skip to B then continue
+          if (hookType === testHookType) { // already generated A, skip to B then continue
             console.log(chalk.bold.cyan(`\n  Generating remaining variants for ${hookType}...`));
           } else {
             console.log(chalk.bold.cyan(`\n  Generating ${hookType}...`));
@@ -1525,7 +1531,7 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
   }
 
   ctx.sessionActions.push(`Campaign images: ${generated} passed, ${flagged} flagged`);
-  logAction('generate_campaign_images', ['pain_point'], generated + flagged, true, `${generated} passed ${flagged} flagged`);
+  logAction('generate_campaign_images', [testHookType], generated + flagged, true, `${generated} passed ${flagged} flagged`);
 }
 
 async function handleCheckCreativePerformance(): Promise<void> {

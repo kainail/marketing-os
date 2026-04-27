@@ -240,7 +240,7 @@ export async function evaluateImageQuality(
   );
 
   const DIFFERENTIATION_THRESHOLD = 6;
-  const AUTHENTICITY_THRESHOLD    = 6;
+  const AUTHENTICITY_THRESHOLD    = 5;
 
   const diffFailed = diffEval.differentiation_score < DIFFERENTIATION_THRESHOLD || diffEval.competitor_pattern_detected;
   const authFailed = diffEval.authenticity_score < AUTHENTICITY_THRESHOLD;

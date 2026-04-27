@@ -91,10 +91,10 @@
       "variants": {
         "A": {
           "variant_id": "curiosity_gap-A",
-          "scene": "Two people in conversation inside a gym — but the gym is just background context. We cannot hear what they are saying. One person is gesturing, the other is listening and slightly leaning in. The conversation clearly matters.",
+          "scene": "Two people in conversation inside a gym — but the gym is just background context. We cannot hear what they are saying. One person is gesturing, the other is listening and slightly leaning in. The conversation clearly matters. Alternative mundane setting: person reading something on their phone while waiting for a microwave to finish, caught mid-scroll on something that made them pause — or sitting in a parked car in a grocery store parking lot, phone in hand, not yet ready to go in.",
           "subject": "Coach or staff member and a member in mid-conversation — neither is athletic-looking",
           "emotion": "engaged, attentive — something important is being said",
-          "lighting": "natural gym light from windows, warm and grounded",
+          "lighting": "natural gym light from windows, warm and grounded. If microwave or car scene: fluorescent overhead lighting, slightly unflattering — real indoor light, not colour-corrected",
           "composition": "Medium shot. Both in frame. Faces partially visible but not the focal point — the body language is the story.",
           "do_not_show": "gym equipment as focal point, anyone working out, fitness bodies, staged coaching poses",
           "text_overlay_space": "lower_third",
@@ -171,7 +171,7 @@
       "variants": {
         "A": {
           "variant_id": "bold_claim-A",
-          "scene": "Coach writing on a whiteboard or reviewing a printed plan with a member — the plan is visible but blurred. The act of planning is the content, not what is written.",
+          "scene": "Coach writing on a whiteboard or reviewing a printed plan with a member — the plan is visible but blurred. The act of planning is the content, not what is written. Alternative grounded setting: person standing in their kitchen in the morning, still in pajamas, looking at their phone with one eye barely open. Kitchen counter with dishes from last night still visible — real morning, not curated.",
           "subject": "Coach, 35-50, clearly competent but not intimidating. Member looking at the plan with interest.",
           "emotion": "collaborative, purposeful — this is what having a real system looks like",
           "lighting": "clean gym lighting — functional and honest, not dramatic",
@@ -251,7 +251,7 @@
       "variants": {
         "A": {
           "variant_id": "relatability-A",
-          "scene": "Gym bag sitting by a front door, untouched — still packed from a week ago. A sticky note on top. The rest of the scene is the normal chaos of daily life.",
+          "scene": "Gym bag sitting by a front door, untouched — still packed from a week ago. A sticky note on top. The rest of the scene is the normal chaos of daily life. Alternative: person sitting in their car after work, engine off, not ready to go inside yet — workplace parking lot visible through windshield, fluorescent building light coming through the glass.",
           "subject": "No person — just the still life of good intentions",
           "emotion": "wry recognition — everyone has done this",
           "lighting": "everyday home light — hallway or entrance area",
@@ -349,12 +349,12 @@
         },
         "B": {
           "variant_id": "pattern_interrupt-B",
-          "scene": "Person sitting in the gym parking lot in their car, clearly debating whether to go in. Looking at the gym entrance from outside. The car interior context is key — this is the decision moment everyone knows.",
-          "subject": "Adult in car, 38-52, casual clothes, slightly uncertain expression",
-          "emotion": "the moment before the decision — familiar to anyone who has quit before",
-          "lighting": "parking lot light — real, unfiltered, honest",
-          "composition": "Shot from passenger seat or slightly behind — we see them and what they are looking at.",
-          "do_not_show": "gym signage clearly readable, athletic people entering gym, anyone in workout gear",
+          "scene": "Person mid-sentence talking to someone off camera, caught in the middle of saying something true about themselves. They are not performing — this is a candid moment of honest conversation caught on camera. Kitchen or living room setting, daytime.",
+          "subject": "Adult, 38-52, casual everyday clothes, mid-conversation — face partially turned, animated expression, completely unaware of the camera",
+          "emotion": "candid honesty — the look of someone saying something they actually mean, not something they rehearsed",
+          "lighting": "kitchen or living room, daytime, natural window light — no overhead fluorescent, no ring light, no studio setup",
+          "composition": "Three-quarter portrait. Person slightly off-centre. Off-camera conversational partner implied by their gaze and body language.",
+          "do_not_show": "gym exterior, gym parking lot, anxious body-related expressions, anyone in workout gear, any fitness context, staged conversation, direct camera eye contact",
           "text_overlay_space": "lower_third",
           "performance_data": {
             "ctr": null,
@@ -465,7 +465,7 @@
         },
         "D": {
           "variant_id": "identity_shift-D",
-          "scene": "Morning routine — person dressed and ready to leave, gym bag by the door, coffee in hand. The bag is packed and going with them this time. Normal home context.",
+          "scene": "Morning routine — person dressed and ready to leave, gym bag by the door, coffee in hand. The bag is packed and going with them this time. Normal home context. Alternative: person looking in the bathroom mirror while brushing teeth — not dramatically, just the ordinary morning mirror moment. Bathroom with real clutter visible — toothpaste on counter, everyday products, real bathroom not staged.",
           "subject": "Adult, 38-52, in everyday clothes, ready to head out — the bag is going with them",
           "emotion": "this is just what mornings look like now — habit without drama",
           "lighting": "morning home light — warm kitchen or hallway",

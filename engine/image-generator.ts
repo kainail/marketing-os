@@ -261,10 +261,9 @@ function buildPrompt(
     parts.push('A gym context is acceptable and expected — but real people, not gym models.');
   }
 
-  // Style anchors
+  // Style anchors — aggressive imperfection cues to signal authenticity to FLUX
   parts.push(
-    'Style: candid, photorealistic, no studio lighting, no posed expressions, authenticity score 9/10.',
-    'Shot on a real camera — the image must not look AI-generated or professionally art-directed.',
+    'Photography style: iPhone photo taken quickly without thinking. JPEG compression artifacts visible. Auto white balance slightly off — colour temperature not corrected. Background slightly blown out or underexposed — camera exposed for subject not scene. Subject not perfectly in focus — sharp enough but not tack sharp. Composition slightly tilted 1-2 degrees. One edge of subject partially cut off. No colour grading applied — straight from phone camera roll. Timestamp or notification bar visible in corner is acceptable. The photo was taken by someone who was not thinking about taking a photo.',
     'No text, watermarks, logos, or overlaid graphics in the image itself.'
   );
 
