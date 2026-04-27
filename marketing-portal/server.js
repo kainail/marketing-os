@@ -17,10 +17,23 @@ const POSTED    = path.join(ROOT, 'distribution', 'queue', 'posted');
 const READY     = path.join(ROOT, 'distribution', 'queue', 'ready-to-post');
 const LOGS      = path.join(ROOT, 'logs');
 const OUTPUTS   = path.join(ROOT, 'outputs');
-const MANUS     = (() => {
-  const rel = path.join(ROOT, 'manus-tasks');
-  if (fs.existsSync(rel)) return rel;
-  return process.env.MANUS_TASKS_DIR || rel;
+const MANUS_TASKS_PATH = (() => {
+  const candidates = [
+    path.join(__dirname, 'manus-tasks'),
+    process.env.MANUS_TASKS_DIR,
+    path.join(__dirname, '..', 'manus-tasks')
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        console.log('[Manus] Task files found at:', candidate);
+        return candidate;
+      }
+    } catch (e) {}
+  }
+  console.warn('[Manus] No task directory found — using hardcoded fallback list');
+  return null;
 })();
 const BRIEFS    = path.join(OUTPUTS, 'anytime-fitness', 'morning-briefs');
 const THRESHOLDS = path.join(ROOT, 'knowledge-base', 'paid-media', 'thresholds.md');
@@ -622,12 +635,12 @@ app.get('/api/morning-brief', (req, res) => {
 });
 
 app.get('/api/manus-tasks', (req, res) => {
-  const discovered = safeReadDir(MANUS).filter(f => f.endsWith('.md'));
+  const discovered = safeReadDir(MANUS_TASKS_PATH).filter(f => f.endsWith('.md'));
   const files = discovered.length > 0 ? discovered : KNOWN_TASK_FILES;
   const sessionLog = parseCsvRows(safeRead(SESSION_LOG));
 
   const tasks = files.map(filename => {
-    const content = safeRead(path.join(MANUS, filename)) || '';
+    const content = safeRead(path.join(MANUS_TASKS_PATH, filename)) || '';
     const triggerMatch = content.match(/\*\*Trigger:\*\*\s*(.+)/);
     const timeMatch = content.match(/\*\*Estimated time:\*\*\s*(.+)/);
     const outputMatch = content.match(/\*\*Output:\*\*\s*(.+)/);
@@ -657,7 +670,7 @@ app.get('/api/manus-tasks/:filename', (req, res) => {
   if (!filename.endsWith('.md') || filename.includes('..')) {
     return res.status(400).json({ error: 'invalid filename' });
   }
-  const content = safeRead(path.join(MANUS, filename));
+  const content = safeRead(path.join(MANUS_TASKS_PATH, filename));
   if (!content) return res.status(404).json({ error: 'task not found' });
   res.json({ filename, content });
 });
@@ -816,23 +829,30 @@ app.post('/api/manus/trigger', async (req, res) => {
   if (!filename || !filename.endsWith('.md')) {
     return res.status(400).json({ success: false, error: 'filename (.md) required' });
   }
-  const taskContent = safeRead(path.join(MANUS, filename));
-  if (!taskContent) {
-    return res.status(404).json({ success: false, error: 'task file not found' });
+
+  const taskContent = MANUS_TASKS_PATH ? safeRead(path.join(MANUS_TASKS_PATH, filename)) : null;
+  const fileFound = !!(taskContent && taskContent.length > 0);
+  const apiKeySet = !!MANUS_API_KEY;
+
+  console.log(`[Manus Trigger] task: ${filename}`);
+  console.log(`[Manus Trigger] file found: ${fileFound ? 'yes' : 'no'}`);
+  console.log(`[Manus Trigger] API key set: ${apiKeySet ? 'yes' : 'no'}`);
+
+  if (!taskContent || taskContent.trim() === '') {
+    return res.status(404).json({ success: false, error: 'Task file not found or empty', fallback: false });
   }
   const task_type = getTaskType(filename);
 
   if (!MANUS_API_KEY) {
-    // No API key — return fallback with task content for copy/paste
     const fallbackId = task_id_override || `local-${Date.now()}`;
     saveTaskRun(fallbackId, { task_type, task_filename: filename, started_at: new Date().toISOString(), status: 'fallback' });
-    return res.json({
+    return res.status(503).json({
       success: false,
+      error: 'MANUS_API_KEY not configured',
       fallback: true,
       task_id: fallbackId,
       task_type,
-      task_content: taskContent,
-      error: 'MANUS_API_KEY not set — copy task content to Manus manually'
+      task_content: taskContent
     });
   }
 
