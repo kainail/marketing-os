@@ -985,8 +985,8 @@ app.post('/api/manus/callback', (req, res) => {
           return;
         }
 
-        if (event_type !== 'task_completed') {
-          console.log(`[manus/callback] unhandled event_type=${event_type} — skipping`);
+        if (event_type !== 'task_completed' && event_type !== 'task_stopped') {
+          console.log('[manus/callback] unhandled event_type=' + event_type, JSON.stringify(raw).substring(0, 500));
           return;
         }
 
