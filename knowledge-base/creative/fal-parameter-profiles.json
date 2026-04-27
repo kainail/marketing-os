@@ -1,0 +1,62 @@
+{
+  "version": "1.0.0",
+  "model": "fal-ai/flux-pro/v1.1",
+  "schema_note": "Profiles map to ad placement and audience temperature. num_inference_steps and guidance_scale are the primary quality/style levers.",
+  "profiles": {
+    "cold_audience_static": {
+      "label": "Cold Audience — Static Photo Ad",
+      "placement": ["facebook_feed", "instagram_feed"],
+      "image_size": "landscape_4_3",
+      "num_inference_steps": 35,
+      "guidance_scale": 3.5,
+      "safety_tolerance": "2",
+      "output_format": "jpeg",
+      "style_notes": "Photorealistic, candid, documentary feel. No visible AI tells. Authenticity over polish.",
+      "aspect_ratio_note": "4:3 for Facebook feed static — fills the feed without cropping awkwardly on mobile"
+    },
+    "warm_audience_static": {
+      "label": "Warm Audience — Static Photo Ad",
+      "placement": ["facebook_feed", "instagram_feed"],
+      "image_size": "square_hd",
+      "num_inference_steps": 40,
+      "guidance_scale": 3.2,
+      "safety_tolerance": "2",
+      "output_format": "jpeg",
+      "style_notes": "Slightly warmer colour grade. More intimate framing. Two-person moment over solo.",
+      "aspect_ratio_note": "Square 1:1 for warm retargeting — performs better in both feed and stories adaptation"
+    },
+    "retargeting_static": {
+      "label": "Retargeting — High-Intent Static",
+      "placement": ["facebook_feed", "instagram_feed", "instagram_stories"],
+      "image_size": "square_hd",
+      "num_inference_steps": 40,
+      "guidance_scale": 3.0,
+      "safety_tolerance": "2",
+      "output_format": "jpeg",
+      "style_notes": "Clean, trustworthy, slightly graphic — can include text-overlay space in lower third. Warmer and more direct than cold.",
+      "aspect_ratio_note": "Square adapts to stories with 9:16 crop at top — leave 20% bottom margin clear for text overlay"
+    },
+    "stories_vertical": {
+      "label": "Stories — Vertical Format",
+      "placement": ["instagram_stories", "facebook_stories"],
+      "image_size": "portrait_16_9",
+      "num_inference_steps": 35,
+      "guidance_scale": 3.5,
+      "safety_tolerance": "2",
+      "output_format": "jpeg",
+      "style_notes": "Full-bleed vertical. Subject centred vertically. Leave 15% top and 20% bottom for UI chrome.",
+      "aspect_ratio_note": "9:16 native stories format"
+    },
+    "high_quality_hero": {
+      "label": "Hero / Landing Page / OOH — Maximum Quality",
+      "placement": ["landing_page", "google_display", "print"],
+      "image_size": "landscape_16_9",
+      "num_inference_steps": 50,
+      "guidance_scale": 3.0,
+      "safety_tolerance": "2",
+      "output_format": "png",
+      "style_notes": "Maximum resolution. Photorealistic. Suitable for print if needed. Slower generation — use for approved hero only.",
+      "aspect_ratio_note": "16:9 widescreen — hero banner, landing page above-fold, Google Display"
+    }
+  }
+}

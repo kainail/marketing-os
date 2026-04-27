@@ -75,6 +75,9 @@ type IntentType =
   | 'clean_crm'
   | 'generate_monthly_report'
   | 'process_manus_results'
+  | 'generate_campaign_images'
+  | 'check_creative_performance'
+  | 'update_visual_map'
   | 'exit';
 
 interface SessionHistoryEntry {
@@ -244,6 +247,9 @@ Rules:
 - "CRM hygiene" / "clean CRM" / "CRM audit" / "crm cleanup" → clean_crm
 - "monthly report" / "generate report" / "executive report" / "monthly brief" → generate_monthly_report
 - "process results" / "summarize intelligence" / "what does the data say" / "analyze intelligence" / "intelligence summary" / "what's the data showing" → process_manus_results
+- "generate images" / "image generator" / "generate campaign images" / "create images" / "run image generator" → generate_campaign_images
+- "creative performance" / "check image performance" / "how are images performing" / "visual performance" → check_creative_performance
+- "update visual map" / "sync creative data" / "update hook visual map" / "update image performance" → update_visual_map
 - ad-copy, google-ads, image-generator are paid skills → set budget_required: true
 - Default context: ${ctx.activeBusiness}
 - Available skills: offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync, content-calendar, vsl-script, flyer-generator, image-generator, seo-content, google-ads, referral-campaign, reactivation, review-engine, funnel-updater, workflow-updater
@@ -1353,6 +1359,127 @@ async function handleRunRoutineManually(parsed: ParsedIntent, ctx: SessionContex
   logAction('run_routine_manually', [routineKey], 0, false, `Manual run: ${routineKey}`);
 }
 
+// --- Image generation handlers ---
+
+async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionContext, rl: RLInterface): Promise<void> {
+  console.log('');
+  console.log(chalk.bold.yellow('  CAMPAIGN IMAGE GENERATOR'));
+  console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+  console.log(chalk.gray('  Model: fal-ai/flux-pro/v1.1'));
+  console.log(chalk.gray('  Quality gate: 2-stage (compliance + differentiation)'));
+  console.log(chalk.gray('  Recovery: up to 2 attempts per variant'));
+  console.log(chalk.red('  [BUDGET REQUIRED] — image generation costs apply per image'));
+  console.log('');
+
+  if (!process.env['FAL_API_KEY']) {
+    console.log(chalk.red('  FAL_API_KEY not set in .env — image generation unavailable.'));
+    console.log(chalk.gray('  Add your fal.ai API key to .env as FAL_API_KEY=...'));
+    console.log('');
+    return;
+  }
+
+  const hookTypes = ['pain_point', 'curiosity_gap', 'bold_claim', 'relatability', 'pattern_interrupt', 'identity_shift'];
+
+  console.log(chalk.white('  Which hook type?'));
+  hookTypes.forEach((h, i) => console.log(chalk.gray(`    ${i + 1}. ${h}`)));
+  console.log(chalk.gray('  (Enter number or name, or "all" to generate all 6 types × 2 variants = 12 images)'));
+  console.log('');
+
+  const answer = await ask(rl, chalk.green('  AHRI > '));
+  const input = answer.trim().toLowerCase();
+
+  let selectedTypes: string[] = [];
+  if (input === 'all') {
+    selectedTypes = hookTypes;
+  } else {
+    const idx = parseInt(input, 10);
+    if (!isNaN(idx) && idx >= 1 && idx <= hookTypes.length) {
+      selectedTypes = [hookTypes[idx - 1]!];
+    } else {
+      const match = hookTypes.find(h => input.includes(h.replace('_', ' ')) || input.includes(h));
+      if (match) {
+        selectedTypes = [match];
+      } else {
+        console.log(chalk.red('  Hook type not recognised. No images generated.\n'));
+        return;
+      }
+    }
+  }
+
+  const hookText = await ask(rl, chalk.yellow('  Hook text for this image (or press Enter for default): '));
+  const defaultHook = 'You are tired in a way that sleep does not fix anymore.';
+
+  console.log(chalk.gray(`\n  Generating ${selectedTypes.length * 2} image(s)...`));
+  console.log('');
+
+  const { generateImagePair } = await import('./image-generator.js');
+  const biz = parsed.context || ctx.activeBusiness;
+  const testId = `image-${Date.now()}`;
+  let generated = 0;
+  let flagged = 0;
+
+  for (const hookType of selectedTypes) {
+    try {
+      const { variantA, variantB } = await generateImagePair(
+        hookType,
+        hookText.trim() || defaultHook,
+        2,
+        'cold',
+        'facebook_feed',
+        'no-risk-comeback-2026-04',
+        biz,
+        testId
+      );
+
+      if (variantA) {
+        console.log(chalk.green(`  ${hookType}-A: ${variantA.quality_passed ? 'PASS' : 'FLAGGED'} — score ${variantA.quality_score}/10`));
+        console.log(chalk.gray(`    ${variantA.local_path}`));
+        variantA.quality_passed ? generated++ : flagged++;
+      }
+      if (variantB) {
+        console.log(chalk.green(`  ${hookType}-B: ${variantB.quality_passed ? 'PASS' : 'FLAGGED'} — score ${variantB.quality_score}/10`));
+        console.log(chalk.gray(`    ${variantB.local_path}`));
+        variantB.quality_passed ? generated++ : flagged++;
+      }
+    } catch (err) {
+      console.log(chalk.red(`  ${hookType}: generation failed — ${(err as Error).message}`));
+    }
+  }
+
+  console.log('');
+  console.log(chalk.bold.green(`  Complete — ${generated} passed, ${flagged} flagged for review`));
+  if (flagged > 0) {
+    console.log(chalk.yellow(`  Flagged images are saved but marked — review before approving for ads`));
+  }
+  console.log(chalk.gray(`  All images logged to performance/asset-log.csv`));
+  console.log('');
+
+  ctx.sessionActions.push(`Generated ${generated + flagged} campaign images (${generated} passed, ${flagged} flagged)`);
+  logAction('generate_campaign_images', selectedTypes, generated + flagged, true, `${generated} passed ${flagged} flagged`);
+}
+
+async function handleCheckCreativePerformance(): Promise<void> {
+  console.log('');
+  const { printPerformanceSummary } = await import('./creative-performance-updater.js');
+  printPerformanceSummary();
+}
+
+async function handleUpdateVisualMap(): Promise<void> {
+  console.log('');
+  console.log(chalk.bold.cyan('  UPDATING HOOK-VISUAL-MAP — syncing from meta-performance.json'));
+  const { syncFromMetaPerformance } = await import('./creative-performance-updater.js');
+  const result = syncFromMetaPerformance();
+  if (result.updated > 0) {
+    console.log(chalk.green(`  ${result.updated} variant(s) updated.`));
+  } else {
+    console.log(chalk.gray('  No updates applied — run paid-ads-analyzer first to populate meta-performance.json'));
+  }
+  if (result.errors > 0) {
+    console.log(chalk.yellow(`  ${result.errors} error(s) — check logs/errors.csv`));
+  }
+  console.log('');
+}
+
 // --- Voice stubs ---
 
 async function voiceInput(): Promise<string> {
@@ -1530,6 +1657,18 @@ async function main(): Promise<void> {
 
         case 'process_manus_results':
           await handleProcessManusResults(parsed, ctx, client);
+          break;
+
+        case 'generate_campaign_images':
+          await handleGenerateCampaignImages(parsed, ctx, rl);
+          break;
+
+        case 'check_creative_performance':
+          await handleCheckCreativePerformance();
+          break;
+
+        case 'update_visual_map':
+          await handleUpdateVisualMap();
           break;
 
         case 'exit':

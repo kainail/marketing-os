@@ -604,6 +604,51 @@ function printReport(report: MediaReport): void {
   console.log('');
 }
 
+// --- Image-generator integration ---
+
+const HOOK_TYPE_TO_MEDIA_TAGS: Record<string, Partial<VisionTags>> = {
+  pain_point:        { emotional_tone: 'quiet', moment_type: 'member_solo' },
+  curiosity_gap:     { moment_type: 'coaching' },
+  bold_claim:        { moment_type: 'coaching', emotional_tone: 'warm' },
+  relatability:      { emotional_tone: 'authentic', moment_type: 'member_solo' },
+  pattern_interrupt: { moment_type: 'atmosphere', setting: 'gym_floor' },
+  identity_shift:    { emotional_tone: 'proud', moment_type: 'member_solo' },
+};
+
+/**
+ * Query the local media-index cache to find an approved real photo matching a hook type.
+ * Returns null if no matching photo is available — image-generator falls back to synthetic generation.
+ * This enables AHRI to prefer real gym photos over AI-generated images when the library has coverage.
+ */
+export async function getApprovedPhotoForHookType(
+  mediaFolderId: string,
+  hookType: string
+): Promise<MediaIndexEntry | null> {
+  try {
+    const mediaIndex = await loadMediaIndex(mediaFolderId);
+    const criteria = HOOK_TYPE_TO_MEDIA_TAGS[hookType] ?? {};
+
+    const candidates = mediaIndex.entries.filter(entry => {
+      if (!entry.tags.quality_pass) return false;
+      if (entry.release_status === 'REQUIRED') return false;
+      if (entry.tags.authenticity_score < 7) return false;
+
+      for (const [key, value] of Object.entries(criteria)) {
+        if (entry.tags[key as keyof VisionTags] !== value) return false;
+      }
+      return true;
+    });
+
+    if (candidates.length === 0) return null;
+
+    // Prefer least-used photos to avoid repetition
+    candidates.sort((a, b) => a.used_in.length - b.used_in.length);
+    return candidates[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // --- CLI entry point ---
 
 if (process.argv[1] && process.argv[1].endsWith('media-analyzer.ts') || process.argv[1]?.endsWith('media-analyzer.js')) {

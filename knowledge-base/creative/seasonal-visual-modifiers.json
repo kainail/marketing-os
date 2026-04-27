@@ -1,0 +1,66 @@
+{
+  "version": "1.0.0",
+  "schema_note": "Applied to every image prompt. current_season is matched from the brain-state seasonal context. All modifier fields are appended to the base prompt.",
+  "seasons": {
+    "new_year": {
+      "months": [1],
+      "label": "New Year — January",
+      "lighting": "cold winter morning light, overcast or pale blue-grey sky",
+      "setting_bias": "indoor — kitchen, home office, car — the familiar environment of routine",
+      "wardrobe_note": "heavy layers, winter coat, scarf — cold weather authenticity",
+      "emotional_tone": "quiet resolve, a little uncertain — the energy of trying again",
+      "avoid": "summer imagery, bright outdoor light, beach or pool settings",
+      "prompt_append": "January morning light, quiet household or neighbourhood, winter clothing, overcast natural light"
+    },
+    "early_spring": {
+      "months": [2, 3, 4],
+      "label": "Early Spring — Feb/Mar/Apr",
+      "lighting": "golden hour or soft overcast — neither harsh summer nor grey winter",
+      "setting_bias": "outdoor transition — back porch, neighbourhood street, park bench in late afternoon",
+      "wardrobe_note": "light jacket or sweatshirt — weather that feels like possibility",
+      "emotional_tone": "wistful, quiet momentum — the feeling of things starting to move",
+      "avoid": "snow, heavy winter coat, harsh midday sun, beach or summer imagery",
+      "prompt_append": "early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness"
+    },
+    "late_spring": {
+      "months": [5],
+      "label": "Late Spring — May",
+      "lighting": "warm late afternoon, bright but not harsh",
+      "setting_bias": "outdoor — park, neighbourhood, backyard with kids visible in background",
+      "wardrobe_note": "t-shirt and jeans or casual spring outfit",
+      "emotional_tone": "mild urgency — summer is close, the window to start feels real",
+      "avoid": "winter clothing, dark indoor settings, rainy atmosphere",
+      "prompt_append": "late spring afternoon, bright warm outdoor light, casual spring clothing, neighbourhood or park setting"
+    },
+    "summer": {
+      "months": [6, 7, 8],
+      "label": "Summer — Jun/Jul/Aug",
+      "lighting": "morning golden hour or evening light — avoid harsh midday summer glare",
+      "setting_bias": "outdoor activities, neighbourhood, parks — life in motion",
+      "wardrobe_note": "light summer clothing — but not swimwear or athletic gear",
+      "emotional_tone": "active but measured — not vacation energy, the energy of someone keeping up",
+      "avoid": "beach bodies, swimwear, before/after sun exposure comparison, gym in summer heat",
+      "prompt_append": "summer morning or evening light, outdoor neighbourhood setting, light summer clothes, warm golden tones"
+    },
+    "back_to_routine": {
+      "months": [9, 10],
+      "label": "Back to Routine — Sep/Oct",
+      "lighting": "crisp autumn light — clear sky, warm tones with cooler air",
+      "setting_bias": "school drop-off context, neighbourhood in fall colours, morning routine",
+      "wardrobe_note": "light jacket, autumn layers — practical not stylish",
+      "emotional_tone": "recommitment — routines restarting, the feeling of getting back on track",
+      "avoid": "summer imagery, beach or holiday reference, heavy winter themes",
+      "prompt_append": "autumn morning light, fall colour palette, light jacket, neighbourhood or school-zone feel"
+    },
+    "holiday_stretch": {
+      "months": [11, 12],
+      "label": "Holiday Stretch — Nov/Dec",
+      "lighting": "warm indoor light — home, kitchen, living room atmosphere",
+      "setting_bias": "home environment — kitchen table, living room — the domestic stretch",
+      "wardrobe_note": "comfortable home clothing — sweater, casual layers",
+      "emotional_tone": "reflective, slightly burdened — the weight of the year and what hasn't happened yet",
+      "avoid": "holiday party imagery, Christmas explicitly, gift-giving scenes, January countdown energy",
+      "prompt_append": "warm indoor home light, kitchen or living room, cosy layers, late year reflective mood"
+    }
+  }
+}

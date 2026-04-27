@@ -737,6 +737,17 @@ export async function syncBrains(): Promise<SyncReport> {
   updateBrainState(insights, todayStr);
   if (top3Objections.length > 0) updateBrainStateTopObjections(top3Objections);
 
+  // Sync creative performance data if meta-performance.json has been updated
+  try {
+    const { syncFromMetaPerformance } = await import('./creative-performance-updater.js');
+    const creativeSync = syncFromMetaPerformance();
+    if (creativeSync.updated > 0) {
+      console.log(chalk.gray(`  hook-visual-map.json updated: ${creativeSync.updated} creative variant(s) synced.`));
+    }
+  } catch {
+    // creative-performance-updater is non-fatal — cross-brain sync continues
+  }
+
   console.log(chalk.gray('  intelligence-db/cross-brain/ updated.'));
   console.log(chalk.gray('  intelligence-db/avatar/objections.json updated.'));
 
