@@ -49,6 +49,19 @@ const DATA_DIR = path.join(__dirname, 'data');
 const TASK_RUNS_FILE = path.join(DATA_DIR, 'task-runs.json');
 const SCHEMAS_DIR = path.join(ROOT, 'schemas', 'manus-outputs');
 
+const SKILL_PLATFORM_MAP = {
+  'ad-copy': 'meta',
+  'hook-writer': 'meta',
+  'content-calendar': 'instagram,facebook',
+  'landing-page': 'web',
+  'email-sequence': 'email',
+  'nurture-sync': 'sms,email',
+  'reactivation': 'sms,email',
+  'referral-campaign': 'multi',
+  'review-engine': 'google,facebook',
+  'offer-machine': 'multi',
+};
+
 const PERSISTENT_DATA_DIR = (() => {
   if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
     const volumePath = path.join(
@@ -95,6 +108,57 @@ function parseMdHeaders(content) {
     else if (line.trim() && !line.startsWith('#') && Object.keys(headers).length > 0) break;
   }
   return headers;
+}
+
+function extractFrontmatter(content) {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!match) return { headers: parseMdHeaders(content), body: content };
+  const headers = {};
+  for (const line of match[1].split('\n')) {
+    const m = line.match(/^([a-zA-Z_]+):\s*(.*)$/);
+    if (m) headers[m[1].toLowerCase()] = m[2].trim();
+  }
+  return { headers, body: match[2] };
+}
+
+function cleanBodyText(body) {
+  return body
+    .replace(/^#{1,6}\s+.+$/gm, '')
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/^\s*[-*]{3,}\s*$/gm, '')
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+function parseHooksFromContent(content, assetId, variant, status) {
+  const hooks = [];
+  const sectionRegex = /### Framework \d+ — ([^\n]+)\n([\s\S]*?)(?=###|$)/g;
+  let sMatch;
+  while ((sMatch = sectionRegex.exec(content)) !== null) {
+    const frameworkName = sMatch[1].trim();
+    const block = sMatch[2];
+    const levelMatch = frameworkName.match(/\(Level ([^)]+)\)/);
+    const awarenessLevel = levelMatch ? levelMatch[1] : '';
+    const hookType = frameworkName.replace(/\s*\(Level[^)]+\)/, '').trim();
+    const hookRegex = /^\d+\.\s+\*\*([^*]+)\*\*/gm;
+    let hMatch;
+    while ((hMatch = hookRegex.exec(block)) !== null) {
+      hooks.push({
+        hook_text: hMatch[1].trim(),
+        hook_type: hookType,
+        awareness_level: awarenessLevel,
+        skill: 'hook-writer',
+        variant,
+        asset_id: assetId,
+        cpl: null,
+        ctr: null,
+        status: status || 'ready-to-post',
+      });
+    }
+  }
+  return hooks;
 }
 
 function parseCsvRows(content) {
@@ -554,26 +618,26 @@ app.get('/api/queue', (req, res) => {
   const files = safeReadDir(QUEUE).filter(f => f.endsWith('.md'));
   const assets = files.map(filename => {
     const content = safeRead(path.join(QUEUE, filename)) || '';
-    const headers = parseMdHeaders(content);
-    const lines = content.split('\n');
-    const previewStart = lines.findIndex(l => l.trim() && !l.match(/^[a-z_]+:/i) && !l.startsWith('#'));
-    const preview = lines.slice(previewStart, previewStart + 8).join('\n').slice(0, 400);
-    const hasBudget = content.includes('[BUDGET REQUIRED]') || (headers.budget_required === 'true');
+    const { headers, body } = extractFrontmatter(content);
+    const skillType = headers.skill || filename.split('-')[0] || 'unknown';
+    const platform = headers.platform || SKILL_PLATFORM_MAP[skillType] || '';
+    const captionPreview = cleanBodyText(body).slice(0, 200).trim();
+    const hasBudget = /\[BUDGET/.test(content) || headers.budget_required === 'true';
     let stat;
     try { stat = fs.statSync(path.join(QUEUE, filename)); } catch { stat = { mtimeMs: Date.now() }; }
     const daysOld = Math.floor((Date.now() - stat.mtimeMs) / 86400000);
     return {
       filename,
-      skill: headers.skill || filename.split('-')[0] || 'unknown',
-      platform: headers.platform || '',
-      format: headers.format || '',
-      awareness_level: headers.awareness_level || '',
-      variant: headers.variant || '',
       asset_id: headers.asset_id || filename.replace('.md', ''),
+      skill_type: skillType,
+      variant: headers.variant || '',
+      platform,
+      awareness_level: headers.awareness_level || '',
       created_date: headers.date || '',
       days_in_queue: daysOld,
       has_budget_flag: hasBudget,
-      preview
+      caption_preview: captionPreview,
+      full_content: content,
     };
   }).sort((a, b) => a.created_date.localeCompare(b.created_date));
   res.json({ assets, total: assets.length });
@@ -704,11 +768,36 @@ app.get('/api/manus-tasks/:filename', (req, res) => {
 });
 
 app.get('/api/hooks-library', (req, res) => {
-  // Correct source: /app/intelligence-db/assets/hooks.json (repo file).
-  // Previous code read from asset-log.csv which has no hook_text column — fell back to asset_id strings.
-  // Perf overlay reads from PERSISTENT_DATA_DIR (volume) because Manus writes meta-performance there.
   const hooksRaw = safeReadJSON(path.join(ROOT, 'intelligence-db', 'assets', 'hooks.json'));
-  const hooks = Array.isArray(hooksRaw) ? hooksRaw : (hooksRaw.hooks || []);
+  let hooks = Array.isArray(hooksRaw) ? hooksRaw : (hooksRaw.hooks || []);
+
+  if (hooks.length === 0) {
+    // Fallback: parse hook-writer .md files from queue directories
+    const dirs = [READY, QUEUE];
+    for (const dir of dirs) {
+      const files = safeReadDir(dir).filter(f => f.startsWith('hook-writer') && f.endsWith('.md'));
+      for (const filename of files) {
+        const content = safeRead(path.join(dir, filename)) || '';
+        const { headers } = extractFrontmatter(content);
+        const parsed = parseHooksFromContent(
+          content,
+          headers.asset_id || filename.replace('.md', ''),
+          headers.variant || '',
+          headers.status || (dir === READY ? 'ready-to-post' : 'pending-review')
+        );
+        hooks = hooks.concat(parsed);
+      }
+    }
+    // Deduplicate by hook_text
+    const seen = new Set();
+    hooks = hooks.filter(h => {
+      if (seen.has(h.hook_text)) return false;
+      seen.add(h.hook_text);
+      return true;
+    });
+  }
+
+  // Perf overlay from Manus-written volume data
   const metaPerf = safeReadJSON(path.join(PERSISTENT_DATA_DIR, 'paid', 'meta-performance.json'));
   const perfMap = {};
   (metaPerf.hooks || []).forEach(h => { if (h.hook_text) perfMap[h.hook_text.slice(0, 40)] = h; });
