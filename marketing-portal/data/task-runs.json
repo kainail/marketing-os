@@ -7,5 +7,26 @@
     "updated_at": "2026-04-26T16:47:44.166Z",
     "completed_at": "2026-04-26T16:25:00Z",
     "errors": []
+  },
+  "local-1777289607017": {
+    "task_type": "competitor-research",
+    "task_filename": "competitor-research.md",
+    "started_at": "2026-04-27T11:33:27.017Z",
+    "status": "fallback",
+    "updated_at": "2026-04-27T11:33:27.019Z"
+  },
+  "local-1777289634906": {
+    "task_type": "competitor-research",
+    "task_filename": "competitor-research.md",
+    "started_at": "2026-04-27T11:33:54.906Z",
+    "status": "fallback",
+    "updated_at": "2026-04-27T11:33:54.907Z"
+  },
+  "local-1777289645451": {
+    "task_type": "competitor-research",
+    "task_filename": "competitor-research.md",
+    "started_at": "2026-04-27T11:34:05.451Z",
+    "status": "fallback",
+    "updated_at": "2026-04-27T11:34:05.452Z"
   }
 }

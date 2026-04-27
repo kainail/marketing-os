@@ -10,13 +10,10 @@ const app = express();
 const PORT = process.env.PORT || 3003;
 
 // --- Path constants ---
-// REPO_ROOT lets Railway override when service root ≠ monorepo root.
-// Without it, __dirname is /app/marketing-portal → ROOT = /app (correct).
-// If Railway deploys marketing-portal/ as service root, __dirname = /app → ROOT = / (wrong).
-// Set REPO_ROOT=/app in Railway env vars to fix that case.
-const ROOT      = process.env.REPO_ROOT
-  ? path.resolve(process.env.REPO_ROOT)
-  : path.join(__dirname, '..');
+// On Railway, __dirname = /app (the marketing-portal/ folder is the service root).
+// Asset directories are copied into marketing-portal/ so they exist at /app/distribution etc.
+// REPO_ROOT env var can still override if needed.
+const ROOT      = process.env.REPO_ROOT || path.join(__dirname);
 const INTEL     = path.join(ROOT, 'intelligence-db');
 const QUEUE     = path.join(ROOT, 'distribution', 'queue', 'pending-review');
 const POSTED    = path.join(ROOT, 'distribution', 'queue', 'posted');
