@@ -974,9 +974,93 @@ app.post('/api/manus/callback', (req, res) => {
   setImmediate(async () => {
     try {
       const raw = req.body;
-      let parsed = null;
 
-      // Defensive JSON parsing — try direct, then strip fences, then find block
+      // ── Manus native webhook format ──────────────────────────────────────
+      if (raw && raw.event_type) {
+        const { event_type, task_detail, progress_detail } = raw;
+
+        if (event_type === 'task_created' || event_type === 'task_progress') {
+          const msg = (progress_detail && progress_detail.message) || event_type;
+          console.log(`[manus/callback] progress: ${msg}`);
+          return;
+        }
+
+        if (event_type !== 'task_completed') {
+          console.log(`[manus/callback] unhandled event_type=${event_type} — skipping`);
+          return;
+        }
+
+        // task_completed ─────────────────────────────────────────────────
+        if (!task_detail || !task_detail.task_id) {
+          console.error('[manus/callback] task_completed missing task_detail.task_id');
+          return;
+        }
+
+        const task_id = task_detail.task_id;
+
+        // Look up task_type from task-runs.json
+        const runs = loadTaskRuns();
+        const runRecord = runs[task_id];
+        const task_type = runRecord ? runRecord.task_type : null;
+
+        if (!task_type) {
+          console.error(`[manus/callback] no task_type for task_id=${task_id} — cannot route output`);
+          return;
+        }
+
+        // Extract result string — try fields in priority order
+        const resultRaw = task_detail.result ?? task_detail.output ?? task_detail.content ?? task_detail.message;
+
+        if (!resultRaw) {
+          console.error('[manus/callback] task_completed but no result/output/content/message in task_detail');
+          updateTaskRun(task_id, { status: 'completed', completed_at: new Date().toISOString(), errors: ['no result content'] });
+          return;
+        }
+
+        // Result is typically a string containing JSON — extract the block
+        const resultText = typeof resultRaw === 'string' ? resultRaw : JSON.stringify(resultRaw);
+        let data = null;
+        const jsonBlock = findJsonBlock(resultText);
+        if (jsonBlock) {
+          try { data = JSON.parse(jsonBlock); } catch (e) {
+            console.error('[manus/callback] failed to parse JSON from result:', e.message);
+          }
+        }
+
+        if (!data) {
+          console.error('[manus/callback] could not extract valid JSON from task result');
+          updateTaskRun(task_id, { status: 'completed', completed_at: new Date().toISOString(), errors: ['could not parse result JSON'] });
+          return;
+        }
+
+        // data.data preferred; fall back to top-level if absent
+        const taskData = data.data || data;
+
+        updateTaskRun(task_id, {
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          errors: data.errors || [],
+        });
+
+        const outputs = TASK_OUTPUT_PATHS[task_type] || [];
+        for (const output of outputs) {
+          try {
+            const payload = output.key ? (taskData || {})[output.key] : taskData;
+            if (payload && typeof payload === 'object') {
+              await atomicWriteJSON(output.path, payload);
+              console.log(`[manus/callback] task complete — wrote to ${output.path}`);
+            }
+          } catch (writeErr) {
+            console.error(`[manus/callback] write failed for ${output.path}:`, writeErr.message);
+          }
+        }
+
+        logToSession('manus_callback', `Callback: ${task_type} task_id=${task_id} status=completed`);
+        return;
+      }
+
+      // ── Legacy custom-schema fallback ─────────────────────────────────────
+      let parsed = null;
       if (typeof raw === 'object' && raw !== null && raw.task_type) {
         parsed = raw;
       } else {
@@ -995,14 +1079,12 @@ app.post('/api/manus/callback', (req, res) => {
       const { task_id, task_type, status, data } = parsed;
       console.log(`[manus/callback] received task_id=${task_id} task_type=${task_type} status=${status}`);
 
-      // Update task-runs tracking
       updateTaskRun(task_id, {
         status: status || 'completed',
         completed_at: parsed.completed_at || new Date().toISOString(),
         errors: parsed.errors || [],
       });
 
-      // Write intelligence data to disk
       const outputs = TASK_OUTPUT_PATHS[task_type] || [];
       for (const output of outputs) {
         try {
