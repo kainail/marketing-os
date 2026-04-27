@@ -886,9 +886,12 @@ app.post('/api/manus/trigger', async (req, res) => {
       : null;
 
     const body = {
-      task_type,
-      task_content: taskContent,
-      metadata: { source: 'ahri-marketing-portal', filename },
+      message: {
+        content: [
+          { type: 'text', text: taskContent }
+        ]
+      },
+      metadata: { source: 'ahri-marketing-portal', filename, task_type },
       ...(webhookUrl ? { webhook_url: webhookUrl } : {}),
     };
 
