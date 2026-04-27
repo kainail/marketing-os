@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs-extra';
 import path from 'path';
+import chalk from 'chalk';
 
 const ROOT = process.cwd();
 const ERRORS_CSV = path.join(ROOT, 'logs', 'errors.csv');
@@ -211,6 +212,7 @@ export async function evaluateImageQuality(
   }
 
   // Stage 1 — Compliance
+  console.log(chalk.cyan('  → Running Stage 1 compliance gate...'));
   const compliance = await runComplianceGate(client, imageBase64, mimeType);
 
   if (!compliance.passed) {
@@ -227,6 +229,7 @@ export async function evaluateImageQuality(
   }
 
   // Stage 2 — Differentiation and authenticity
+  console.log(chalk.cyan('  → Running Stage 2 differentiation + authenticity gate...'));
   const diffEval = await runDifferentiationGate(
     client,
     imageBase64,

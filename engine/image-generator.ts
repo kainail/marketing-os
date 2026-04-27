@@ -449,6 +449,7 @@ export async function generateImage(
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       console.log(chalk.gray(`  [image-generator] Attempt ${attempt}/3 — ${request.hook_type}-${request.variant}`));
+      console.log(chalk.cyan(`  → Calling fal.ai FLUX Pro v1.1...`));
 
       falResponse = await callFalApi(currentPrompt, seed, falProfile, falApiKey, attempt);
 
@@ -457,14 +458,16 @@ export async function generateImage(
 
       // Download for quality evaluation
       const tempPath = localPath + `.attempt${attempt}.tmp.${ext}`;
+      console.log(chalk.cyan(`  → Downloading image...`));
       await downloadImage(imageUrl, tempPath);
 
-      // Two-stage quality gate
+      // Two-stage quality gate (stage logs emitted inside evaluateImageQuality)
       qualityResult = await evaluateImageQuality(anthropicClient, tempPath, currentPrompt, fingerprint.competitor_patterns_to_avoid, request.hook_type);
 
       if (qualityResult.passed) {
         // Move temp file to final path
         fs.moveSync(tempPath, localPath, { overwrite: true });
+        console.log(chalk.green(`  → Saved to ${localPath}`));
         console.log(chalk.green(`  [image-generator] PASS — score ${qualityResult.overall_score}/10`));
         break;
       }
@@ -576,6 +579,45 @@ export async function generateImagePair(
 
   return { variantA, variantB };
 }
+
+/**
+ * Builds the prompt that would be sent to fal.ai for a given hook type and text,
+ * without making any API call. Used by the AHRI handler to preview the prompt
+ * when FAL_API_KEY is not yet configured.
+ */
+export function buildTestPrompt(hookType: string, hookText: string): string {
+  const hookVisualMap  = loadJson<HookVisualMap>('knowledge-base/creative/hook-visual-map.json');
+  const seasonalData   = loadJson<SeasonalModifiers>('knowledge-base/creative/seasonal-visual-modifiers.json');
+  const charRegistry   = loadJson<CharacterRegistry>('intelligence-db/creative/character-registry.json');
+
+  if (!hookVisualMap || !seasonalData || !charRegistry) {
+    return '[Cannot build prompt — missing data files in knowledge-base/creative/ and intelligence-db/creative/]';
+  }
+
+  const hookConfig = hookVisualMap.hook_types[hookType];
+  if (!hookConfig) return `[Unknown hook type: ${hookType}. Valid: ${Object.keys(hookVisualMap.hook_types).join(', ')}]`;
+
+  const variantConfig = hookConfig.variants['A'];
+  if (!variantConfig) return `[No variant A for hook type: ${hookType}]`;
+
+  const seasonalModifier = resolveSeasonalModifier(seasonalData);
+  const charContext      = resolveCharacter(charRegistry, 'no-risk-comeback-2026-04', 'char-A');
+  const fingerprint      = buildCompetitorFingerprint();
+
+  return buildPrompt(
+    variantConfig,
+    hookText,
+    seasonalModifier,
+    charContext.characterDesc,
+    charContext.characterAvoid,
+    fingerprint.differentiation_instructions,
+    2,
+    'cold'
+  );
+}
+
+/** Alias used by AHRI intent handler — same as generateImagePair. */
+export const generateCampaignImages = generateImagePair;
 
 // --- CLI entry point ---
 

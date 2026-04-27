@@ -1365,97 +1365,166 @@ async function handleGenerateCampaignImages(parsed: ParsedIntent, ctx: SessionCo
   console.log('');
   console.log(chalk.bold.yellow('  CAMPAIGN IMAGE GENERATOR'));
   console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
-  console.log(chalk.gray('  Model: fal-ai/flux-pro/v1.1'));
+  console.log(chalk.gray('  Model:        fal-ai/flux-pro/v1.1'));
   console.log(chalk.gray('  Quality gate: 2-stage (compliance + differentiation)'));
-  console.log(chalk.gray('  Recovery: up to 2 attempts per variant'));
-  console.log(chalk.red('  [BUDGET REQUIRED] — image generation costs apply per image'));
+  console.log(chalk.gray('  Recovery:     up to 2 attempts per variant'));
+  console.log(chalk.red('  [BUDGET REQUIRED] — each image costs ~$0.05 via fal.ai'));
   console.log('');
 
+  const { buildTestPrompt, generateCampaignImages } = await import('./image-generator.js');
+
+  // --- No API key: show what would be sent ---
   if (!process.env['FAL_API_KEY']) {
-    console.log(chalk.red('  FAL_API_KEY not set in .env — image generation unavailable.'));
-    console.log(chalk.gray('  Add your fal.ai API key to .env as FAL_API_KEY=...'));
+    console.log(chalk.red('  FAL_API_KEY not configured.'));
+    console.log(chalk.gray('  Add FAL_API_KEY=<your_key> to .env to enable image generation.'));
+    console.log('');
+    console.log(chalk.bold.cyan('  PROMPT THAT WOULD BE SENT TO FAL.AI:'));
+    console.log(chalk.gray('  (hook_type: pain_point, variant: A, audience: cold, placement: facebook_feed)'));
+    console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+    console.log('');
+
+    const previewHook = 'You are tired in a way that sleep does not fix anymore.';
+    const prompt = buildTestPrompt('pain_point', previewHook);
+
+    // Word-wrap at 72 chars
+    const words = prompt.split(' ');
+    let line = '  ';
+    for (const word of words) {
+      if (line.length + word.length > 74) {
+        console.log(chalk.white(line.trimEnd()));
+        line = '  ' + word + ' ';
+      } else {
+        line += word + ' ';
+      }
+    }
+    if (line.trim()) console.log(chalk.white(line.trimEnd()));
+    console.log('');
+    console.log(chalk.gray('  Add FAL_API_KEY to .env, then run "generate campaign images" to call this.'));
     console.log('');
     return;
   }
 
+  // --- FAL_API_KEY set: first-run mode (1 image, ~$0.05) ---
+  const biz      = parsed.context || ctx.activeBusiness;
+  const testId   = `image-${Date.now()}`;
   const hookTypes = ['pain_point', 'curiosity_gap', 'bold_claim', 'relatability', 'pattern_interrupt', 'identity_shift'];
-
-  console.log(chalk.white('  Which hook type?'));
-  hookTypes.forEach((h, i) => console.log(chalk.gray(`    ${i + 1}. ${h}`)));
-  console.log(chalk.gray('  (Enter number or name, or "all" to generate all 6 types × 2 variants = 12 images)'));
-  console.log('');
-
-  const answer = await ask(rl, chalk.green('  AHRI > '));
-  const input = answer.trim().toLowerCase();
-
-  let selectedTypes: string[] = [];
-  if (input === 'all') {
-    selectedTypes = hookTypes;
-  } else {
-    const idx = parseInt(input, 10);
-    if (!isNaN(idx) && idx >= 1 && idx <= hookTypes.length) {
-      selectedTypes = [hookTypes[idx - 1]!];
-    } else {
-      const match = hookTypes.find(h => input.includes(h.replace('_', ' ')) || input.includes(h));
-      if (match) {
-        selectedTypes = [match];
-      } else {
-        console.log(chalk.red('  Hook type not recognised. No images generated.\n'));
-        return;
-      }
-    }
-  }
-
-  const hookText = await ask(rl, chalk.yellow('  Hook text for this image (or press Enter for default): '));
   const defaultHook = 'You are tired in a way that sleep does not fix anymore.';
 
-  console.log(chalk.gray(`\n  Generating ${selectedTypes.length * 2} image(s)...`));
+  console.log(chalk.bold.yellow('  FIRST TEST RUN — 1 image (~$0.05) to verify the full pipeline'));
+  console.log(chalk.gray('  hook_type: pain_point | variant: A | placement: facebook_feed'));
   console.log('');
 
-  const { generateImagePair } = await import('./image-generator.js');
-  const biz = parsed.context || ctx.activeBusiness;
-  const testId = `image-${Date.now()}`;
+  const hookTextInput = await ask(rl, chalk.yellow('  Hook text (press Enter for default): '));
+  const hookText = hookTextInput.trim() || defaultHook;
+
+  console.log('');
+  console.log(chalk.gray('  PROMPT PREVIEW:'));
+  const promptPreview = buildTestPrompt('pain_point', hookText);
+  const previewLines = promptPreview.split(' ');
+  let pLine = '  ';
+  for (const word of previewLines.slice(0, 60)) { // first ~60 words
+    if (pLine.length + word.length > 74) {
+      console.log(chalk.gray(pLine.trimEnd()));
+      pLine = '  ' + word + ' ';
+    } else {
+      pLine += word + ' ';
+    }
+  }
+  if (pLine.trim()) console.log(chalk.gray(pLine.trimEnd()));
+  if (previewLines.length > 60) console.log(chalk.gray('  [...prompt continues...]'));
+  console.log('');
+
+  const confirm = await ask(rl, chalk.yellow('  Send this to fal.ai now? (y/n) > '));
+  if (confirm.trim().toLowerCase() !== 'y') {
+    console.log(chalk.gray('  Cancelled.\n'));
+    return;
+  }
+
+  console.log('');
+  console.log(chalk.bold.cyan('  Generating variant A of pain_point...'));
+
   let generated = 0;
   let flagged = 0;
 
-  for (const hookType of selectedTypes) {
-    try {
-      const { variantA, variantB } = await generateImagePair(
-        hookType,
-        hookText.trim() || defaultHook,
-        2,
-        'cold',
-        'facebook_feed',
-        'no-risk-comeback-2026-04',
-        biz,
-        testId
-      );
+  try {
+    const { variantA } = await generateCampaignImages(
+      'pain_point',
+      hookText,
+      2,
+      'cold',
+      'facebook_feed',
+      'no-risk-comeback-2026-04',
+      biz,
+      testId
+    );
 
-      if (variantA) {
-        console.log(chalk.green(`  ${hookType}-A: ${variantA.quality_passed ? 'PASS' : 'FLAGGED'} — score ${variantA.quality_score}/10`));
-        console.log(chalk.gray(`    ${variantA.local_path}`));
-        variantA.quality_passed ? generated++ : flagged++;
-      }
-      if (variantB) {
-        console.log(chalk.green(`  ${hookType}-B: ${variantB.quality_passed ? 'PASS' : 'FLAGGED'} — score ${variantB.quality_score}/10`));
-        console.log(chalk.gray(`    ${variantB.local_path}`));
-        variantB.quality_passed ? generated++ : flagged++;
-      }
-    } catch (err) {
-      console.log(chalk.red(`  ${hookType}: generation failed — ${(err as Error).message}`));
+    console.log('');
+    console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+    console.log(chalk.bold.white('  IMAGE GENERATION RESULT'));
+    console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+
+    if (variantA) {
+      const statusLabel = variantA.quality_passed ? chalk.green('PASS') : chalk.yellow('FLAGGED');
+      console.log(chalk.gray('  Asset ID:       ') + chalk.white(variantA.asset_id));
+      console.log(chalk.gray('  Quality result: ') + statusLabel + chalk.gray(` — score ${variantA.quality_score}/10`));
+      console.log(chalk.gray('  Quality notes:  ') + chalk.white(variantA.quality_notes));
+      console.log(chalk.gray('  Recovery runs:  ') + chalk.white(String(variantA.recovery_attempts)));
+      console.log(chalk.gray('  Seed used:      ') + chalk.white(String(variantA.seed)));
+      console.log(chalk.gray('  Fal.ai URL:     ') + chalk.cyan(variantA.fal_image_url));
+      console.log(chalk.gray('  Saved to:       ') + chalk.white(variantA.local_path));
+      variantA.quality_passed ? generated++ : flagged++;
+    } else {
+      console.log(chalk.red('  Variant A: generation failed after 3 attempts — check logs/errors.csv'));
     }
+
+    console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+    console.log('');
+
+    if (variantA?.quality_passed) {
+      // Offer full run
+      console.log(chalk.green('  Pipeline verified. Ready to generate full set.'));
+      console.log(chalk.gray('  Full set = 6 hook types × 2 variants = 12 images (~$0.60 total)'));
+      console.log('');
+      const fullRun = await ask(rl, chalk.yellow('  Generate full campaign image set now? (y/n) > '));
+
+      if (fullRun.trim().toLowerCase() === 'y') {
+        console.log('');
+        for (const hookType of hookTypes) {
+          if (hookType === 'pain_point') { // already generated A, skip to B then continue
+            console.log(chalk.bold.cyan(`\n  Generating remaining variants for ${hookType}...`));
+          } else {
+            console.log(chalk.bold.cyan(`\n  Generating ${hookType}...`));
+          }
+          try {
+            const { variantA: a, variantB: b } = await generateCampaignImages(
+              hookType, hookText, 2, 'cold', 'facebook_feed', 'no-risk-comeback-2026-04', biz, testId
+            );
+            if (a) { console.log(chalk.green(`  ${hookType}-A: ${a.quality_passed ? 'PASS' : 'FLAGGED'} — score ${a.quality_score}/10`)); a.quality_passed ? generated++ : flagged++; }
+            if (b) { console.log(chalk.green(`  ${hookType}-B: ${b.quality_passed ? 'PASS' : 'FLAGGED'} — score ${b.quality_score}/10`)); b.quality_passed ? generated++ : flagged++; }
+          } catch (err) {
+            console.log(chalk.red(`  ${hookType}: failed — ${(err as Error).message}`));
+          }
+        }
+
+        console.log('');
+        console.log(chalk.bold.green(`  Complete — ${generated} passed, ${flagged} flagged`));
+        if (flagged > 0) console.log(chalk.yellow('  Flagged images saved — review before using in ads'));
+        console.log(chalk.gray('  All images logged to performance/asset-log.csv'));
+        console.log('');
+      }
+    } else if (variantA) {
+      console.log(chalk.yellow('  Image flagged — review quality notes above before running full set.'));
+      console.log(chalk.gray('  Fix: adjust FAL_PARAMETER_PROFILES or regenerate with a different hook type.'));
+      console.log('');
+    }
+
+  } catch (err) {
+    console.log(chalk.red(`\n  Generation failed: ${(err as Error).message}`));
+    console.log(chalk.gray('  Check logs/errors.csv for details.\n'));
   }
 
-  console.log('');
-  console.log(chalk.bold.green(`  Complete — ${generated} passed, ${flagged} flagged for review`));
-  if (flagged > 0) {
-    console.log(chalk.yellow(`  Flagged images are saved but marked — review before approving for ads`));
-  }
-  console.log(chalk.gray(`  All images logged to performance/asset-log.csv`));
-  console.log('');
-
-  ctx.sessionActions.push(`Generated ${generated + flagged} campaign images (${generated} passed, ${flagged} flagged)`);
-  logAction('generate_campaign_images', selectedTypes, generated + flagged, true, `${generated} passed ${flagged} flagged`);
+  ctx.sessionActions.push(`Campaign images: ${generated} passed, ${flagged} flagged`);
+  logAction('generate_campaign_images', ['pain_point'], generated + flagged, true, `${generated} passed ${flagged} flagged`);
 }
 
 async function handleCheckCreativePerformance(): Promise<void> {
