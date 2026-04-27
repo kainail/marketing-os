@@ -1029,6 +1029,16 @@ app.get('/api/manus/recent-runs', (req, res) => {
   res.json({ runs: sorted, total: Object.keys(runs).length });
 });
 
+app.get('/api/debug/env', (req, res) => {
+  res.json({
+    manus_key_set: !!process.env.MANUS_API_KEY,
+    manus_key_length: process.env.MANUS_API_KEY ? process.env.MANUS_API_KEY.length : 0,
+    manus_key_preview: process.env.MANUS_API_KEY ? process.env.MANUS_API_KEY.substring(0, 8) + '...' : 'NOT SET',
+    node_env: process.env.NODE_ENV,
+    railway_env: process.env.RAILWAY_ENVIRONMENT_NAME
+  });
+});
+
 app.get('/api/intelligence/:category/:file', async (req, res) => {
   const filePath = path.join(
     PERSISTENT_DATA_DIR,
