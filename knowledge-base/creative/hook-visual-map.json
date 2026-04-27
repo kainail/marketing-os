@@ -91,24 +91,6 @@
       "variants": {
         "A": {
           "variant_id": "curiosity_gap-A",
-          "scene": "Two people in conversation inside a gym — but the gym is just background context. We cannot hear what they are saying. One person is gesturing, the other is listening and slightly leaning in. The conversation clearly matters. Alternative mundane setting: person reading something on their phone while waiting for a microwave to finish, caught mid-scroll on something that made them pause — or sitting in a parked car in a grocery store parking lot, phone in hand, not yet ready to go in.",
-          "subject": "Coach or staff member and a member in mid-conversation — neither is athletic-looking",
-          "emotion": "engaged, attentive — something important is being said",
-          "lighting": "natural gym light from windows, warm and grounded. If microwave or car scene: fluorescent overhead lighting, slightly unflattering — real indoor light, not colour-corrected",
-          "composition": "Medium shot. Both in frame. Faces partially visible but not the focal point — the body language is the story.",
-          "do_not_show": "gym equipment as focal point, anyone working out, fitness bodies, staged coaching poses",
-          "text_overlay_space": "lower_third",
-          "performance_data": {
-            "ctr": null,
-            "cpl": null,
-            "thumbstop_rate": null,
-            "test_runs": 0,
-            "last_tested": null,
-            "status": "untested"
-          }
-        },
-        "B": {
-          "variant_id": "curiosity_gap-B",
           "scene": "Person stopped mid-stride on a street or parking lot, looking at something we cannot see. Their expression shows recognition or realisation — not fear, not surprise, just the look of someone who just understood something.",
           "subject": "Adult, 35-50, casual clothes, paused in motion",
           "emotion": "moment of realisation — a thought landing",
@@ -125,15 +107,33 @@
             "status": "untested"
           }
         },
-        "C": {
-          "variant_id": "curiosity_gap-C",
-          "scene": "A door partially open — gym entrance or any threshold. Warm light coming through the gap. Person's silhouette visible at the threshold but not fully inside.",
+        "B": {
+          "variant_id": "curiosity_gap-B",
+          "scene": "A door partially open — any interior threshold, setting intentionally ambiguous. Warm light coming through the gap. Person's silhouette visible at the threshold but not fully inside. No gym signage or equipment visible.",
           "subject": "Silhouette only — gender and age ambiguous",
           "emotion": "threshold moment — between before and after, not yet decided",
           "lighting": "backlit from the warm interior, cooler tone outside",
           "composition": "Door takes most of the frame. Silhouette is the only human element. Dramatic but not overdone.",
-          "do_not_show": "gym equipment visible through door, signage, anyone athletic, any text in scene",
+          "do_not_show": "gym equipment visible through door, gym signage, anyone athletic, any text in scene",
           "text_overlay_space": "upper_third",
+          "performance_data": {
+            "ctr": null,
+            "cpl": null,
+            "thumbstop_rate": null,
+            "test_runs": 0,
+            "last_tested": null,
+            "status": "untested"
+          }
+        },
+        "C": {
+          "variant_id": "curiosity_gap-C",
+          "scene": "Phone screen visible in someone's hand — not showing the content clearly, just that they have paused on something. Their face is not shown but their body language suggests they are considering something seriously.",
+          "subject": "Hands holding phone, partial wrist and arm visible, casual sleeve",
+          "emotion": "consideration — the moment before a decision",
+          "lighting": "soft indoor light, phone glow mixing with ambient warm light",
+          "composition": "Phone centred, screen content blurred or unreadable, surrounding context soft",
+          "do_not_show": "readable screen content, gym app, anything that reveals the ad context, gym branding",
+          "text_overlay_space": "lower_third",
           "performance_data": {
             "ctr": null,
             "cpl": null,
@@ -145,12 +145,12 @@
         },
         "D": {
           "variant_id": "curiosity_gap-D",
-          "scene": "Phone screen visible in someone's hand — not showing the content clearly, just that they have paused on something. Their face is not shown but their body language suggests they are considering something seriously.",
-          "subject": "Hands holding phone, partial wrist and arm visible, casual sleeve",
-          "emotion": "consideration — the moment before a decision",
-          "lighting": "soft indoor light, phone glow mixing with ambient warm light",
-          "composition": "Phone centred, screen content blurred or unreadable, surrounding context soft",
-          "do_not_show": "readable screen content, gym app, anything that reveals the ad context, gym branding",
+          "scene": "Two people in conversation inside a gym — gym is background context only. One person gesturing, the other listening and leaning in. Warm/retargeting audiences only (awareness level 4+) — do not use for cold campaigns.",
+          "subject": "Coach or staff member and a member in mid-conversation — neither is athletic-looking",
+          "emotion": "engaged, attentive — something important is being said",
+          "lighting": "natural gym light from windows, warm and grounded",
+          "composition": "Medium shot. Both in frame. Faces partially visible but not the focal point — the body language is the story.",
+          "do_not_show": "gym equipment as focal point, anyone working out, fitness bodies, staged coaching poses",
           "text_overlay_space": "lower_third",
           "performance_data": {
             "ctr": null,
@@ -331,13 +331,13 @@
       "variants": {
         "A": {
           "variant_id": "pattern_interrupt-A",
-          "scene": "Empty gym at 6am — all equipment present but nobody working out. Just the space itself, quiet and waiting. Clean but lived-in. Not a studio shoot.",
-          "subject": "No people — just the space",
-          "emotion": "anticipation without pressure — this place exists for you when you are ready",
-          "lighting": "early morning gym light — a few lights on, some natural light beginning, atmospheric",
-          "composition": "Wide shot of gym floor. Depth and space are the subject. Equipment is context, not featured.",
-          "do_not_show": "people working out, motivational posters visible, aggressive lighting, any stock-photo gym feel",
-          "text_overlay_space": "centre",
+          "scene": "Person sitting at their kitchen table in the early morning, fully dressed and ready to leave, but just staring out the window at nothing. Coffee cup going cold beside them. Not sad, not energised — just in the in-between moment of stillness before the day has any demands. No gym context anywhere in the scene.",
+          "subject": "Adult, 38-52, dressed for the day in work clothes or smart casual — sitting quietly. Not in athletic wear.",
+          "emotion": "pre-decision stillness — the moment before the narrative of the day begins",
+          "lighting": "soft early morning window light, warm but quiet, kitchen ambient",
+          "composition": "Medium shot. Person at left third of frame. Window and outside visible on right, soft focus. Coffee cup in foreground slightly out of focus.",
+          "do_not_show": "gym equipment, athletic gear, fitness context, motivational imagery, anything that reads as a gym ad",
+          "text_overlay_space": "right_third",
           "performance_data": {
             "ctr": null,
             "cpl": null,
@@ -385,12 +385,12 @@
         },
         "D": {
           "variant_id": "pattern_interrupt-D",
-          "scene": "Text-only or near-text-only composition — clean white or muted background with a single honest sentence in the centre. Documentary photography style — the kind of image that looks like it belongs in a magazine, not an ad.",
-          "subject": "Typographic — real photography background (blurred park or street) with text as primary element",
-          "emotion": "direct, quiet authority — a statement that trusts the reader",
-          "lighting": "clean, slightly desaturated — feels editorial not promotional",
-          "composition": "Centred text. Background context visible but blurred. Clean margins.",
-          "do_not_show": "gym branding, fitness imagery, anyone athletic, bright promotional colours",
+          "scene": "Empty gym at 6am — all equipment present but nobody working out. Just the space itself, quiet and waiting. Clean but lived-in. Not a studio shoot. Warm/retargeting audiences only (awareness level 4+) — do not use for cold campaigns.",
+          "subject": "No people — just the space",
+          "emotion": "anticipation without pressure — this place exists for you when you are ready",
+          "lighting": "early morning gym light — a few lights on, some natural light beginning, atmospheric",
+          "composition": "Wide shot of gym floor. Depth and space are the subject. Equipment is context, not featured.",
+          "do_not_show": "people working out, motivational posters visible, aggressive lighting, any stock-photo gym feel",
           "text_overlay_space": "centre",
           "performance_data": {
             "ctr": null,
