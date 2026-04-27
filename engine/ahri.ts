@@ -157,7 +157,7 @@ function ask(rl: RLInterface, q: string): Promise<string> {
   });
 }
 
-const PAID_SKILLS = new Set(['ad-copy', 'google-ads', 'image-generator']);
+const PAID_SKILLS = new Set(['ad-copy', 'google-ads']);
 const CAMPAIGN_SKILLS = ['hook-writer', 'ad-copy', 'landing-page', 'email-sequence', 'nurture-sync', 'content-calendar'];
 
 // --- Banner ---
@@ -214,7 +214,7 @@ async function parseIntent(client: Anthropic, input: string, ctx: SessionContext
 Return this exact shape:
 {"intent":"<type>","skills":[],"context":"<biz>","avatar_override":null,"awareness_override":null,"budget_required":false,"message":""}
 
-intent values: generate_skill | batch_generate | review_queue | update_brain_state | show_status | run_campaign | switch_context | get_help | sync_media | sync_brains | update_funnel | update_workflows | run_manus_task | show_routines | run_routine_manually | analyze_paid_ads | analyze_google_ads | check_budget_pacing | track_lead_journey | analyze_landing_page | analyze_nurture | check_retention | monitor_reviews | track_referrals | audit_gbp | clean_crm | generate_monthly_report | process_manus_results | exit
+intent values: generate_skill | batch_generate | review_queue | update_brain_state | show_status | run_campaign | switch_context | get_help | sync_media | sync_brains | update_funnel | update_workflows | run_manus_task | show_routines | run_routine_manually | analyze_paid_ads | analyze_google_ads | check_budget_pacing | track_lead_journey | analyze_landing_page | analyze_nurture | check_retention | monitor_reviews | track_referrals | audit_gbp | clean_crm | generate_monthly_report | process_manus_results | generate_campaign_images | check_creative_performance | update_visual_map | exit
 
 Rules:
 - "run campaign" / "build everything" / "full campaign" → run_campaign
@@ -250,9 +250,10 @@ Rules:
 - "generate images" / "image generator" / "generate campaign images" / "create images" / "run image generator" → generate_campaign_images
 - "creative performance" / "check image performance" / "how are images performing" / "visual performance" → check_creative_performance
 - "update visual map" / "sync creative data" / "update hook visual map" / "update image performance" → update_visual_map
-- ad-copy, google-ads, image-generator are paid skills → set budget_required: true
+- ad-copy, google-ads are paid skills → set budget_required: true
+- "image-generator" is NOT a skill — use generate_campaign_images intent for any image generation request
 - Default context: ${ctx.activeBusiness}
-- Available skills: offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync, content-calendar, vsl-script, flyer-generator, image-generator, seo-content, google-ads, referral-campaign, reactivation, review-engine, funnel-updater, workflow-updater
+- Available skills: offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync, content-calendar, vsl-script, flyer-generator, seo-content, google-ads, referral-campaign, reactivation, review-engine, funnel-updater, workflow-updater
 - Active offer: ${ctx.activeOffer}`;
 
   const response = await client.messages.create({
