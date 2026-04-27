@@ -1280,7 +1280,20 @@ function setManusButtonState(filename, btnState) {
 
 async function launchManusTask(filename) {
   setManusButtonState(filename, 'launching');
-  const res = await apiPost('/api/manus/trigger', { filename });
+
+  let res = null;
+  try {
+    const raw = await fetch('/api/manus/trigger', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_filename: filename })
+    });
+    res = await raw.json();
+  } catch (e) {
+    setManusButtonState(filename, 'failed');
+    toast('Failed to reach portal API', 'error');
+    return;
+  }
 
   if (!res) {
     setManusButtonState(filename, 'failed');
@@ -1292,7 +1305,7 @@ async function launchManusTask(filename) {
     setManusButtonState(filename, 'fallback');
     const taskName = filename.replace('.md','').replace(/-/g,' ').toUpperCase();
     openModal(`MANUS TASK — ${taskName}`,
-      `<div class="placeholder-notice" style="margin-bottom:16px">⚠ Manus API key not set — copy this task and paste it into Manus manually. Step 0 is mandatory.</div>
+      `<div class="placeholder-notice" style="margin-bottom:16px">⚠ Manus unavailable — copy this task and paste it into Manus manually. Step 0 is mandatory.</div>
        <div class="task-content">${(res.task_content||'').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/^## ⚠/gm,'<strong style="color:var(--gold)">⚠</strong>').replace(/^##\s(.+)/gm,'<br><strong style="color:var(--text-primary);font-size:13px">$1</strong>').replace(/`([^`]+)`/g,'<code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;font-family:var(--font-mono)">$1</code>')}</div>`,
       [{ text: '📋 Copy to Clipboard', action: () => { navigator.clipboard.writeText(res.task_content||''); toast('Copied — paste into Manus','success'); } }]
     );
@@ -1301,10 +1314,9 @@ async function launchManusTask(filename) {
 
   if (res.success) {
     setManusButtonState(filename, 'running');
-    toast(`Task launched — ID: ${res.task_id}`, 'success');
+    toast(`● RUNNING — ID: ${res.task_id}`, 'success');
     const lastEl = document.getElementById(`manus-last-${filename}`);
-    if (lastEl) lastEl.textContent = `Running — ${res.task_id}`;
-    // Poll for completion
+    if (lastEl) lastEl.textContent = `● Running — ${res.task_id}`;
     pollManusTask(filename, res.task_id, 30000);
     loadRecentRuns();
   } else {

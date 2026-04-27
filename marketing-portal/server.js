@@ -848,7 +848,8 @@ app.get('/api/competitor-intel', (req, res) => {
 
 // POST /api/manus/trigger — launch a Manus task via API
 app.post('/api/manus/trigger', async (req, res) => {
-  const { filename, task_id_override } = req.body;
+  const filename = req.body.task_filename || req.body.filename;
+  const { task_id_override } = req.body;
   if (!filename || !filename.endsWith('.md')) {
     return res.status(400).json({ success: false, error: 'filename (.md) required' });
   }
