@@ -5,6 +5,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -15,9 +16,6 @@ const PORT = process.env.PORT || 3003;
 // REPO_ROOT env var can still override if needed.
 const ROOT      = process.env.REPO_ROOT || path.join(__dirname);
 const INTEL     = path.join(ROOT, 'intelligence-db');
-const QUEUE     = path.join(ROOT, 'distribution', 'queue', 'pending-review');
-const POSTED    = path.join(ROOT, 'distribution', 'queue', 'posted');
-const READY     = path.join(ROOT, 'distribution', 'queue', 'ready-to-post');
 const LOGS      = path.join(ROOT, 'logs');
 const OUTPUTS   = path.join(ROOT, 'outputs');
 const MANUS_TASKS_PATH = (() => {
@@ -45,6 +43,11 @@ const SESSION_LOG = path.join(LOGS, 'session-log.csv');
 const RULES_FILE = path.join(__dirname, 'config', 'agentic-rules.json');
 const MANUS_API_BASE = process.env.MANUS_API_BASE || 'https://api.manus.ai/v2';
 const MANUS_API_KEY = process.env.MANUS_API_KEY || '';
+const WEBHOOK_URL = process.env.WEBHOOK_URL
+  || process.env.PORTAL_WEBHOOK_URL
+  || (process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+    : null);
 
 // --- Meta Marketing API ---
 // Required Railway env vars:
@@ -102,6 +105,16 @@ const PERSISTENT_DATA_DIR = (() => {
 
 if (!process.env.RAILWAY_VOLUME_MOUNT_PATH) {
   console.warn('⚠ RAILWAY_VOLUME_MOUNT_PATH not set. Intelligence files will not persist across deploys. Add a Railway volume mounted at /data to fix this.');
+}
+
+// Queue paths live on the persistent volume so approvals survive redeploys.
+// Seeded from /app/distribution/queue/ on first deploy via seedQueueIfEmpty().
+const QUEUE  = path.join(PERSISTENT_DATA_DIR, 'queue', 'pending-review');
+const READY  = path.join(PERSISTENT_DATA_DIR, 'queue', 'ready-to-post');
+const POSTED = path.join(PERSISTENT_DATA_DIR, 'queue', 'posted');
+
+if (!process.env.WEBHOOK_URL && !process.env.PORTAL_WEBHOOK_URL && !process.env.RAILWAY_PUBLIC_DOMAIN) {
+  console.warn('[cron] ⚠ WEBHOOK_URL not set — Manus callbacks may not reach portal. Add WEBHOOK_URL=https://marketing-os-production-2b85.up.railway.app to Railway env vars.');
 }
 
 // --- Helpers ---
@@ -264,6 +277,7 @@ const TASK_OUTPUT_PATHS = {
   'gbp-optimization': [{ key: null, path: path.join(ROOT, 'logs', 'gbp-audit-log.json') }],
   'monthly-report': [], // written by Manus directly to outputs/anytime-fitness/monthly-reports/
   'content-posting': [], // posting log written by Manus directly
+  'paid-ads-setup': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'paid', 'account-verification.json') }],
 };
 
 function loadTaskRuns() {
@@ -675,9 +689,10 @@ app.get('/api/queue', (req, res) => {
     const platform = headers.platform || SKILL_PLATFORM_MAP[skillType] || '';
     const captionPreview = cleanBodyText(body).slice(0, 200).trim();
     const hasBudget = /\[BUDGET/.test(content) || headers.budget_required === 'true';
-    let stat;
-    try { stat = fs.statSync(path.join(QUEUE, filename)); } catch { stat = { mtimeMs: Date.now() }; }
-    const daysOld = Math.floor((Date.now() - stat.mtimeMs) / 86400000);
+    const createdTs = headers.date || headers.created_date || '';
+    const daysOld = createdTs
+      ? Math.max(0, Math.floor((Date.now() - new Date(createdTs).getTime()) / 86400000))
+      : 0;
     return {
       filename,
       asset_id: headers.asset_id || filename.replace('.md', ''),
@@ -1550,6 +1565,40 @@ app.get('/api/meta/campaign-status', async (req, res) => {
   }
 });
 
+// GET /api/schedule — list all scheduled Manus tasks and their cron patterns
+app.get('/api/schedule', (req, res) => {
+  res.json({
+    tasks: MANUS_SCHEDULE.map(t => ({
+      ...t,
+      timezone: 'America/Indiana/Indianapolis',
+      enabled: !!MANUS_API_KEY,
+    })),
+    total: MANUS_SCHEDULE.length,
+    enabled: !!MANUS_API_KEY,
+  });
+});
+
+// GET /api/rules — show agentic rules status
+app.get('/api/rules', async (req, res) => {
+  const rulesStatus = await Promise.all(
+    AGENTIC_RULES.map(async rule => {
+      const cooldownPath = path.join(PERSISTENT_DATA_DIR, 'rules', `${rule.id}.json`);
+      let lastFired = null;
+      try { lastFired = JSON.parse(fs.readFileSync(cooldownPath, 'utf-8')); } catch {}
+      return {
+        id: rule.id,
+        name: rule.name,
+        description: rule.description,
+        action: rule.action,
+        cooldown_hours: rule.cooldown_hours,
+        last_fired: lastFired ? lastFired.fired_at : null,
+        status: lastFired ? 'fired' : 'watching',
+      };
+    })
+  );
+  res.json({ rules: rulesStatus });
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -1612,3 +1661,193 @@ async function seedIntelligenceIfEmpty() {
 }
 
 seedIntelligenceIfEmpty().catch(console.error);
+
+// ── Queue seed ──────────────────────────────────────────────────────────────
+// On first deploy: copies assets from the baked-in /app/distribution/queue/
+// to the persistent volume so approvals survive redeploys.
+// On subsequent deploys: skips (volume already has files).
+
+async function seedQueueIfEmpty() {
+  try {
+    await fs.promises.mkdir(QUEUE,  { recursive: true });
+    await fs.promises.mkdir(READY,  { recursive: true });
+    await fs.promises.mkdir(POSTED, { recursive: true });
+
+    const existing = await fs.promises.readdir(QUEUE);
+    const mdFiles = existing.filter(f => f.endsWith('.md'));
+
+    if (mdFiles.length > 0) {
+      console.log(`[Queue Seed] Volume queue has ${mdFiles.length} file(s) — skipping seed`);
+      return;
+    }
+
+    const srcDir = path.join(__dirname, 'distribution', 'queue', 'pending-review');
+    let srcFiles = [];
+    try { srcFiles = await fs.promises.readdir(srcDir); } catch { /* no source */ }
+    const toSeed = srcFiles.filter(f => f.endsWith('.md'));
+
+    for (const file of toSeed) {
+      await fs.promises.copyFile(path.join(srcDir, file), path.join(QUEUE, file));
+    }
+
+    console.log(`[Queue Seed] Seeded ${toSeed.length} asset(s) from repo to volume`);
+  } catch (err) {
+    console.error('[Queue Seed] Failed:', err.message);
+  }
+}
+
+seedQueueIfEmpty().catch(console.error);
+
+// ── Cron: scheduled Manus tasks ─────────────────────────────────────────────
+
+const MANUS_SCHEDULE = [
+  { task: 'competitor-research.md',       schedule: '0 6 * * 1',    description: 'Every Monday at 6:00 AM' },
+  { task: 'trend-monitoring.md',          schedule: '30 6 * * 1',   description: 'Every Monday at 6:30 AM' },
+  { task: 'budget-pacing-tracker.md',     schedule: '0 8 * * 1',    description: 'Every Monday at 8:00 AM' },
+  { task: 'review-monitoring.md',         schedule: '0 9 * * 1',    description: 'Every Monday at 9:00 AM' },
+  { task: 'paid-ads-analyzer.md',         schedule: '0 8 * * 3',    description: 'Every Wednesday at 8:00 AM' },
+  { task: 'google-ads-analyzer.md',       schedule: '0 9 * * 3',    description: 'Every Wednesday at 9:00 AM' },
+  { task: 'clarity-analyzer.md',          schedule: '0 10 * * 3',   description: 'Every Wednesday at 10:00 AM' },
+  { task: 'retention-early-warning.md',   schedule: '0 11 * * 3',   description: 'Every Wednesday at 11:00 AM' },
+  { task: 'referral-tracker.md',          schedule: '0 20 * * 0',   description: 'Every Sunday at 8:00 PM' },
+  { task: 'nurture-performance-analyzer.md', schedule: '0 21 * * 0', description: 'Every Sunday at 9:00 PM' },
+  { task: 'lead-journey-tracker.md',      schedule: '0 22 * * 0',   description: 'Every Sunday at 10:00 PM' },
+  { task: 'crm-hygiene.md',               schedule: '0 10 1 * *',   description: 'First of month at 10:00 AM' },
+  { task: 'gbp-optimization.md',          schedule: '0 11 1 * *',   description: 'First of month at 11:00 AM' },
+  { task: 'monthly-report.md',            schedule: '0 12 1 * *',   description: 'First of month at 12:00 PM' },
+];
+
+async function triggerManusTask(filename, triggeredBy = 'cron') {
+  if (!MANUS_TASKS_PATH) {
+    console.error(`[cron] No task directory — cannot trigger ${filename}`);
+    return null;
+  }
+  const taskPath = path.join(MANUS_TASKS_PATH, filename);
+  let taskContent;
+  try { taskContent = fs.readFileSync(taskPath, 'utf-8'); } catch {
+    console.error(`[cron] Task file not found: ${filename}`);
+    return null;
+  }
+  if (!MANUS_API_KEY) {
+    console.warn(`[cron] MANUS_API_KEY not set — skipping scheduled task: ${filename}`);
+    return null;
+  }
+
+  const task_type = getTaskType(filename);
+  const webhookUrl = WEBHOOK_URL ? `${WEBHOOK_URL}/api/manus/callback` : null;
+
+  try {
+    const response = await fetch(`${MANUS_API_BASE}/task.create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-manus-api-key': MANUS_API_KEY },
+      body: JSON.stringify({
+        message: { content: [{ type: 'text', text: taskContent }] },
+        metadata: { source: 'ahri-scheduled-trigger', filename, task_type, triggered_by: triggeredBy },
+        ...(webhookUrl ? { webhook_url: webhookUrl } : {}),
+      }),
+    });
+
+    const data = await response.json();
+    const task_id = data.task_id || data.id || `cron-${Date.now()}`;
+
+    saveTaskRun(task_id, {
+      task_type,
+      task_filename: filename,
+      triggered_by: triggeredBy,
+      started_at: new Date().toISOString(),
+      status: 'running',
+      task_url: data.task_url || null,
+    });
+
+    console.log(`[cron] Task started: ${filename} → ${task_id}`);
+    return task_id;
+  } catch (err) {
+    console.error(`[cron] Failed to trigger ${filename}:`, err.message);
+    return null;
+  }
+}
+
+if (MANUS_API_KEY) {
+  MANUS_SCHEDULE.forEach(({ task, schedule, description }) => {
+    cron.schedule(schedule, () => {
+      console.log(`[cron] Firing: ${task} (${description})`);
+      triggerManusTask(task).catch(err => console.error('[cron] Trigger error:', err.message));
+    }, { timezone: 'America/Indiana/Indianapolis' });
+    console.log(`[cron] Scheduled: ${task} — ${description}`);
+  });
+  console.log(`[cron] ${MANUS_SCHEDULE.length} tasks scheduled (timezone: America/Indiana/Indianapolis)`);
+} else {
+  console.warn('[cron] MANUS_API_KEY not set — scheduled tasks disabled');
+}
+
+// ── Event-driven agentic rules (checked every hour) ─────────────────────────
+
+const AGENTIC_RULES = [
+  {
+    id: 'high_cpl_alert',
+    name: 'CPL Kill Threshold',
+    description: 'Trigger paid-ads-analyzer if CPL > $60 after $50 spend',
+    check: () => {
+      try {
+        const perf = JSON.parse(fs.readFileSync(path.join(PERSISTENT_DATA_DIR, 'paid', 'meta-performance.json'), 'utf-8'));
+        return !perf._is_placeholder && perf.cpl > 60 && perf.total_spend > 50;
+      } catch { return false; }
+    },
+    action: 'paid-ads-analyzer.md',
+    cooldown_hours: 24,
+    notification: 'CPL exceeded $60 kill threshold — paid-ads-analyzer triggered automatically',
+  },
+  {
+    id: 'scale_signal',
+    name: 'Scale Signal',
+    description: 'Trigger paid-ads-analyzer if CPL < $30 for 3+ days',
+    check: () => {
+      try {
+        const perf = JSON.parse(fs.readFileSync(path.join(PERSISTENT_DATA_DIR, 'paid', 'meta-performance.json'), 'utf-8'));
+        return !perf._is_placeholder && perf.cpl_3day_avg < 30 && (perf.days_below_target || 0) >= 3;
+      } catch { return false; }
+    },
+    action: 'paid-ads-analyzer.md',
+    cooldown_hours: 72,
+    notification: 'CPL below $30 for 3 consecutive days — scale signal detected',
+  },
+  {
+    id: 'retention_alert',
+    name: 'Member Retention Alert',
+    description: 'Trigger retention-early-warning if at-risk member count > 3',
+    check: () => {
+      try {
+        const retention = JSON.parse(fs.readFileSync(path.join(PERSISTENT_DATA_DIR, 'retention', 'dropout-alerts.json'), 'utf-8'));
+        return (retention.at_risk_count || 0) > 3;
+      } catch { return false; }
+    },
+    action: 'retention-early-warning.md',
+    cooldown_hours: 168,
+    notification: 'More than 3 members at risk of dropout — retention-early-warning triggered',
+  },
+];
+
+cron.schedule('0 * * * *', async () => {
+  console.log('[rules] Checking agentic rules...');
+  for (const rule of AGENTIC_RULES) {
+    try {
+      const cooldownPath = path.join(PERSISTENT_DATA_DIR, 'rules', `${rule.id}.json`);
+      let lastFired = null;
+      try { lastFired = JSON.parse(fs.readFileSync(cooldownPath, 'utf-8')); } catch {}
+
+      if (lastFired) {
+        const hoursSince = (Date.now() - new Date(lastFired.fired_at).getTime()) / 3600000;
+        if (hoursSince < rule.cooldown_hours) continue;
+      }
+
+      if (rule.check()) {
+        console.log(`[rules] Triggered: ${rule.name}`);
+        await triggerManusTask(rule.action, 'rules-engine');
+        const record = { id: rule.id, title: rule.name, message: rule.notification, fired_at: new Date().toISOString(), action_taken: rule.action };
+        await atomicWriteJSON(cooldownPath, record);
+      }
+    } catch (err) {
+      console.error(`[rules] Error checking ${rule.id}:`, err.message);
+    }
+  }
+}, { timezone: 'America/Indiana/Indianapolis' });

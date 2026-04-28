@@ -362,7 +362,8 @@
         "thumbstop_rate": null,
         "ctr": null,
         "updated_at": null
-      }
+      },
+      "hook_type": "object"
     },
     {
       "file_id": "1bwBDm6hU3ErDZe4TCKRgha6o3CD3Trfx",
@@ -390,7 +391,472 @@
         "thumbstop_rate": null,
         "ctr": null,
         "updated_at": null
-      }
+      },
+      "hook_type": "object"
+    },
+    {
+      "file_id": "1kxI9jNpPKFWR2YLBPoEcy19X2iJQBgOu",
+      "filename": "image-o1-20260427-O1-YU08.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "O1",
+      "category": "object_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Raw, candid, hand-held feel. Shot on iPhone — slightly imperfect. A gym bag sitting in the back seat of a car — packed and ready but clearly not going anywhere today. A coffee cup in the cupholder, keys on the seat. Daylight through car windows. Bag has been there a few days. Slightly dusty. Lighting: Natural daylight through car windows. Slight window glare acceptable. Not studio. No flash.. Composition: Shot from the front seat looking back through the gap between headrest and seat. Bag centred but not perfectly. Upholstery and car interior providing context — slightly cluttered, receipts, a jacket.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: iPhone snapshot of something you noticed while passing by — not arranged, not styled. Shot by someone who grabbed their phone to capture something true. Slightly imperfect angle. One corner of the object may be cut off. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Gym branding on bag clearly visible, gym signage through window, any person in the car, active workout context, aspirational car interior, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, any person visible anywhere in the frame. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life. Recovery attempt 1: prioritise imperfection, real lighting, off-centre composition over any polish. The image must pass this test: would someone stop scrolling because they recognise this as their own life, not because it is beautiful?",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1kxI9jNpPKFWR2YLBPoEcy19X2iJQBgOu/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\object_shots\\image-o1-20260427-O1-YU08.jpg",
+      "created_at": "2026-04-27T23:55:26.718Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "object"
+    },
+    {
+      "file_id": "18nXSObdjTXB1TSXXx_hAvlq8Zzj87-P0",
+      "filename": "image-p1-20260427-P1-IZNR.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "P1",
+      "category": "interrupted_action_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Raw, candid, hand-held feel. Shot on iPhone — slightly imperfect. Person caught mid-eyeroll or mid-exhale — not at the camera, reacting to something they just thought of or heard. Kitchen or living room. The expression is wry and real, not performed. This is the face of someone who has made this joke to themselves before. Subject: Man, 38-48, suburban, slightly out of shape, genuine face, dressed casually — office-casual or weekend clothes. Emotional tone: dry self-awareness — the face of someone who knows exactly what they keep doing and finds it slightly funny. Lighting: Kitchen or living room natural light. Daytime window light. Not overhead fluorescent. Warm and real.. Composition: Three-quarter portrait, slightly off-centre. Expression is the subject. Person is mid-motion, not settled. Slightly imperfect framing as if the camera caught this accidentally.. The visual must support this written hook without illustrating it literally: \"You are tired in a way that sleep does not fix anymore.\" Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: Candid — like someone took the photo mid-conversation. The subject does not know this is a photo worth keeping. Slightly motion-blurred at edges. Not perfectly in focus. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Camera-facing pose, full planned smile, athletic context, gym setting, anyone who appears to be performing an expression for a camera, muscular, tank top, fitness model look, exaggerated expressions, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, posed portrait, camera-facing direct gaze, intentional expression for camera. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life. Recovery attempt 1: prioritise imperfection, real lighting, off-centre composition over any polish. The image must pass this test: would someone stop scrolling because they recognise this as their own life, not because it is beautiful?",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/18nXSObdjTXB1TSXXx_hAvlq8Zzj87-P0/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\interrupted_action_shots\\image-p1-20260427-P1-IZNR.jpg",
+      "created_at": "2026-04-27T23:56:47.792Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "interrupted_action"
+    },
+    {
+      "file_id": "1BmSCwSr8ec4-fvKQXONFAfJYQroy5qcz",
+      "filename": "image-p1-20260427-P1-C665.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "P1",
+      "category": "interrupted_action_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Photorealistic photograph. Person caught mid-eyeroll or mid-exhale — not at the camera, reacting to something they just thought of or heard. Kitchen or living room. The expression is wry and real, not performed. This is the face of someone who has made this joke to themselves before. Subject: Woman, 40-45, suburban, real proportions, naturally tired but warm expression, no gym aesthetic, dressed in everyday clothes. Emotional tone: dry self-awareness — the face of someone who knows exactly what they keep doing and finds it slightly funny. Lighting: Kitchen or living room natural light. Daytime window light. Not overhead fluorescent. Warm and real.. Composition: Three-quarter portrait, slightly off-centre. Expression is the subject. Person is mid-motion, not settled. Slightly imperfect framing as if the camera caught this accidentally.. The visual must support this written hook without illustrating it literally: \"You are tired in a way that sleep does not fix anymore.\" Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: Candid — like someone took the photo mid-conversation. The subject does not know this is a photo worth keeping. Slightly motion-blurred at edges. Not perfectly in focus. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Camera-facing pose, full planned smile, athletic context, gym setting, anyone who appears to be performing an expression for a camera, athletic build, visible abs, gym wear, posed smiling, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, posed portrait, camera-facing direct gaze, intentional expression for camera. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1BmSCwSr8ec4-fvKQXONFAfJYQroy5qcz/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\interrupted_action_shots\\image-p1-20260427-P1-C665.jpg",
+      "created_at": "2026-04-27T23:56:59.954Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "interrupted_action"
+    },
+    {
+      "file_id": "1oPpGU6TqS5J1BBC2fYeSjlm1cVPvwIGx",
+      "filename": "image-p2-20260427-P2-2WLX.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "P2",
+      "category": "interrupted_action_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Raw, candid, hand-held feel. Shot on iPhone — slightly imperfect. Person has stopped mid-scroll on their phone — they just hit something that made them pause. Not reading — just paused. Their expression shifts slightly. Could be standing in a kitchen, sitting on a couch, or standing in a hallway. Subject: Man, 38-48, suburban, slightly out of shape, genuine face, dressed casually — office-casual or weekend clothes. Emotional tone: the half-second of recognition before you decide whether to keep scrolling or stop. Lighting: Interior home light mixed with phone screen glow. Evening or early morning.. Composition: Three-quarter shot. Phone visible in hand. Face partially visible — focus is on the pause, not the face. Subject is in the middle of the frame but not centred intentionally.. The visual must support this written hook without illustrating it literally: \"You are tired in a way that sleep does not fix anymore.\" Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: Candid — like someone took the photo mid-conversation. The subject does not know this is a photo worth keeping. Slightly motion-blurred at edges. Not perfectly in focus. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Screen content visible or readable, gym app context on screen, posed phone-scrolling, anyone who looks like a stock photo model, camera-facing gaze, muscular, tank top, fitness model look, exaggerated expressions, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, posed portrait, camera-facing direct gaze, intentional expression for camera. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life. Recovery attempt 1: prioritise imperfection, real lighting, off-centre composition over any polish. The image must pass this test: would someone stop scrolling because they recognise this as their own life, not because it is beautiful?",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1oPpGU6TqS5J1BBC2fYeSjlm1cVPvwIGx/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\interrupted_action_shots\\image-p2-20260427-P2-2WLX.jpg",
+      "created_at": "2026-04-27T23:57:27.125Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "interrupted_action"
+    },
+    {
+      "file_id": "1zJkRU3dir0P5t3VjzxKIHtyLoOVwYRt6",
+      "filename": "image-e2-20260427-E2-WV66.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "E2",
+      "category": "environment_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 6,
+        "overall": 8
+      },
+      "prompt_used": "Photorealistic photograph. A kitchen at 6am — dishes from last night still in the sink, coffee maker running, one light on. A gym bag visible in the corner of the room but the counter has the chaos of a morning already getting away from someone. Lighting: One overhead kitchen light on. Early morning exterior light barely starting through window. Warm but dim and slightly yellow.. Composition: Wide kitchen shot. Counter with coffee maker as anchor. Sink with dishes in background. Bag visible at edge of frame but not the focal point. Slightly cluttered — real home, not staged.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: Documentary-style. Shot by someone walking into a space and capturing it before it changes. Not arranged. Slightly imperfect angle. Hand-held feel — horizon not perfectly level. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Any person visible, magazine-ready kitchen, organised aspirational morning context, gym equipment as focal point, aspirational lifestyle staging, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1zJkRU3dir0P5t3VjzxKIHtyLoOVwYRt6/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\environment_shots\\image-e2-20260427-E2-WV66.jpg",
+      "created_at": "2026-04-27T23:57:39.134Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "environment"
+    },
+    {
+      "file_id": "1zmDhCCt8NiIBVEAUL_oeOOZ926fOiA9I",
+      "filename": "image-o2-20260427-O2-86AK.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "O2",
+      "category": "object_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Photorealistic photograph. A pair of running shoes — still white, barely worn — sitting by the front door next to regular everyday shoes. Laces still tied from last time. A coat or bag nearby from normal life. Lighting: Hallway or entryway indoor light. Could be morning or evening. Warm and real.. Composition: Shoes at floor level, shot from slightly above at a casual angle. Everyday context around them — doormat, umbrella, other worn shoes. Horizontal iPhone framing.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: iPhone snapshot of something you noticed while passing by — not arranged, not styled. Shot by someone who grabbed their phone to capture something true. Slightly imperfect angle. One corner of the object may be cut off. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Brand logos clearly visible on shoes, any fitness tracking device, person wearing or holding the shoes, aspirational shoe styling, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, any person visible anywhere in the frame. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1zmDhCCt8NiIBVEAUL_oeOOZ926fOiA9I/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\object_shots\\image-o2-20260427-O2-86AK.jpg",
+      "created_at": "2026-04-27T23:57:52.795Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "object"
+    },
+    {
+      "file_id": "1WSMH5dXPkutURxTY1XxklZyLG09F3YJD",
+      "filename": "image-o6-20260427-O6-GB6A.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "O6",
+      "category": "object_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Photorealistic photograph. A full, unopened water bottle sitting in a kitchen cabinet — behind coffee mugs and normal kitchen items. Still full. Has been there for a while. Slightly dusty cap. Lighting: Kitchen interior light — cabinet slightly darker than main kitchen. Warm ambient.. Composition: Cabinet open, water bottle visible among everyday kitchen items. Not centred perfectly — caught in a moment of noticing. Close crop. Cabinet context clear.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: iPhone snapshot of something you noticed while passing by — not arranged, not styled. Shot by someone who grabbed their phone to capture something true. Slightly imperfect angle. One corner of the object may be cut off. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Brand logos on bottle clearly visible, gym context in surrounding area, any person visible, aspirational kitchen styling, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, any person visible anywhere in the frame. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1WSMH5dXPkutURxTY1XxklZyLG09F3YJD/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\object_shots\\image-o6-20260427-O6-GB6A.jpg",
+      "created_at": "2026-04-27T23:58:04.953Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "object"
+    },
+    {
+      "file_id": "1XfFLPfSxhrErRhdjoIMyEwOfd5xlSWpa",
+      "filename": "image-p2-20260427-P2-GMFG.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "P2",
+      "category": "interrupted_action_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Raw, candid, hand-held feel. Shot on iPhone — slightly imperfect. Person has stopped mid-scroll on their phone — they just hit something that made them pause. Not reading — just paused. Their expression shifts slightly. Could be standing in a kitchen, sitting on a couch, or standing in a hallway. Subject: Man, 38-48, suburban, slightly out of shape, genuine face, dressed casually — office-casual or weekend clothes. Emotional tone: the half-second of recognition before you decide whether to keep scrolling or stop. Lighting: Interior home light mixed with phone screen glow. Evening or early morning.. Composition: Three-quarter shot. Phone visible in hand. Face partially visible — focus is on the pause, not the face. Subject is in the middle of the frame but not centred intentionally.. The visual must support this written hook without illustrating it literally: \"You are tired in a way that sleep does not fix anymore.\" Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: Candid — like someone took the photo mid-conversation. The subject does not know this is a photo worth keeping. Slightly motion-blurred at edges. Not perfectly in focus. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Screen content visible or readable, gym app context on screen, posed phone-scrolling, anyone who looks like a stock photo model, camera-facing gaze, muscular, tank top, fitness model look, exaggerated expressions, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, posed portrait, camera-facing direct gaze, intentional expression for camera. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life. Recovery attempt 1: prioritise imperfection, real lighting, off-centre composition over any polish. The image must pass this test: would someone stop scrolling because they recognise this as their own life, not because it is beautiful?",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1XfFLPfSxhrErRhdjoIMyEwOfd5xlSWpa/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\interrupted_action_shots\\image-p2-20260427-P2-GMFG.jpg",
+      "created_at": "2026-04-27T23:58:27.273Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "interrupted_action"
+    },
+    {
+      "file_id": "1DuVxSKvIjzZCpCDwXhf5I6qA_0b0e-UO",
+      "filename": "image-p2-20260427-P2-CDNM.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "P2",
+      "category": "interrupted_action_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Photorealistic photograph. Person has stopped mid-scroll on their phone — they just hit something that made them pause. Not reading — just paused. Their expression shifts slightly. Could be standing in a kitchen, sitting on a couch, or standing in a hallway. Subject: Woman, 40-45, suburban, real proportions, naturally tired but warm expression, no gym aesthetic, dressed in everyday clothes. Emotional tone: the half-second of recognition before you decide whether to keep scrolling or stop. Lighting: Interior home light mixed with phone screen glow. Evening or early morning.. Composition: Three-quarter shot. Phone visible in hand. Face partially visible — focus is on the pause, not the face. Subject is in the middle of the frame but not centred intentionally.. The visual must support this written hook without illustrating it literally: \"You are tired in a way that sleep does not fix anymore.\" Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: Candid — like someone took the photo mid-conversation. The subject does not know this is a photo worth keeping. Slightly motion-blurred at edges. Not perfectly in focus. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Screen content visible or readable, gym app context on screen, posed phone-scrolling, anyone who looks like a stock photo model, camera-facing gaze, athletic build, visible abs, gym wear, posed smiling, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, posed portrait, camera-facing direct gaze, intentional expression for camera. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1DuVxSKvIjzZCpCDwXhf5I6qA_0b0e-UO/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\interrupted_action_shots\\image-p2-20260427-P2-CDNM.jpg",
+      "created_at": "2026-04-27T23:58:39.274Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "interrupted_action"
+    },
+    {
+      "file_id": "1HiXVFGQ4A1IJVcnewjpgpUyV2dYJiUIr",
+      "filename": "image-o1-20260427-O1-DYJO.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "O1",
+      "category": "object_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Photorealistic photograph. A gym bag sitting in the back seat of a car — packed and ready but clearly not going anywhere today. A coffee cup in the cupholder, keys on the seat. Daylight through car windows. Bag has been there a few days. Slightly dusty. Lighting: Natural daylight through car windows. Slight window glare acceptable. Not studio. No flash.. Composition: Shot from the front seat looking back through the gap between headrest and seat. Bag centred but not perfectly. Upholstery and car interior providing context — slightly cluttered, receipts, a jacket.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: iPhone snapshot of something you noticed while passing by — not arranged, not styled. Shot by someone who grabbed their phone to capture something true. Slightly imperfect angle. One corner of the object may be cut off. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Gym branding on bag clearly visible, gym signage through window, any person in the car, active workout context, aspirational car interior, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, any person visible anywhere in the frame. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1HiXVFGQ4A1IJVcnewjpgpUyV2dYJiUIr/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\object_shots\\image-o1-20260427-O1-DYJO.jpg",
+      "created_at": "2026-04-27T23:58:51.011Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "object"
+    },
+    {
+      "file_id": "1ouw5dxbT505WTHCpnaHnpdHtJz1xBNPC",
+      "filename": "image-e3-20260427-E3-UGTW.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "E3",
+      "category": "environment_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 6,
+        "overall": 8
+      },
+      "prompt_used": "Photorealistic photograph. A bedroom corner with home exercise equipment — dumbbells, a resistance band, a yoga mat still rolled up — that clearly has not been used in weeks. A pile of clothes draped over a nearby chair. Lighting: Bedroom natural light from window. Morning. Slightly warm.. Composition: Corner of bedroom. Equipment on the floor or a small rack. Chair with clothes beside it. Real bedroom — not a home gym shoot. Equipment is background context, the corner tells the story.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: Documentary-style. Shot by someone walking into a space and capturing it before it changes. Not arranged. Slightly imperfect angle. Hand-held feel — horizon not perfectly level. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Any person visible, organised home gym aesthetic, equipment that looks new and aspirational, brand logos clearly visible, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1ouw5dxbT505WTHCpnaHnpdHtJz1xBNPC/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\environment_shots\\image-e3-20260427-E3-UGTW.jpg",
+      "created_at": "2026-04-27T23:59:04.352Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "environment"
+    },
+    {
+      "file_id": "1oZ4oJ2vL3ENmRMAV-P97uix-CsNqRO87",
+      "filename": "image-o1-20260427-O1-SGRC.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "O1",
+      "category": "object_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Photorealistic photograph. A gym bag sitting in the back seat of a car — packed and ready but clearly not going anywhere today. A coffee cup in the cupholder, keys on the seat. Daylight through car windows. Bag has been there a few days. Slightly dusty. Lighting: Natural daylight through car windows. Slight window glare acceptable. Not studio. No flash.. Composition: Shot from the front seat looking back through the gap between headrest and seat. Bag centred but not perfectly. Upholstery and car interior providing context — slightly cluttered, receipts, a jacket.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: iPhone snapshot of something you noticed while passing by — not arranged, not styled. Shot by someone who grabbed their phone to capture something true. Slightly imperfect angle. One corner of the object may be cut off. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Gym branding on bag clearly visible, gym signage through window, any person in the car, active workout context, aspirational car interior, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, any person visible anywhere in the frame. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1oZ4oJ2vL3ENmRMAV-P97uix-CsNqRO87/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\object_shots\\image-o1-20260427-O1-SGRC.jpg",
+      "created_at": "2026-04-27T23:59:17.629Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "object"
+    },
+    {
+      "file_id": "1xvXWJHmo3eQj5futKii6tRS5SfeQgPjn",
+      "filename": "image-o1-20260427-O1-R813.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "O1",
+      "category": "object_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 6,
+        "overall": 8
+      },
+      "prompt_used": "Photorealistic photograph. A gym bag sitting in the back seat of a car — packed and ready but clearly not going anywhere today. A coffee cup in the cupholder, keys on the seat. Daylight through car windows. Bag has been there a few days. Slightly dusty. Lighting: Natural daylight through car windows. Slight window glare acceptable. Not studio. No flash.. Composition: Shot from the front seat looking back through the gap between headrest and seat. Bag centred but not perfectly. Upholstery and car interior providing context — slightly cluttered, receipts, a jacket.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: iPhone snapshot of something you noticed while passing by — not arranged, not styled. Shot by someone who grabbed their phone to capture something true. Slightly imperfect angle. One corner of the object may be cut off. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Gym branding on bag clearly visible, gym signage through window, any person in the car, active workout context, aspirational car interior, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, any person visible anywhere in the frame. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1xvXWJHmo3eQj5futKii6tRS5SfeQgPjn/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\object_shots\\image-o1-20260427-O1-R813.jpg",
+      "created_at": "2026-04-27T23:59:29.935Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "object"
+    },
+    {
+      "file_id": "1B_XLqVqasSnvgO2o7YmGaaOColuJHB4v",
+      "filename": "image-o6-20260427-O6-ZI1J.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "O6",
+      "category": "object_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Raw, candid, hand-held feel. Shot on iPhone — slightly imperfect. A full, unopened water bottle sitting in a kitchen cabinet — behind coffee mugs and normal kitchen items. Still full. Has been there for a while. Slightly dusty cap. Lighting: Kitchen interior light — cabinet slightly darker than main kitchen. Warm ambient.. Composition: Cabinet open, water bottle visible among everyday kitchen items. Not centred perfectly — caught in a moment of noticing. Close crop. Cabinet context clear.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: iPhone snapshot of something you noticed while passing by — not arranged, not styled. Shot by someone who grabbed their phone to capture something true. Slightly imperfect angle. One corner of the object may be cut off. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Brand logos on bottle clearly visible, gym context in surrounding area, any person visible, aspirational kitchen styling, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, any person visible anywhere in the frame. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life. Recovery attempt 1: prioritise imperfection, real lighting, off-centre composition over any polish. The image must pass this test: would someone stop scrolling because they recognise this as their own life, not because it is beautiful?",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1B_XLqVqasSnvgO2o7YmGaaOColuJHB4v/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\object_shots\\image-o6-20260427-O6-ZI1J.jpg",
+      "created_at": "2026-04-27T23:59:52.203Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "object"
+    },
+    {
+      "file_id": "1hjTXiE3lc_7E6oJbACbRaAHEJBw5sIwx",
+      "filename": "image-p1-20260427-P1-RMJH.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "P1",
+      "category": "interrupted_action_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 5,
+        "overall": 7
+      },
+      "prompt_used": "Photorealistic photograph. Person caught mid-eyeroll or mid-exhale — not at the camera, reacting to something they just thought of or heard. Kitchen or living room. The expression is wry and real, not performed. This is the face of someone who has made this joke to themselves before. Subject: Woman, 40-45, suburban, real proportions, naturally tired but warm expression, no gym aesthetic, dressed in everyday clothes. Emotional tone: dry self-awareness — the face of someone who knows exactly what they keep doing and finds it slightly funny. Lighting: Kitchen or living room natural light. Daytime window light. Not overhead fluorescent. Warm and real.. Composition: Three-quarter portrait, slightly off-centre. Expression is the subject. Person is mid-motion, not settled. Slightly imperfect framing as if the camera caught this accidentally.. The visual must support this written hook without illustrating it literally: \"You are tired in a way that sleep does not fix anymore.\" Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: Candid — like someone took the photo mid-conversation. The subject does not know this is a photo worth keeping. Slightly motion-blurred at edges. Not perfectly in focus. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Camera-facing pose, full planned smile, athletic context, gym setting, anyone who appears to be performing an expression for a camera, athletic build, visible abs, gym wear, posed smiling, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop, posed portrait, camera-facing direct gaze, intentional expression for camera. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life. Recovery attempt 1.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1hjTXiE3lc_7E6oJbACbRaAHEJBw5sIwx/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\interrupted_action_shots\\image-p1-20260427-P1-RMJH.jpg",
+      "created_at": "2026-04-28T00:00:10.906Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "interrupted_action"
+    },
+    {
+      "file_id": "1S0u5lDbqtEZBMx4cHFHt72LqSoizMaOR",
+      "filename": "image-e2-20260428-E2-CLQN.jpg",
+      "source": "ai_generated",
+      "generator": "fal-flux-pro-v1.1",
+      "scene_id": "E2",
+      "category": "environment_shots",
+      "platform": "facebook_feed",
+      "season": "late_spring",
+      "campaign_id": "no-risk-comeback-2026-04",
+      "quality_scores": {
+        "differentiation": 9,
+        "authenticity": 6,
+        "overall": 8
+      },
+      "prompt_used": "Photorealistic photograph. A kitchen at 6am — dishes from last night still in the sink, coffee maker running, one light on. A gym bag visible in the corner of the room but the counter has the chaos of a morning already getting away from someone. Lighting: One overhead kitchen light on. Early morning exterior light barely starting through window. Warm but dim and slightly yellow.. Composition: Wide kitchen shot. Counter with coffee maker as anchor. Sink with dishes in background. Bag visible at edge of frame but not the focal point. Slightly cluttered — real home, not staged.. Seasonal context: early spring afternoon light, light jacket, back porch or neighbourhood park, golden hour warmth without harshness. No gym advertising, gym signage, or fitness context visible anywhere in the scene. Photography style: Documentary-style. Shot by someone walking into a space and capturing it before it changes. Not arranged. Slightly imperfect angle. Hand-held feel — horizon not perfectly level. JPEG compression artifacts acceptable. Auto white balance acceptable — colour temperature not corrected. Background slightly blown out or underexposed. Slightly imperfect framing — horizon not perfectly level, one edge of subject may be cut off. No colour grading applied — straight from phone camera roll. No text, watermarks, logos, or overlaid graphics in the image itself. DO NOT show: Any person visible, magazine-ready kitchen, organised aspirational morning context, gym equipment as focal point, aspirational lifestyle staging, snow, heavy winter coat, harsh midday sun, beach or summer imagery, stock photo aesthetic, AI-generated look, symmetrical posed composition, fitness model physique, before/after transformation framing, motivational poster aesthetic, obvious advertising composition, studio lighting, ring light, professional backdrop. DIFFERENTIATION MANDATE — your image must look nothing like these competitor patterns: Saturated hooks to avoid (do not illustrate these themes): [object Object]; [object Object]; [object Object]. Instead: documentary style, real people, no gym equipment as focal point, no athletic bodies, no transformation imagery, no motivational poster aesthetic. The image must not look like a gym ad at first glance — it must look like a moment from real life.",
+      "parameter_profile": "cold_audience_static",
+      "status": "pending_review",
+      "approved_at": null,
+      "drive_url": "https://drive.google.com/file/d/1S0u5lDbqtEZBMx4cHFHt72LqSoizMaOR/view?usp=drivesdk",
+      "local_path": "C:\\Users\\kaial\\.claude\\marketing-os\\outputs\\anytime-fitness\\images\\environment_shots\\image-e2-20260428-E2-CLQN.jpg",
+      "created_at": "2026-04-28T00:00:22.311Z",
+      "performance": {
+        "thumbstop_rate": null,
+        "ctr": null,
+        "updated_at": null
+      },
+      "hook_type": "environment"
     }
   ]
 }

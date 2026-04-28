@@ -166,6 +166,7 @@ interface MediaIndexEntry {
   filename: string;
   source: 'ai_generated';
   generator: string;
+  hook_type: string;
   scene_id: string;
   category: string;
   platform: string;
@@ -267,6 +268,15 @@ async function uploadToRawFolder(
 }
 
 // --- Media index ---
+
+function categoryToHookType(category: string): string {
+  const map: Record<string, string> = {
+    object_shots: 'object',
+    environment_shots: 'environment',
+    interrupted_action_shots: 'interrupted_action',
+  };
+  return map[category] || category;
+}
 
 function updateMediaIndex(entry: MediaIndexEntry): void {
   try {
@@ -684,6 +694,7 @@ export async function generateImage(
             filename,
             source: 'ai_generated',
             generator: 'fal-flux-pro-v1.1',
+            hook_type: categoryToHookType(found.category),
             scene_id: request.scene_id,
             category: found.category,
             platform: request.placement,
