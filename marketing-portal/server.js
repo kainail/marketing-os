@@ -1266,7 +1266,11 @@ app.get('/api/debug/env', (req, res) => {
     manus_key_length: process.env.MANUS_API_KEY ? process.env.MANUS_API_KEY.length : 0,
     manus_key_preview: process.env.MANUS_API_KEY ? process.env.MANUS_API_KEY.substring(0, 8) + '...' : 'NOT SET',
     node_env: process.env.NODE_ENV,
-    railway_env: process.env.RAILWAY_ENVIRONMENT_NAME
+    railway_env: process.env.RAILWAY_ENVIRONMENT_NAME,
+    meta_token_set: !!process.env.META_ACCESS_TOKEN,
+    meta_token_preview: process.env.META_ACCESS_TOKEN ? process.env.META_ACCESS_TOKEN.substring(0, 8) + '...' : 'NOT SET',
+    meta_account_id: process.env.META_AD_ACCOUNT_ID || 'NOT SET',
+    meta_page_id: process.env.META_PAGE_ID || 'NOT SET'
   });
 });
 
