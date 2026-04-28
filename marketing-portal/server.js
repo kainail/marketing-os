@@ -45,6 +45,25 @@ const SESSION_LOG = path.join(LOGS, 'session-log.csv');
 const RULES_FILE = path.join(__dirname, 'config', 'agentic-rules.json');
 const MANUS_API_BASE = process.env.MANUS_API_BASE || 'https://api.manus.ai/v2';
 const MANUS_API_KEY = process.env.MANUS_API_KEY || '';
+
+// --- Meta Marketing API ---
+// Required Railway env vars:
+// META_ACCESS_TOKEN — long-lived token from Graph API Explorer
+// META_AD_ACCOUNT_ID — format: act_XXXXXXXX
+// META_PAGE_ID — Anytime Fitness Bloomington Facebook page ID
+// META_APP_ID — from developers.facebook.com
+// META_APP_SECRET — from app settings
+const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
+const META_AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID;
+const META_PAGE_ID = process.env.META_PAGE_ID;
+const META_APP_ID = process.env.META_APP_ID;
+const META_APP_SECRET = process.env.META_APP_SECRET;
+const META_API_VERSION = 'v19.0';
+const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
+
+if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID || !META_PAGE_ID) {
+  console.warn('⚠ Meta API credentials not configured — campaign creation disabled. Add META_ACCESS_TOKEN, META_AD_ACCOUNT_ID, META_PAGE_ID to env vars.');
+}
 const DATA_DIR = path.join(__dirname, 'data');
 const TASK_RUNS_FILE = path.join(DATA_DIR, 'task-runs.json');
 const SCHEMAS_DIR = path.join(ROOT, 'schemas', 'manus-outputs');
@@ -312,6 +331,39 @@ async function atomicWriteJSON(filePath, data) {
   const tmp = filePath + '.tmp';
   await fs.promises.writeFile(tmp, JSON.stringify(data, null, 2));
   await fs.promises.rename(tmp, filePath);
+}
+
+// --- Meta Marketing API helpers ---
+
+async function metaApiCall(endpoint, method = 'GET', params = {}) {
+  if (!META_ACCESS_TOKEN) throw new Error('META_ACCESS_TOKEN not configured');
+  const url = new URL(`${META_API_BASE}/${endpoint}`);
+  const options = { method, headers: { 'Content-Type': 'application/json' } };
+
+  if (method === 'GET') {
+    url.searchParams.append('access_token', META_ACCESS_TOKEN);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, String(v)));
+  } else {
+    options.body = JSON.stringify({ ...params, access_token: META_ACCESS_TOKEN });
+  }
+
+  const response = await fetch(url.toString(), options);
+  const data = await response.json();
+  if (data.error) {
+    throw new Error(`Meta API error: ${data.error.message} (code: ${data.error.code})`);
+  }
+  return data;
+}
+
+async function verifyMetaCredentials() {
+  try {
+    const result = await metaApiCall('me', 'GET', { fields: 'id,name' });
+    console.log('[Meta API] Authenticated as:', result.name);
+    return { valid: true, user: result };
+  } catch (error) {
+    console.error('[Meta API] Auth failed:', error.message);
+    return { valid: false, error: error.message };
+  }
 }
 
 // Placeholder performance data — used when intelligence-db/paid/ files are empty
@@ -1258,6 +1310,240 @@ app.get('/api/debug/paths', async (req, res) => {
   }
 
   res.json(results);
+});
+
+// POST /api/meta/create-campaign — create a complete campaign via Meta Marketing API
+app.post('/api/meta/create-campaign', async (req, res) => {
+  if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID || !META_PAGE_ID) {
+    return res.status(503).json({ success: false, error: 'Meta API credentials not configured' });
+  }
+
+  const {
+    campaign_name,
+    cold_hook,
+    warm_hook,
+    cold_primary_text,
+    warm_primary_text,
+    cold_headline,
+    warm_headline,
+    destination_url,
+    cold_daily_budget = 1500,
+    warm_daily_budget = 1000,
+    image_url = null,
+  } = req.body;
+
+  const results = { campaign: null, ad_set_cold: null, ad_set_warm: null, ad_cold: null, ad_warm: null, errors: [] };
+
+  try {
+    // STEP 1 — Create Campaign
+    console.log('[Meta] Creating campaign...');
+    const campaign = await metaApiCall(`${META_AD_ACCOUNT_ID}/campaigns`, 'POST', {
+      name: campaign_name || `30-Day Kickstart — Bloomington — ${new Date().toISOString().split('T')[0]}`,
+      objective: 'OUTCOME_LEADS',
+      status: 'PAUSED',
+      special_ad_categories: [],
+    });
+    results.campaign = { id: campaign.id, name: campaign_name };
+    console.log('[Meta] Campaign created:', campaign.id);
+
+    // STEP 2 — Create Cold Ad Set
+    console.log('[Meta] Creating cold ad set...');
+    const coldTargeting = {
+      geo_locations: {
+        cities: [{ key: '2418779', name: 'Bloomington', region: 'Indiana', country: 'US', radius: 15, distance_unit: 'mile' }]
+      },
+      age_min: 30,
+      age_max: 55,
+      interests: [
+        { id: '6003107902433', name: 'Fitness and wellness' },
+        { id: '6003195670250', name: 'Health and wellness' },
+        { id: '6003487687550', name: 'Running' },
+      ],
+      publisher_platforms: ['facebook'],
+      facebook_positions: ['feed'],
+    };
+    const coldAdSet = await metaApiCall(`${META_AD_ACCOUNT_ID}/adsets`, 'POST', {
+      name: 'Cold — Lifestyle Member — Bloomington — Hook A',
+      campaign_id: campaign.id,
+      daily_budget: cold_daily_budget,
+      billing_event: 'IMPRESSIONS',
+      optimization_goal: 'LEAD_GENERATION',
+      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+      targeting: JSON.stringify(coldTargeting),
+      status: 'PAUSED',
+      start_time: new Date(Date.now() + 3600000).toISOString(),
+    });
+    results.ad_set_cold = { id: coldAdSet.id };
+    console.log('[Meta] Cold ad set created:', coldAdSet.id);
+
+    // STEP 3 — Create Warm Ad Set
+    console.log('[Meta] Creating warm ad set...');
+    const warmTargeting = {
+      geo_locations: {
+        cities: [{ key: '2418779', name: 'Bloomington', region: 'Indiana', country: 'US', radius: 15, distance_unit: 'mile' }]
+      },
+      age_min: 30,
+      age_max: 55,
+      publisher_platforms: ['facebook'],
+      facebook_positions: ['feed'],
+    };
+    const warmAdSet = await metaApiCall(`${META_AD_ACCOUNT_ID}/adsets`, 'POST', {
+      name: 'Warm — Page Engagement — Bloomington — Hook E',
+      campaign_id: campaign.id,
+      daily_budget: warm_daily_budget,
+      billing_event: 'IMPRESSIONS',
+      optimization_goal: 'LEAD_GENERATION',
+      bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+      targeting: JSON.stringify(warmTargeting),
+      status: 'PAUSED',
+      start_time: new Date(Date.now() + 3600000).toISOString(),
+    });
+    results.ad_set_warm = { id: warmAdSet.id };
+    console.log('[Meta] Warm ad set created:', warmAdSet.id);
+
+    // STEP 4 — Create Cold Creative
+    console.log('[Meta] Creating cold creative...');
+    const coldLink = destination_url || 'https://no-risk-comeback-landing-page-production.up.railway.app?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-parent-child&utm_term=cold-lifestyle';
+    const coldLinkData = {
+      message: cold_primary_text || `The moment you realized you couldn't keep up with your own kids.\n\nThat feeling isn't about fitness. It's about who you want to be.\n\nAt Anytime Fitness Bloomington, your first 30 days are fully coached for $1.\n\nPrivate orientation. Weekly check-ins. A coach who texts you in week two — because that's when people stop. We know.\n\nShow up 12 times. If it's not worth it, full refund. You keep everything.\n\nThe form is below.`,
+      link: coldLink,
+      name: cold_headline || '30 Days Fully Coached. $1 to Start.',
+      call_to_action: { type: 'LEARN_MORE', value: { link: coldLink } },
+    };
+    if (image_url) coldLinkData.picture = image_url;
+
+    const coldCreative = await metaApiCall(`${META_AD_ACCOUNT_ID}/adcreatives`, 'POST', {
+      name: 'Hook A — Parent Child — Cold',
+      object_story_spec: JSON.stringify({ page_id: META_PAGE_ID, link_data: coldLinkData }),
+    });
+    console.log('[Meta] Cold creative created:', coldCreative.id);
+
+    // STEP 5 — Create Cold Ad
+    console.log('[Meta] Creating cold ad...');
+    const coldAd = await metaApiCall(`${META_AD_ACCOUNT_ID}/ads`, 'POST', {
+      name: 'Hook A — Parent Child — Cold',
+      adset_id: coldAdSet.id,
+      creative: JSON.stringify({ creative_id: coldCreative.id }),
+      status: 'PAUSED',
+    });
+    results.ad_cold = { id: coldAd.id };
+    console.log('[Meta] Cold ad created:', coldAd.id);
+
+    // STEP 6 — Create Warm Creative
+    console.log('[Meta] Creating warm creative...');
+    const warmLink = destination_url || 'https://no-risk-comeback-landing-page-production.up.railway.app?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-offer-direct&utm_term=warm-retarget';
+    const warmCreative = await metaApiCall(`${META_AD_ACCOUNT_ID}/adcreatives`, 'POST', {
+      name: 'Hook E — Offer Direct — Warm',
+      object_story_spec: JSON.stringify({
+        page_id: META_PAGE_ID,
+        link_data: {
+          message: warm_primary_text || `First 30 days, fully coached. One dollar to start.\n\nPrivate orientation. Done-for-you plan. Weekly coach check-ins. Direct text access.\n\nWe built this for people who've tried gyms before and stopped. The difference isn't motivation — it's having someone who notices when you go quiet.\n\nShow up 12 times or full refund. You keep the workout plan either way.\n\nClaim your spot below.`,
+          link: warmLink,
+          name: warm_headline || "Built for People Who've Quit Before.",
+          call_to_action: { type: 'LEARN_MORE', value: { link: warmLink } },
+        },
+      }),
+    });
+    console.log('[Meta] Warm creative created:', warmCreative.id);
+
+    // STEP 7 — Create Warm Ad
+    console.log('[Meta] Creating warm ad...');
+    const warmAd = await metaApiCall(`${META_AD_ACCOUNT_ID}/ads`, 'POST', {
+      name: 'Hook E — Offer Direct — Warm',
+      adset_id: warmAdSet.id,
+      creative: JSON.stringify({ creative_id: warmCreative.id }),
+      status: 'PAUSED',
+    });
+    results.ad_warm = { id: warmAd.id };
+    console.log('[Meta] Warm ad created:', warmAd.id);
+
+    // STEP 8 — Write to intelligence-db
+    const campaignResult = {
+      last_updated: new Date().toISOString(),
+      campaign_id: campaign.id,
+      campaign_name: campaign_name || `30-Day Kickstart — Bloomington — ${new Date().toISOString().split('T')[0]}`,
+      status: 'PAUSED',
+      ad_account: META_AD_ACCOUNT_ID,
+      ad_sets: {
+        cold: { id: coldAdSet.id, name: 'Cold — Lifestyle Member', daily_budget: cold_daily_budget / 100, hook: 'parent_child_moment' },
+        warm: { id: warmAdSet.id, name: 'Warm — Page Engagement', daily_budget: warm_daily_budget / 100, hook: 'direct_offer' },
+      },
+      ads: { cold: { id: coldAd.id }, warm: { id: warmAd.id } },
+      destination_url,
+      created_at: new Date().toISOString(),
+      notes: 'Created via Meta Marketing API. Status PAUSED — activate in Ads Manager when ready to spend.',
+    };
+    const campaignPath = path.join(PERSISTENT_DATA_DIR, 'paid', 'active-campaign.json');
+    await atomicWriteJSON(campaignPath, campaignResult);
+    console.log('[Meta] Campaign data written to intelligence-db');
+
+    const accountNum = (META_AD_ACCOUNT_ID || '').replace('act_', '');
+    logToSession('meta_create_campaign', `Campaign created: ${campaign.id}`);
+    return res.json({
+      success: true,
+      campaign_id: campaign.id,
+      ad_set_cold_id: coldAdSet.id,
+      ad_set_warm_id: warmAdSet.id,
+      ad_cold_id: coldAd.id,
+      ad_warm_id: warmAd.id,
+      status: 'PAUSED',
+      message: 'Campaign created successfully. Status is PAUSED — go to Meta Ads Manager to review and activate when ready.',
+      ads_manager_url: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${accountNum}`,
+    });
+
+  } catch (error) {
+    console.error('[Meta] Campaign creation failed:', error.message);
+    results.errors.push(error.message);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+      partial_results: results,
+      message: 'Campaign creation failed. Check error and retry.',
+    });
+  }
+});
+
+// GET /api/meta/campaign-status — status of active campaign from intelligence-db + live Meta API
+app.get('/api/meta/campaign-status', async (req, res) => {
+  const campaignPath = path.join(PERSISTENT_DATA_DIR, 'paid', 'active-campaign.json');
+  const localData = safeReadJSON(campaignPath);
+
+  if (!localData || !localData.campaign_id) {
+    return res.json({ campaign_exists: false, message: 'No active campaign found' });
+  }
+
+  if (!META_ACCESS_TOKEN) {
+    return res.json({
+      campaign_exists: true,
+      campaign_id: localData.campaign_id,
+      campaign_name: localData.campaign_name,
+      status: localData.status || 'UNKNOWN',
+      created_at: localData.created_at,
+      api_error: 'META_ACCESS_TOKEN not configured — live status unavailable',
+      ads_manager_url: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${(META_AD_ACCOUNT_ID || '').replace('act_', '')}`,
+    });
+  }
+
+  try {
+    const liveStatus = await metaApiCall(localData.campaign_id, 'GET', { fields: 'name,status,effective_status' });
+    return res.json({
+      campaign_exists: true,
+      campaign_id: localData.campaign_id,
+      campaign_name: localData.campaign_name,
+      status: liveStatus.status,
+      effective_status: liveStatus.effective_status,
+      created_at: localData.created_at,
+      ads_manager_url: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${(META_AD_ACCOUNT_ID || '').replace('act_', '')}`,
+    });
+  } catch (error) {
+    return res.json({
+      campaign_exists: true,
+      campaign_id: localData.campaign_id,
+      campaign_name: localData.campaign_name,
+      local_data: localData,
+      api_error: error.message,
+    });
+  }
 });
 
 // SPA fallback
