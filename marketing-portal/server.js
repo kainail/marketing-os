@@ -57,7 +57,7 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL
 // META_APP_ID — from developers.facebook.com
 // META_APP_SECRET — from app settings
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
-const META_AD_ACCOUNT_ID = process.env.META_AD_ACCOUNT_ID;
+const META_AD_ACCOUNT_ID = (() => { const raw = process.env.META_AD_ACCOUNT_ID || ''; return raw.startsWith('act_') ? raw : (raw ? `act_${raw}` : ''); })();
 const META_PAGE_ID = process.env.META_PAGE_ID;
 const META_APP_ID = process.env.META_APP_ID;
 const META_APP_SECRET = process.env.META_APP_SECRET;
