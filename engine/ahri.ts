@@ -78,6 +78,7 @@ type IntentType =
   | 'generate_campaign_images'
   | 'check_creative_performance'
   | 'update_visual_map'
+  | 'generate_nurture_sequence'
   | 'exit';
 
 interface SessionHistoryEntry {
@@ -214,7 +215,7 @@ async function parseIntent(client: Anthropic, input: string, ctx: SessionContext
 Return this exact shape:
 {"intent":"<type>","skills":[],"context":"<biz>","avatar_override":null,"awareness_override":null,"budget_required":false,"message":""}
 
-intent values: generate_skill | batch_generate | review_queue | update_brain_state | show_status | run_campaign | switch_context | get_help | sync_media | sync_brains | update_funnel | update_workflows | run_manus_task | show_routines | run_routine_manually | analyze_paid_ads | analyze_google_ads | check_budget_pacing | track_lead_journey | analyze_landing_page | analyze_nurture | check_retention | monitor_reviews | track_referrals | audit_gbp | clean_crm | generate_monthly_report | process_manus_results | generate_campaign_images | check_creative_performance | update_visual_map | exit
+intent values: generate_skill | batch_generate | review_queue | update_brain_state | show_status | run_campaign | switch_context | get_help | sync_media | sync_brains | update_funnel | update_workflows | run_manus_task | show_routines | run_routine_manually | analyze_paid_ads | analyze_google_ads | check_budget_pacing | track_lead_journey | analyze_landing_page | analyze_nurture | check_retention | monitor_reviews | track_referrals | audit_gbp | clean_crm | generate_monthly_report | process_manus_results | generate_campaign_images | check_creative_performance | update_visual_map | generate_nurture_sequence | exit
 
 Rules:
 - "run campaign" / "build everything" / "full campaign" → run_campaign
@@ -240,7 +241,8 @@ Rules:
 - "lead journey" / "attribution report" / "track leads" / "lead tracking" / "lead attribution" → track_lead_journey
 - "clarity" / "landing page analytics" / "heatmap" / "clarity analyzer" / "scroll depth" → analyze_landing_page
 - "nurture analysis" / "nurture performance" / "sequence analysis" / "analyze nurture" / "sequence performance" → analyze_nurture
-- "retention" / "at-risk members" / "early warning" / "dropout" / "check retention" / "retention warning" → check_retention
+- "generate nurture" / "build nurture" / "show nurture sequence" / "write SMS" / "write email sequence" / "nurture sequence" / "show SMS sequence" / "load nurture" → generate_nurture_sequence
+- "retention" / "campaign signals" / "early warning" / "check retention" / "retention signals" / "CTR drop" / "zero leads" → check_retention
 - "reviews" / "monitor reviews" / "review monitoring" / "check reviews" / "google reviews" → monitor_reviews
 - "referrals" / "track referrals" / "referral tracker" / "referral report" → track_referrals
 - "GBP audit" / "google business profile" / "GBP optimization" / "audit GBP" / "check GBP" → audit_gbp
@@ -1209,6 +1211,206 @@ async function handleDisplayManusTask(taskKey: string): Promise<void> {
   logAction('run_manus_task', [taskKey], 0, false, `Manus task displayed: ${taskKey}`);
 }
 
+/** Check 3 campaign engagement signals from intelligence-db — no GHL, no member data required. */
+async function handleCheckRetentionSignals(): Promise<void> {
+  console.log('');
+  console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log(chalk.bold.white('  CAMPAIGN RETENTION SIGNALS'));
+  console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+
+  const metaPath  = path.join(ROOT, 'intelligence-db', 'paid', 'meta-performance.json');
+  const pacingPath = path.join(ROOT, 'intelligence-db', 'paid', 'pacing-log.json');
+  const signalPath = path.join(ROOT, 'intelligence-db', 'retention', 'campaign-signals.json');
+
+  const hasMetaData   = fs.existsSync(metaPath);
+  const hasPacingData = fs.existsSync(pacingPath);
+  const hasSignalFile = fs.existsSync(signalPath);
+
+  if (!hasMetaData && !hasPacingData) {
+    console.log(chalk.yellow('\n  No campaign performance data found.'));
+    console.log(chalk.gray('  Run paid-ads-analyzer Manus task first to populate intelligence-db/paid/\n'));
+    return;
+  }
+
+  console.log(chalk.gray('\n  Reading intelligence-db/paid/ for campaign signals...\n'));
+
+  interface SignalResult {
+    triggered: boolean;
+    severity: string;
+    detail: string;
+  }
+
+  const signals: Record<string, SignalResult> = {
+    ctr_drop:    { triggered: false, severity: 'none', detail: 'No data' },
+    form_cvr:    { triggered: false, severity: 'none', detail: 'No data' },
+    zero_leads:  { triggered: false, severity: 'none', detail: 'No data' },
+  };
+
+  if (hasMetaData) {
+    try {
+      const meta = JSON.parse(readSafe(metaPath)) as Record<string, unknown>;
+      const curr = parseFloat(String(meta['current_week_ctr'] ?? '0'));
+      const prev = parseFloat(String(meta['previous_week_ctr'] ?? '0'));
+      if (prev > 0) {
+        const drop = ((prev - curr) / prev) * 100;
+        if (drop >= 35) {
+          signals['ctr_drop'] = { triggered: true, severity: 'critical', detail: `CTR dropped ${drop.toFixed(1)}% (${prev}% → ${curr}%)` };
+        } else if (drop >= 20) {
+          signals['ctr_drop'] = { triggered: true, severity: 'warning', detail: `CTR dropped ${drop.toFixed(1)}% (${prev}% → ${curr}%)` };
+        } else {
+          signals['ctr_drop'] = { triggered: false, severity: 'none', detail: `CTR stable (${curr}% vs ${prev}% last week)` };
+        }
+      }
+      const currCvr = parseFloat(String(meta['current_week_form_cvr'] ?? '0'));
+      const prevCvr = parseFloat(String(meta['previous_week_form_cvr'] ?? '0'));
+      if (prevCvr > 0) {
+        const cvrDrop = ((prevCvr - currCvr) / prevCvr) * 100;
+        if (cvrDrop >= 40 || currCvr < 1.5) {
+          signals['form_cvr'] = { triggered: true, severity: 'critical', detail: `Form CVR dropped ${cvrDrop.toFixed(1)}% (${prevCvr}% → ${currCvr}%)` };
+        } else if (cvrDrop >= 25 || currCvr < 3) {
+          signals['form_cvr'] = { triggered: true, severity: 'warning', detail: `Form CVR dropped ${cvrDrop.toFixed(1)}% (${prevCvr}% → ${currCvr}%)` };
+        } else {
+          signals['form_cvr'] = { triggered: false, severity: 'none', detail: `Form CVR stable (${currCvr}% vs ${prevCvr}% last week)` };
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  if (hasPacingData) {
+    try {
+      const pacing = JSON.parse(readSafe(pacingPath)) as Record<string, unknown>;
+      const spend7d  = parseFloat(String(pacing['spend_7d']  ?? pacing['spend']  ?? '0'));
+      const leads7d  = parseFloat(String(pacing['leads_7d']  ?? pacing['leads']  ?? '-1'));
+      if (spend7d >= 50 && leads7d === 0) {
+        signals['zero_leads'] = { triggered: true, severity: spend7d >= 100 ? 'critical' : 'warning', detail: `$${spend7d} spent in last 7 days — 0 leads` };
+      } else if (leads7d >= 0) {
+        signals['zero_leads'] = { triggered: false, severity: 'none', detail: `$${spend7d} spend — ${leads7d} leads in last 7 days` };
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  if (hasSignalFile) {
+    console.log(chalk.gray(`  Last signal report: ${signalPath}\n`));
+  }
+
+  const triggered = Object.values(signals).filter(s => s.triggered);
+
+  console.log(chalk.bold('  SIGNAL REPORT'));
+  console.log(chalk.gray('  ─────────────────────────────────────────────────────────\n'));
+
+  const severityColor = (sev: string) => sev === 'critical' ? chalk.red : sev === 'warning' ? chalk.yellow : chalk.green;
+
+  for (const [key, sig] of Object.entries(signals)) {
+    const label = { ctr_drop: 'CTR Drop', form_cvr: 'Form CVR Drop', zero_leads: 'Zero Leads' }[key] ?? key;
+    const icon  = sig.triggered ? (sig.severity === 'critical' ? '✗' : '⚠') : '✓';
+    const color = severityColor(sig.severity);
+    console.log(color(`  ${icon}  ${label}: ${sig.detail}`));
+  }
+
+  console.log('');
+
+  if (triggered.length === 0) {
+    console.log(chalk.green.bold('  All signals clear. Campaign performing within expected ranges.\n'));
+  } else {
+    const hasCritical = triggered.some(s => s.severity === 'critical');
+    if (hasCritical) {
+      console.log(chalk.red.bold(`  ${triggered.length} signal(s) triggered — CRITICAL. Review campaign spend now.\n`));
+    } else {
+      console.log(chalk.yellow.bold(`  ${triggered.length} signal(s) triggered — WARNING. Review creative and targeting before next renewal.\n`));
+    }
+    console.log(chalk.gray('  Run paid-ads-analyzer for full campaign audit.\n'));
+  }
+
+  logAction('check_retention', [], 0, false, `Campaign signals checked: ${triggered.length} triggered`);
+}
+
+/** Display the SMS and email nurture sequences for the active offer. */
+async function handleGenerateNurtureSequence(): Promise<void> {
+  console.log('');
+  console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log(chalk.bold.white('  NURTURE SEQUENCE — 30-Day Kickstart'));
+  console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+
+  const smsPath   = path.join(ROOT, 'knowledge-base', 'nurture', 'sms-sequence-30day.json');
+  const emailPath = path.join(ROOT, 'knowledge-base', 'nurture', 'email-sequence-30day.json');
+  const guidePath = path.join(ROOT, 'knowledge-base', 'nurture', 'ghl-loading-guide.md');
+
+  interface SmsMessage {
+    id: string;
+    day: number;
+    phase_name: string;
+    goal: string;
+    message: string;
+    character_count: number;
+  }
+
+  interface EmailMessage {
+    id: string;
+    day: number;
+    subject_line: string;
+    preview_text: string;
+    body: string;
+  }
+
+  interface SmsSequence {
+    sequence_name: string;
+    total_messages: number;
+    messages: SmsMessage[];
+  }
+
+  interface EmailSequence {
+    sequence_name: string;
+    total_emails: number;
+    emails: EmailMessage[];
+  }
+
+  if (!fs.existsSync(smsPath) || !fs.existsSync(emailPath)) {
+    console.log(chalk.red('\n  Nurture sequence files not found.'));
+    console.log(chalk.gray(`  Expected: ${smsPath}`));
+    console.log(chalk.gray(`  Expected: ${emailPath}\n`));
+    return;
+  }
+
+  try {
+    const sms   = JSON.parse(readSafe(smsPath))   as SmsSequence;
+    const email = JSON.parse(readSafe(emailPath)) as EmailSequence;
+
+    console.log(chalk.gray(`\n  Offer: ${sms.sequence_name}`));
+    console.log(chalk.gray(`  Sender: Jessica (personal GHL number)`));
+    console.log(chalk.gray(`  Trigger: contact tag 'kickstart-enrolled'\n`));
+
+    console.log(chalk.bold('  SMS SEQUENCE — 12 messages'));
+    console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+    for (const msg of sms.messages) {
+      const phase = msg.phase_name.padEnd(20);
+      console.log(chalk.white(`  Day ${String(msg.day).padStart(2)} [${msg.id}]  ${chalk.gray(phase)}  ${msg.character_count} chars`));
+      console.log(chalk.gray(`         Goal: ${msg.goal}`));
+      console.log(chalk.cyan(`         "${msg.message.slice(0, 80)}${msg.message.length > 80 ? '...' : ''}"`));
+      console.log('');
+    }
+
+    console.log(chalk.bold('  EMAIL SEQUENCE — 6 emails'));
+    console.log(chalk.gray('  ─────────────────────────────────────────────────────────'));
+    for (const em of email.emails) {
+      console.log(chalk.white(`  Day ${String(em.day).padStart(2)} [${em.id}]  ${em.subject_line}`));
+      console.log(chalk.gray(`         Preview: ${em.preview_text}`));
+      console.log(chalk.gray(`         Body: ${em.body.slice(0, 60).replace(/\n/g, ' ')}...`));
+      console.log('');
+    }
+
+    console.log(chalk.bold.green('  To load in GHL:'));
+    if (fs.existsSync(guidePath)) {
+      console.log(chalk.gray(`  See: ${guidePath}\n`));
+    } else {
+      console.log(chalk.gray('  See: knowledge-base/nurture/ghl-loading-guide.md\n'));
+    }
+
+    logAction('generate_nurture_sequence', [], sms.total_messages + email.total_emails, false, `Nurture sequence displayed: ${sms.total_messages} SMS + ${email.total_emails} emails`);
+  } catch (err) {
+    console.log(chalk.red('\n  Error reading nurture sequence files. Check JSON syntax.\n'));
+  }
+}
+
 /** Read all available intelligence files and generate a prioritized action brief. */
 async function handleProcessManusResults(_parsed: ParsedIntent, ctx: SessionContext, client: Anthropic): Promise<void> {
   console.log('');
@@ -1728,7 +1930,6 @@ async function main(): Promise<void> {
         case 'track_lead_journey':
         case 'analyze_landing_page':
         case 'analyze_nurture':
-        case 'check_retention':
         case 'monitor_reviews':
         case 'track_referrals':
         case 'audit_gbp':
@@ -1738,6 +1939,14 @@ async function main(): Promise<void> {
           if (taskKey) await handleDisplayManusTask(taskKey);
           break;
         }
+
+        case 'check_retention':
+          await handleCheckRetentionSignals();
+          break;
+
+        case 'generate_nurture_sequence':
+          await handleGenerateNurtureSequence();
+          break;
 
         case 'process_manus_results':
           await handleProcessManusResults(parsed, ctx, client);

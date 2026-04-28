@@ -1,14 +1,13 @@
-# Manus Task — Member Retention Early Warning
+# Manus Task — Campaign Retention Signals
 
 **Task type:** Recurring intelligence task
-**Trigger:** Every Wednesday at 11:00am (mid-week — early enough to act before the weekend)
-**Estimated time:** 15-20 minutes
-**Output:** intelligence-db/retention/dropout-alerts.json
-**Feeds into:** AHRI morning brief, Jessica re-engagement actions, monthly report
+**Trigger:** Every Wednesday at 11:00am
+**Estimated time:** 5 minutes
+**Output:** intelligence-db/retention/campaign-signals.json
+**Feeds into:** AHRI retention handler, weekly brief
 
-Context: At $2,000 member LTV, each prevented dropout is worth $2,000 retained.
-The first 30 days are the highest-risk window. This task catches at-risk members
-before they have mentally quit — early enough to intervene.
+Campaign health check — 3 signals only. Reads existing intelligence-db files.
+No GHL access required. No member data required.
 
 ---
 
@@ -16,10 +15,8 @@ before they have mentally quit — early enough to intervene.
 
 **CRITICAL: When this task is complete, your ONLY response must be a single JSON object. No PDF. No prose. No intro text. No markdown explanation. JSON only.**
 
-Schema for the `data` field: `schemas/manus-outputs/dropout-alerts.schema.json`
-
 Also write the payload to disk:
-- `intelligence-db/retention/dropout-alerts.json` — full dropout-alerts payload
+- `intelligence-db/retention/campaign-signals.json` — full signal report
 
 Return this exact structure:
 
@@ -30,132 +27,122 @@ Return this exact structure:
   "status": "completed",
   "started_at": "ISO timestamp when task started",
   "completed_at": "ISO timestamp now",
-  "data": {},
+  "data": {
+    "signals_checked": 3,
+    "signals_triggered": 0,
+    "ctr_signal": {
+      "triggered": false,
+      "current_week_ctr": "string — e.g. 1.8%",
+      "previous_week_ctr": "string — e.g. 2.4%",
+      "drop_percent": 0,
+      "severity": "none"
+    },
+    "form_cvr_signal": {
+      "triggered": false,
+      "current_week_cvr": "string — e.g. 4.2%",
+      "previous_week_cvr": "string — e.g. 6.1%",
+      "drop_percent": 0,
+      "severity": "none"
+    },
+    "zero_leads_signal": {
+      "triggered": false,
+      "spend_7d": 0,
+      "leads_7d": 0,
+      "severity": "none"
+    },
+    "recommendation": "All signals clear. Campaign performing within expected ranges."
+  },
   "errors": []
 }
 ```
 
-If a step fails: set `status` to `"partial"`, log the reason in `errors[]`, continue with remaining steps.
-If task cannot run: set `status` to `"failed"` with all errors logged.
+Severity values: `"none"` | `"warning"` | `"critical"`
+
+If a file cannot be read: set that signal's fields to null and log in `errors[]`. Continue with remaining signals.
+If no data files exist at all: set `status` to `"failed"`, log `"No performance data available. Run paid-ads-analyzer first."` in `errors[]`.
 
 ---
 
-## STEP 0 — ACCOUNT VERIFICATION (REQUIRED — DO NOT SKIP)
+## STEP 0 — READ DATA FILES (REQUIRED — DO NOT SKIP)
 
-Open GHL.
-Confirm location: [test location name]
-If wrong location: STOP. Log error. Exit.
+Read these files if they exist:
+- `intelligence-db/paid/meta-performance.json`
+- `intelligence-db/paid/pacing-log.json`
 
----
+If neither file exists: set status to "failed" and stop.
 
-## STEP 1 — IDENTIFY NEW MEMBERS (LAST 30 DAYS)
-
-Open GHL → Contacts
-Filter by tag: member (or whatever tag marks a signed member)
-Filter by date: joined in last 30 days
-
-For each new member, record:
-  Name, phone, email, join date,
-  referral source (if tagged),
-  archetype (if tagged in column R)
+Do NOT open a browser. Do NOT log into Meta. Do NOT access GHL. Read only.
 
 ---
 
-## STEP 2 — CHECK CHECK-IN RECENCY
+## STEP 1 — CTR DROP SIGNAL
 
-For each new member:
-  When did they last check in?
-  Source: gym management system, or GHL last activity, or check-in tag if logged
+From `intelligence-db/paid/meta-performance.json`:
 
-  Calculate: days since last check-in
+Read `current_week_ctr` and `previous_week_ctr`.
 
-Apply dropout alert thresholds:
-  7+ days since last check-in (joined < 30 days ago):
-    Alert level: AT RISK
-    Priority: HIGH
+Calculate: `drop_percent = (previous - current) / previous * 100`
 
-  10+ days since last check-in:
-    Alert level: HIGH RISK
-    Priority: URGENT
+Apply thresholds:
+- Drop >= 35%: `severity: "critical"`, `triggered: true`
+- Drop >= 20%: `severity: "warning"`, `triggered: true`
+- Drop < 20%: `severity: "none"`, `triggered: false`
 
-  14+ days since check-in (still within first month):
-    Alert level: CRITICAL
-    Priority: CRITICAL — call today
+If CTR data is missing from the file: set all ctr_signal fields to null, log in errors[], continue.
 
 ---
 
-## STEP 3 — BUILD RE-ENGAGEMENT BRIEFS
+## STEP 2 — FORM CONVERSION DROP SIGNAL
 
-For each flagged member, create a re-engagement brief using their archetype:
+From `intelligence-db/paid/meta-performance.json` or `intelligence-db/clarity/heatmap-insights.json`:
 
-  Independent archetype:
-    Opener: "Hey [name], checking in — how's the training going on your own schedule?"
+Read `current_week_form_cvr` and `previous_week_form_cvr` (or equivalent fields).
 
-  Supportive archetype:
-    Opener: "Hey [name], the 6am crew has been asking about you — everything okay?"
+Apply thresholds:
+- Drop >= 25% week-over-week OR current CVR below 3%: `severity: "warning"`, `triggered: true`
+- Drop >= 40% week-over-week OR current CVR below 1.5%: `severity: "critical"`, `triggered: true`
+- Otherwise: `severity: "none"`, `triggered: false`
 
-  Analytical archetype:
-    Opener: "Hey [name], quick check — you're at day [X] of your 30-day program.
-      Worth jumping in this week to stay on track."
-
-  Social archetype:
-    Opener: "Hey [name], you missed a few fun sessions this week — we'd love to see you back."
-
-  Unknown archetype:
-    Opener: "Hey [name], just checking in — haven't seen you in a bit. Everything good?"
+If form CVR data is missing: set all form_cvr_signal fields to null, log in errors[], continue.
 
 ---
 
-## STEP 4 — WRITE RETENTION DATA
+## STEP 3 — ZERO LEADS SIGNAL
 
-Update intelligence-db/retention/dropout-alerts.json:
+From `intelligence-db/paid/pacing-log.json`:
 
-```json
-{
-  "last_updated": "ISO timestamp",
-  "new_members_30d": 0,
-  "active_members_checked_in_7d": 0,
-  "retention_rate_30d": 0,
-  "vs_last_week": "improving/declining/stable",
-  "at_risk_members": [
-    {
-      "name": "member name",
-      "join_date": "YYYY-MM-DD",
-      "last_checkin": "YYYY-MM-DD",
-      "days_inactive": 0,
-      "priority": "HIGH",
-      "archetype": "supportive/analytical/independent/social/unknown",
-      "recommended_opener": "specific opener text"
-    }
-  ],
-  "high_risk_members": [],
-  "critical_members": []
-}
-```
+Find any 7-day window where:
+- `spend` >= 50 (USD)
+- `leads` == 0
 
-Append to logs/coaching-alerts.csv for every CRITICAL member:
-  date, alert_type (RETENTION_CRITICAL), member_name, join_date, days_inactive,
-  recommended_action (Call today)
+Apply thresholds:
+- Spend >= 50, leads == 0: `severity: "warning"`, `triggered: true`
+- Spend >= 100, leads == 0: `severity: "critical"`, `triggered: true`
+
+If pacing log is missing or has no spend data: set all zero_leads_signal fields to null, log in errors[], continue.
 
 ---
 
-## STEP 5 — LOG AND PRINT
+## STEP 4 — COMPILE AND RETURN
 
-Append to logs/session-log.csv.
-Print:
-  "Retention early warning complete.
-   New members (30d): [X]
-   Active this week: [X] ([X]%)
-   At risk: [X] members
-   High risk: [X] members
-   CRITICAL — call today: [list of names]
-   Retention rate: [X]% vs [X]% last week"
+Count `signals_triggered` = number of signals where `triggered: true`.
+
+Set `recommendation`:
+- If no signals triggered: `"All signals clear. Campaign performing within expected ranges."`
+- If 1 signal triggered (warning): `"[Signal name] showing early warning. Review creative and targeting before budget renewal."`
+- If 1 signal triggered (critical): `"[Signal name] is critical. Pause campaign spend immediately and alert Kai."`
+- If 2+ signals triggered: `"Multiple signals triggered — [list]. Recommend pausing spend and running full paid-ads-analyzer audit."`
+
+Write the JSON to `intelligence-db/retention/campaign-signals.json`.
+
+Return the JSON. No additional text.
 
 ---
 
-## WHAT MANUS NEVER DOES
+## WHAT MANUS NEVER DOES IN THIS TASK
 
-- Never contacts members directly during this task — read only, report only
-- Never shares member health or personal information outside this system
-- Never records medical information
-- Never deletes alert records — append only
+- Never accesses GHL, member records, or check-in data
+- Never contacts gym members
+- Never logs into Meta or any ad platform
+- Never pauses or modifies campaigns — report only
+- Never deletes signal history — append only

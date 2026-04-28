@@ -1,0 +1,94 @@
+{
+  "sequence_name": "30-Day Kickstart Email Nurture",
+  "offer": "The 30-Day Kickstart — Your First Month Fully Coached, Just $1",
+  "sender_name": "Jessica",
+  "sender_title": "Anytime Fitness Bloomington",
+  "cta_url": "https://no-risk-comeback-landing-page-production.up.railway.app",
+  "avatar": "Lifestyle Member — 35-52 — tried gyms, quit before, accountability-driven",
+  "total_emails": 6,
+  "tone_guide": "Warm, direct, honest. Never corporate. Never preachy. Never fake-urgent. Jessica is a real person talking to a real person. Each email has one job.",
+  "emails": [
+    {
+      "id": "E0",
+      "day": 0,
+      "send_time": "immediate after form submit",
+      "subject_line": "Your 30-day kickstart starts now, {{first_name}}",
+      "subject_line_b": "Here's what just got unlocked for you, {{first_name}}",
+      "preview_text": "Here's exactly what you have access to this month.",
+      "body": "Hi {{first_name}},\n\nThis is Jessica at Anytime Fitness Bloomington.\n\nYour 30-day kickstart is confirmed. Here's exactly what you have this month:\n\n✓ 24/7 gym access — come any time, no booking required\n✓ Private 60-minute orientation — I walk you through the gym so you never walk in feeling lost\n✓ Your 4-week workout plan — ready to follow from day one, no guesswork\n✓ 4 weekly check-ins — 15 minutes each, by text or in person, to review what's working\n✓ Your accountability text thread — use it to ask me anything, anytime\n✓ First-week guide — what to do on days 1, 2, and 3 so you don't stall out\n✓ 30-minute express workout library — for the days when time is short\n✓ Meal kickstart guide — simple, no-diet-required starting points\n✓ Global key fob — access any Anytime Fitness location worldwide\n\nTotal value: $756. What you paid: $1.\n\nOne thing to do this week: book your private orientation. Reply to this email or text me directly to schedule. It takes 60 minutes and sets up the rest of the month.\n\nSee you soon,\nJessica\nAnytime Fitness Bloomington",
+      "cta_text": "Book Your Orientation",
+      "cta_url": "https://no-risk-comeback-landing-page-production.up.railway.app",
+      "compliance_notes": "Include CAN-SPAM footer with physical address and unsubscribe link. This email is transactional + marketing — unsubscribe required."
+    },
+    {
+      "id": "E2",
+      "day": 2,
+      "send_time": "9:00am day 2",
+      "subject_line": "One thing I want you to do this week, {{first_name}}",
+      "subject_line_b": "The 60-minute session that makes the rest easier",
+      "preview_text": "It takes one hour and changes how the whole month feels.",
+      "body": "Hi {{first_name}},\n\nThe single most important thing you can do in your first week is your private orientation.\n\nI know that sounds like a sell. It isn't.\n\nHere's the real reason: most people who join a gym and quit within 30 days never got shown around. They walked in, didn't know where to start, felt out of place, and left. Then they didn't come back.\n\nYour orientation is a private 60 minutes with me — nobody else in the room. We go through:\n\n— What equipment you'll actually use in your plan\n— How to use it correctly so you don't hurt yourself\n— Where everything is, so you never have to wander\n— Your first workout, done together so you know exactly what it feels like\n\nAfter that, the gym doesn't feel foreign. It feels like yours.\n\nIf you haven't booked it yet, reply to this email and I'll send you times. Takes about 30 seconds.\n\nJessica\nAnytime Fitness Bloomington",
+      "cta_text": "Book Your Orientation",
+      "cta_url": "https://no-risk-comeback-landing-page-production.up.railway.app",
+      "compliance_notes": "CAN-SPAM footer required. This is the orientation conversion email — keep the single CTA, don't add other links."
+    },
+    {
+      "id": "E5",
+      "day": 5,
+      "send_time": "9:00am day 5",
+      "subject_line": "{{first_name}}, what's getting in the way?",
+      "subject_line_b": "Day 5 — the honest check-in",
+      "preview_text": "Most people hit something around days 3-5. Here's what I've seen.",
+      "body": "Hi {{first_name}},\n\nMost people tell me the same thing around day five:\n\n\"I mean to go. I just... don't.\"\n\nNot because they don't want to. Because showing up is harder than signing up. It always is.\n\nThe three things I hear most:\n\n1. \"I'm not sure what to do when I get there.\"\n2. \"I don't want to look like I don't know what I'm doing.\"\n3. \"I keep running out of time.\"\n\nIf any of those sound familiar — reply and tell me which one. I've helped a lot of people past exactly that point, and it's usually simpler than they expect.\n\nYou still have 25 days left. You still have your orientation, 3 check-ins with me, and a plan built for your schedule. Nothing is lost.\n\nWhat's getting in the way?\n\nJessica\nAnytime Fitness Bloomington",
+      "cta_text": null,
+      "cta_url": null,
+      "compliance_notes": "CAN-SPAM footer required. No CTA button on this email — the ask is to reply. A button here would undercut the honest tone."
+    },
+    {
+      "id": "E10",
+      "day": 10,
+      "send_time": "9:00am day 10",
+      "subject_line": "Halfway through week 2, {{first_name}}",
+      "subject_line_b": "Something I want to be honest with you about",
+      "preview_text": "This is usually where the month goes one way or the other.",
+      "body": "Hi {{first_name}},\n\nI want to be straight with you.\n\nWeek two is where most people make up their mind — even if they don't realize they're making it. Not consciously. Just a quiet drift toward \"this time next month I'll really start.\"\n\nI don't want that to happen with you.\n\nNot because it reflects on me. Because you took a real step, and that step is still available.\n\nYou have 20 days left. You have full gym access. You have 3 check-ins with me still banked. You have a plan that's waiting.\n\nIf you haven't been in yet — this week is worth something. Not because I said so. Because the hardest part of any habit is the first time you actually do it. Once you go once, the second time costs half the effort. The third time costs half again.\n\nCome in this week. Text me first if that makes it easier. I'll meet you at the front desk.\n\nJessica\nAnytime Fitness Bloomington",
+      "cta_text": null,
+      "cta_url": null,
+      "compliance_notes": "CAN-SPAM footer required. No CTA button — the ask is to text or show up. Forcing a button click undercuts the personal tone."
+    },
+    {
+      "id": "E15",
+      "day": 15,
+      "send_time": "9:00am day 15",
+      "subject_line": "15 days in, {{first_name}} — honest check-in",
+      "subject_line_b": "Halfway through your kickstart",
+      "preview_text": "I want to ask you something directly.",
+      "body": "Hi {{first_name}},\n\nYou're halfway through your 30-day kickstart.\n\nI want to ask you something directly — and I want you to be honest:\n\nHow is it actually going?\n\nNot the version you'd say at a party. The real version.\n\nSome people are thriving by day 15. They've been in three times a week and it's starting to feel like a routine. Others haven't been in once. Both are fine — but they need different things.\n\nIf things are going well: your next check-in is worth doing this week. Let's look at what the second half of your month should focus on.\n\nIf things aren't going well: tell me. There's no judgment here. I've had members come in for the first time on day 28. They finished the month. Some became regulars.\n\nThe 30-day window is still open. What would make the second half different from the first?\n\nReply and tell me. I read every one.\n\nJessica\nAnytime Fitness Bloomington",
+      "cta_text": null,
+      "cta_url": null,
+      "compliance_notes": "CAN-SPAM footer required. No CTA button — this email earns a reply, not a click. The question is the CTA."
+    },
+    {
+      "id": "E30",
+      "day": 30,
+      "send_time": "9:00am day 30",
+      "subject_line": "Your kickstart ends today, {{first_name}}",
+      "subject_line_b": "The door stays open, {{first_name}}",
+      "preview_text": "Whatever this month looked like — here's what comes next.",
+      "body": "Hi {{first_name}},\n\nYour 30-day kickstart ends today.\n\nWhatever this month looked like — whether you came in every week or this is the first email you're really reading — I want to say something:\n\nThe door here is always open.\n\nA lot of people who try a gym feel like if they didn't nail it in the first month, they failed. They quietly disappear. They don't come back because coming back feels like admitting something.\n\nI don't see it that way. Nobody here does.\n\nIf today is the end of your kickstart and the start of a real routine — great. Your membership continues at our standard rate and everything you've built carries forward.\n\nIf today is the end of your kickstart and you're not sure what's next — that's okay too. Take a break if you need one. Come back when you're ready. You know where to find us.\n\nEither way, I'm glad you tried. That's the part most people never do.\n\nIf you have questions about your membership or want to pause or cancel before renewal, just reply to this email. I'll take care of it — no runaround.\n\nThank you for trusting us with your first month.\n\nJessica\nAnytime Fitness Bloomington",
+      "cta_text": "Questions? Reply Here",
+      "cta_url": null,
+      "compliance_notes": "CAN-SPAM footer required. Include explicit cancel/pause offer — this protects against chargebacks and builds long-term trust. Confirm standard rate amount with gym before sending."
+    }
+  ],
+  "ghl_notes": {
+    "workflow_trigger": "Contact tag added: 'kickstart-enrolled'",
+    "from_name": "Jessica at Anytime Fitness Bloomington",
+    "from_email": "Use location reply-to email — not a no-reply address",
+    "delay_type": "Calendar-day delays from enrollment date",
+    "time_zone": "America/Indiana/Indianapolis",
+    "unsubscribe_handling": "GHL handles unsubscribe automatically — do not re-enroll contacts who unsubscribe",
+    "can_spam_footer": "Must include: physical address (Anytime Fitness Bloomington, [address]), unsubscribe link, sender identification",
+    "loading_guide": "See knowledge-base/nurture/ghl-loading-guide.md for step-by-step GHL setup"
+  }
+}
