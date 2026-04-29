@@ -1407,6 +1407,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       age_max: 55,
       publisher_platforms: ['facebook'],
       facebook_positions: ['feed'],
+      targeting_automation: { advantage_audience: 0 },
     };
     const coldAdSet = await metaApiCall(`${META_AD_ACCOUNT_ID}/adsets`, 'POST', {
       name: 'Cold — Lifestyle Member — Bloomington — Hook A',
@@ -1432,6 +1433,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       age_max: 55,
       publisher_platforms: ['facebook'],
       facebook_positions: ['feed'],
+      targeting_automation: { advantage_audience: 0 },
     };
     const warmAdSet = await metaApiCall(`${META_AD_ACCOUNT_ID}/adsets`, 'POST', {
       name: 'Warm — Page Engagement — Bloomington — Hook E',
