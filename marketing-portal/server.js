@@ -364,6 +364,7 @@ async function metaApiCall(endpoint, method = 'GET', params = {}) {
   const response = await fetch(url.toString(), options);
   const data = await response.json();
   if (data.error) {
+    console.error('[Meta] Full error:', JSON.stringify(data.error, null, 2));
     throw new Error(`Meta API error: ${data.error.message} (code: ${data.error.code})`);
   }
   return data;
@@ -1358,7 +1359,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     console.log('[Meta] Creating campaign...');
     const campaign = await metaApiCall(`${META_AD_ACCOUNT_ID}/campaigns`, 'POST', {
       name: campaign_name || `30-Day Kickstart — Bloomington — ${new Date().toISOString().split('T')[0]}`,
-      objective: 'OUTCOME_LEADS',
+      objective: 'LEAD_GENERATION',
       status: 'PAUSED',
       special_ad_categories: [],
     });
