@@ -1346,7 +1346,8 @@ app.get('/api/meta/test-campaign', async (req, res) => {
         name: 'AHRI API Test — Delete Me',
         objective: 'OUTCOME_LEADS',
         status: 'PAUSED',
-        special_ad_categories: []
+        special_ad_categories: [],
+        is_adset_budget_sharing_enabled: false
       }
     );
     return res.json({
@@ -1391,6 +1392,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       objective: 'OUTCOME_LEADS',
       status: 'PAUSED',
       special_ad_categories: [],
+      is_adset_budget_sharing_enabled: false,
     });
     results.campaign = { id: campaign.id, name: campaign_name };
     console.log('[Meta] Campaign created:', campaign.id);
