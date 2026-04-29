@@ -2,7 +2,7 @@
 # AHRI reads this file before every generation. Keep it current.
 
 ## Sessions Complete
-Sessions 0–17 | Version: v1.9 | Last updated: 2026-04-27
+Sessions 0–17 | Version: v2.0 | Last updated: 2026-04-29
 
 ## Active Offer
 The No-Risk Comeback — 30 Days Coached, $1 to Start
@@ -14,7 +14,10 @@ lifestyle-member
 anytime-fitness
 
 ## Live Ads
-Pending — creative in distribution/queue/ready-to-post/
+Campaign created in Meta as PAUSED — Bloomington TEST account
+- Objective: OUTCOME_TRAFFIC (temporary — switch to OUTCOME_LEADS after 50+ pixel events)
+- Budget: $25/day ($15 cold, $10 warm)
+- Status: PAUSED — activate in Ads Manager when ready to spend
 
 ## Current Tests
 nurture-sync A/B variants loaded — pending GHL implementation
@@ -88,17 +91,34 @@ Manus tasks (on-demand):
 - manus-tasks/paid-ads-setup.md (task #16 — added Session 17)
 
 ## Last Session Notes
-Session 4/27/2026: status check only.
+Session 4/29/2026 — Meta API fully debugged end to end. 11 parameter errors identified and resolved across multiple iterations (act_ prefix, objective, optimization_goal, interest IDs, promoted_object, pixel guard). OUTCOME_TRAFFIC + LINK_CLICKS working without pixel event history requirement. Facebook Pixel (ID: 1984794322135725) installed on landing page — fires PageView on load, Lead on form submit. Retry logic added to metaApiCall (3 retries, 5s delay on is_transient errors). Nurture system complete: 12-touch SMS sequence, 6-email sequence, 3-signal retention system (CTR drop / form CVR drop / $50 zero leads), GHL loading guide. CREATE CAMPAIGN IN META button in portal works end to end.
+
+## OUTCOME_LEADS Upgrade Checklist
+Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
+1. Monitor Events Manager for 50+ PageView events on pixel 1984794322135725
+2. Wait for 10+ Lead events (form fills)
+3. Update marketing-portal/server.js:
+   - objective: 'OUTCOME_LEADS'
+   - optimization_goal: 'LEAD_GENERATION'
+   - promotedObject: { page_id: META_PAGE_ID, pixel_id: META_PIXEL_ID, custom_event_type: 'LEAD' }
+4. Redeploy → create new campaign via portal
+
+## Token Renewal Schedule
+- META_ACCESS_TOKEN long-lived token expires ~2026-06-28
+- Set calendar reminder: 2026-05-29
+- Renew via Graph API Explorer → exchange for long-lived token → update META_ACCESS_TOKEN in Railway (marketing-os service)
 
 ## Outstanding Issues
-- Approval queue persistence (assets not visible on Railway — GitHub asset store fix needed)
-- GymSuite AI dashboard rendering bug
+- Campaign needs to be activated in Ads Manager (currently PAUSED — Kai must enable spend)
+- fal.ai balance needs top-up (image generation disabled)
+- GHL API key regeneration (critical — old key exposed/invalid)
 - Tracking redirect not deployed to Railway
 - Clarity project ID not set
 - CAPI tokens not set
 - GBP links still pointing to AF.com (not tracking redirect)
-- Neural OS anatomical brain shape not pushed
-- GHL API key regeneration (critical — old key exposed)
+- Landing page: Steph testimonial needs replacement with real member
+- Landing page: add image to campaign creative
+- Neural OS (end of project — not started)
 - GHL Workflow 1 archetype tagging (3 steps pending)
 - Make scenario columns M and R
 - Landing page UTM hidden fields
@@ -152,15 +172,15 @@ Session 4/27/2026: status check only.
 10. Update all 9 GBP location website fields to use tracking redirect URL (not AF.com direct)
 11. Deploy marketing-portal/ as new Railway service → set env vars: GYM_NAME, OPS_URL, NEURAL_URL, ELEVENLABS_AGENT_ID, ANTHROPIC_API_KEY
 
-## Next Session Priorities
-1. Run paid-ads-setup.md via LAUNCH (test Meta ad account)
-2. GHL Workflow 1 archetype tagging
-3. Fix approval queue persistence (assets not visible on Railway)
-4. Session 17 — scheduled auto-triggers
+## Next Session Priorities — Session 18: Lead Tracing
+1. Full lead journey tracking — source attribution (which ad → which lead)
+2. Full journey map: ad → form → call → member
+3. Multi-source attribution: landing page + franchise website
+4. Activate campaign in Ads Manager once ready to spend
+5. GHL Workflow 1 archetype tagging
 
 ## Future Sessions
-- Session 17: agentic rules engine, scheduled triggers, action tasks
-- Session 18: Meta Marketing API
+- Session 19: GHL full integration (API key regeneration, workflow 1 archetype tagging, nurture load)
 - Session 20: Cloudflare R2 migration (before second gym location onboarding)
 
 ## Cross-Brain Insights (updated 2026-04-24 — 75 calls analyzed)
