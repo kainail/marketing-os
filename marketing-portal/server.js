@@ -1421,6 +1421,11 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       facebook_positions: ['feed'],
       targeting_automation: { advantage_audience: 0 },
     };
+    const promotedObject = META_PIXEL_ID
+      ? { page_id: META_PAGE_ID, pixel_id: META_PIXEL_ID, custom_event_type: 'LEAD' }
+      : { page_id: META_PAGE_ID };
+    console.log('[Meta] promoted_object:', JSON.stringify(promotedObject));
+
     const coldAdSet = await metaApiCall(`${META_AD_ACCOUNT_ID}/adsets`, 'POST', {
       name: 'Cold — Lifestyle Member — Bloomington — Hook A',
       campaign_id: campaign.id,
@@ -1428,7 +1433,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       billing_event: 'IMPRESSIONS',
       optimization_goal: 'LEAD_GENERATION',
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-      promoted_object: JSON.stringify({ page_id: META_PAGE_ID, pixel_id: META_PIXEL_ID, custom_event_type: 'LEAD' }),
+      promoted_object: JSON.stringify(promotedObject),
       targeting: JSON.stringify(coldTargeting),
       status: 'PAUSED',
       start_time: new Date(Date.now() + 3600000).toISOString(),
@@ -1455,7 +1460,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       billing_event: 'IMPRESSIONS',
       optimization_goal: 'LEAD_GENERATION',
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-      promoted_object: JSON.stringify({ page_id: META_PAGE_ID, pixel_id: META_PIXEL_ID, custom_event_type: 'LEAD' }),
+      promoted_object: JSON.stringify(promotedObject),
       targeting: JSON.stringify(warmTargeting),
       status: 'PAUSED',
       start_time: new Date(Date.now() + 3600000).toISOString(),
