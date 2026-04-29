@@ -1359,7 +1359,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     console.log('[Meta] Creating campaign...');
     const campaign = await metaApiCall(`${META_AD_ACCOUNT_ID}/campaigns`, 'POST', {
       name: campaign_name || `30-Day Kickstart — Bloomington — ${new Date().toISOString().split('T')[0]}`,
-      objective: 'LEAD_GENERATION',
+      objective: 'OUTCOME_LEADS',
       status: 'PAUSED',
       special_ad_categories: [],
     });
