@@ -61,6 +61,7 @@ const META_AD_ACCOUNT_ID = (() => { const raw = process.env.META_AD_ACCOUNT_ID |
 const META_PAGE_ID = process.env.META_PAGE_ID;
 const META_APP_ID = process.env.META_APP_ID;
 const META_APP_SECRET = process.env.META_APP_SECRET;
+const META_PIXEL_ID = process.env.META_PIXEL_ID;
 const META_API_VERSION = 'v19.0';
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
@@ -1389,7 +1390,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     console.log('[Meta] Creating campaign...');
     const campaign = await metaApiCall(`${META_AD_ACCOUNT_ID}/campaigns`, 'POST', {
       name: campaign_name || `30-Day Kickstart — Bloomington — ${new Date().toISOString().split('T')[0]}`,
-      objective: 'OUTCOME_TRAFFIC',
+      objective: 'OUTCOME_LEADS',
       status: 'PAUSED',
       special_ad_categories: [],
       is_adset_budget_sharing_enabled: false,
@@ -1414,9 +1415,9 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       campaign_id: campaign.id,
       daily_budget: cold_daily_budget,
       billing_event: 'IMPRESSIONS',
-      optimization_goal: 'LINK_CLICKS',
+      optimization_goal: 'LEAD_GENERATION',
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-      promoted_object: JSON.stringify({ page_id: META_PAGE_ID }),
+      promoted_object: JSON.stringify({ page_id: META_PAGE_ID, pixel_id: META_PIXEL_ID, custom_event_type: 'LEAD' }),
       targeting: JSON.stringify(coldTargeting),
       status: 'PAUSED',
       start_time: new Date(Date.now() + 3600000).toISOString(),
@@ -1441,9 +1442,9 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       campaign_id: campaign.id,
       daily_budget: warm_daily_budget,
       billing_event: 'IMPRESSIONS',
-      optimization_goal: 'LINK_CLICKS',
+      optimization_goal: 'LEAD_GENERATION',
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
-      promoted_object: JSON.stringify({ page_id: META_PAGE_ID }),
+      promoted_object: JSON.stringify({ page_id: META_PAGE_ID, pixel_id: META_PIXEL_ID, custom_event_type: 'LEAD' }),
       targeting: JSON.stringify(warmTargeting),
       status: 'PAUSED',
       start_time: new Date(Date.now() + 3600000).toISOString(),
