@@ -1332,6 +1332,35 @@ app.get('/api/debug/paths', async (req, res) => {
   res.json(results);
 });
 
+// GET /api/meta/test-campaign — minimal campaign creation test, no ad sets or ads
+app.get('/api/meta/test-campaign', async (req, res) => {
+  if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID) {
+    return res.json({ error: 'credentials missing' });
+  }
+
+  try {
+    const result = await metaApiCall(
+      `${META_AD_ACCOUNT_ID}/campaigns`,
+      'POST',
+      {
+        name: 'AHRI API Test — Delete Me',
+        objective: 'OUTCOME_LEADS',
+        status: 'PAUSED',
+        special_ad_categories: []
+      }
+    );
+    return res.json({
+      success: true,
+      campaign_id: result.id
+    });
+  } catch (error) {
+    return res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // POST /api/meta/create-campaign — create a complete campaign via Meta Marketing API
 app.post('/api/meta/create-campaign', async (req, res) => {
   if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID || !META_PAGE_ID) {
