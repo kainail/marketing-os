@@ -1389,7 +1389,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     console.log('[Meta] Creating campaign...');
     const campaign = await metaApiCall(`${META_AD_ACCOUNT_ID}/campaigns`, 'POST', {
       name: campaign_name || `30-Day Kickstart — Bloomington — ${new Date().toISOString().split('T')[0]}`,
-      objective: 'OUTCOME_LEADS',
+      objective: 'OUTCOME_TRAFFIC',
       status: 'PAUSED',
       special_ad_categories: [],
       is_adset_budget_sharing_enabled: false,
@@ -1414,7 +1414,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       campaign_id: campaign.id,
       daily_budget: cold_daily_budget,
       billing_event: 'IMPRESSIONS',
-      optimization_goal: 'LEAD_GENERATION',
+      optimization_goal: 'LINK_CLICKS',
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       promoted_object: JSON.stringify({ page_id: META_PAGE_ID }),
       targeting: JSON.stringify(coldTargeting),
@@ -1441,7 +1441,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       campaign_id: campaign.id,
       daily_budget: warm_daily_budget,
       billing_event: 'IMPRESSIONS',
-      optimization_goal: 'LEAD_GENERATION',
+      optimization_goal: 'LINK_CLICKS',
       bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
       promoted_object: JSON.stringify({ page_id: META_PAGE_ID }),
       targeting: JSON.stringify(warmTargeting),
