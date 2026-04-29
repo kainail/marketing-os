@@ -1405,11 +1405,6 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       },
       age_min: 30,
       age_max: 55,
-      interests: [
-        { id: '6003107902433', name: 'Fitness and wellness' },
-        { id: '6003195670250', name: 'Health and wellness' },
-        { id: '6003487687550', name: 'Running' },
-      ],
       publisher_platforms: ['facebook'],
       facebook_positions: ['feed'],
     };
