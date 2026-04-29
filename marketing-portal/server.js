@@ -350,7 +350,7 @@ async function atomicWriteJSON(filePath, data) {
 
 // --- Meta Marketing API helpers ---
 
-async function metaApiCall(endpoint, method = 'GET', params = {}) {
+async function metaApiCall(endpoint, method = 'GET', params = {}, retries = 3) {
   if (!META_ACCESS_TOKEN) throw new Error('META_ACCESS_TOKEN not configured');
   const url = new URL(`${META_API_BASE}/${endpoint}`);
   const options = { method, headers: { 'Content-Type': 'application/json' } };
@@ -362,13 +362,24 @@ async function metaApiCall(endpoint, method = 'GET', params = {}) {
     options.body = JSON.stringify({ ...params, access_token: META_ACCESS_TOKEN });
   }
 
-  const response = await fetch(url.toString(), options);
-  const data = await response.json();
-  if (data.error) {
-    console.error('[Meta] Full error:', JSON.stringify(data.error, null, 2));
-    throw new Error(`Meta API error: ${data.error.message} (code: ${data.error.code})`);
+  try {
+    const response = await fetch(url.toString(), options);
+    const data = await response.json();
+
+    if (data.error) {
+      if (data.error.is_transient && retries > 0) {
+        console.log(`[Meta] Transient error — retrying in 5 seconds... (${retries} left)`);
+        await new Promise(r => setTimeout(r, 5000));
+        return metaApiCall(endpoint, method, params, retries - 1);
+      }
+      console.error('[Meta] Full error:', JSON.stringify(data.error, null, 2));
+      throw new Error(`Meta API error: ${data.error.message} (code: ${data.error.code})`);
+    }
+
+    return data;
+  } catch (error) {
+    throw error;
   }
-  return data;
 }
 
 async function verifyMetaCredentials() {
