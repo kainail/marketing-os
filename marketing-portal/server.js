@@ -375,16 +375,16 @@ async function atomicWriteJSON(filePath, data) {
 
 // --- Meta Marketing API helpers ---
 
-async function metaApiCall(endpoint, method = 'GET', params = {}, retries = 3) {
-  if (!META_ACCESS_TOKEN) throw new Error('META_ACCESS_TOKEN not configured');
+async function metaApiCall(endpoint, method = 'GET', params = {}, retries = 3, accessToken = META_ACCESS_TOKEN) {
+  if (!accessToken) throw new Error('META_ACCESS_TOKEN not configured');
   const url = new URL(`${META_API_BASE}/${endpoint}`);
   const options = { method, headers: { 'Content-Type': 'application/json' } };
 
   if (method === 'GET') {
-    url.searchParams.append('access_token', META_ACCESS_TOKEN);
+    url.searchParams.append('access_token', accessToken);
     Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, String(v)));
   } else {
-    options.body = JSON.stringify({ ...params, access_token: META_ACCESS_TOKEN });
+    options.body = JSON.stringify({ ...params, access_token: accessToken });
   }
 
   try {
@@ -395,7 +395,7 @@ async function metaApiCall(endpoint, method = 'GET', params = {}, retries = 3) {
       if (data.error.is_transient && retries > 0) {
         console.log(`[Meta] Transient error — retrying in 5 seconds... (${retries} left)`);
         await new Promise(r => setTimeout(r, 5000));
-        return metaApiCall(endpoint, method, params, retries - 1);
+        return metaApiCall(endpoint, method, params, retries - 1, accessToken);
       }
       console.error('[Meta] Full error:', JSON.stringify(data.error, null, 2));
       throw new Error(`Meta API error: ${data.error.message} (code: ${data.error.code})`);
@@ -471,17 +471,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
 app.get('/api/status', (req, res) => {
+  const locationId = req.query.location || 'bloomington';
+  const loc = locationConfig.getLocation(locationId) || locationConfig.getLocation('bloomington');
   res.json({
     version: '1.0',
     portal: 'AHRI Marketing Command Center',
     timestamp: new Date().toISOString(),
-    gym_name: locationConfig.getLocation('bloomington').gymName || 'GymSuite AI',
+    gym_name: loc.gymName || 'GymSuite AI',
+    location_id: loc.id,
     ops_url: process.env.OPS_URL || 'https://gymsuiteai-dashboard-production.up.railway.app',
     neural_url: process.env.NEURAL_URL || 'https://gymsuiteai-neural-os-production.up.railway.app',
   });
 });
 
 app.get('/api/overview', (req, res) => {
+  const locationId = req.query.location || 'bloomington'; // future: scope intel files per location
   // Morning brief
   let morningBrief = { date: null, content: 'No brief yet.', filename: null };
   const briefFiles = safeReadDir(BRIEFS).filter(f => f.endsWith('.md')).sort().reverse();
@@ -664,6 +668,7 @@ function buildAlerts(retention, metaPerf, nurturePerf, reviewLog) {
 }
 
 app.get('/api/alerts', (req, res) => {
+  const locationId = req.query.location || 'bloomington'; // future: scope intel files per location
   const retention = safeReadJSON(path.join(INTEL, 'retention', 'dropout-alerts.json'));
   const metaPerf = safeReadJSON(path.join(INTEL, 'paid', 'meta-performance.json'));
   const nurturePerf = safeReadJSON(path.join(INTEL, 'nurture', 'sequence-performance.json'));
@@ -674,6 +679,7 @@ app.get('/api/alerts', (req, res) => {
 });
 
 app.get('/api/performance', (req, res) => {
+  const locationId = req.query.location || 'bloomington'; // future: scope intel files per location
   const metaPerf = safeReadJSON(path.join(INTEL, 'paid', 'meta-performance.json'));
   const googlePerf = safeReadJSON(path.join(INTEL, 'paid', 'google-performance.json'));
   const attrReport = safeReadJSON(path.join(INTEL, 'lead-journey', 'attribution-report.json'));
@@ -950,6 +956,7 @@ app.get('/api/hooks-library', (req, res) => {
 });
 
 app.get('/api/nurture', (req, res) => {
+  const locationId = req.query.location || 'bloomington'; // future: scope intel files per location
   const seqPerf = safeReadJSON(path.join(INTEL, 'nurture', 'sequence-performance.json'));
   const retention = safeReadJSON(path.join(INTEL, 'retention', 'dropout-alerts.json'));
   res.json({
@@ -968,6 +975,7 @@ app.get('/api/nurture', (req, res) => {
 });
 
 app.get('/api/ab-tests', (req, res) => {
+  const locationId = req.query.location || 'bloomington'; // future: scope intel files per location
   const metaPerf = safeReadJSON(path.join(INTEL, 'paid', 'meta-performance.json'));
   const tests = (metaPerf.ab_tests || []).map(t => ({
     test_name: t.test_name || t.name || 'Unnamed Test',
@@ -981,6 +989,7 @@ app.get('/api/ab-tests', (req, res) => {
 });
 
 app.get('/api/campaign-archive', (req, res) => {
+  const locationId = req.query.location || 'bloomington'; // future: scope outputs per location
   const summariesDir = path.join(OUTPUTS, 'anytime-fitness', 'monthly-reports');
   const files = safeReadDir(summariesDir).filter(f => f.endsWith('.md') || f.endsWith('.json'));
   const campaigns = files.map(filename => {
@@ -1011,10 +1020,12 @@ app.post('/api/agentic-rules', (req, res) => {
 });
 
 app.post('/api/ahri', async (req, res) => {
-  const { message, context } = req.body;
+  const { message, context, location } = req.body;
+  const locationId = location || req.query.location || 'bloomington';
   if (!message) return res.status(400).json({ error: 'message required' });
 
-  const apiKey = locationConfig.getLocation('bloomington').keys?.anthropicApiKey;
+  const apiKey = locationConfig.getLocation(locationId)?.keys?.anthropicApiKey
+    || locationConfig.getLocation('bloomington').keys?.anthropicApiKey;
   if (!apiKey) {
     return res.json({
       response: `AHRI here. I received your message: "${message}". To enable AI responses, add ANTHROPIC_API_KEY_BLOOMINGTON to your Railway environment variables. In the meantime, check your approval queue and decision layer for the most urgent actions.`
@@ -1065,6 +1076,7 @@ Additional context: ${context || 'none'}`;
 });
 
 app.get('/api/competitor-intel', (req, res) => {
+  const locationId = req.query.location || 'bloomington'; // future: scope intel files per location
   const competitorAds = safeReadJSON(path.join(INTEL, 'market', 'competitor-ads.json'));
   const reviewLog = safeReadJSON(path.join(INTEL, 'market', 'review-log.json'));
   const offers = safeReadJSON(path.join(INTEL, 'market', 'competitor-offers.json'));
@@ -1398,13 +1410,15 @@ app.get('/api/debug/paths', async (req, res) => {
 
 // GET /api/meta/test-campaign — minimal campaign creation test, no ad sets or ads
 app.get('/api/meta/test-campaign', async (req, res) => {
-  if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID) {
+  const locationId = req.query.location || 'bloomington';
+  const locMeta = getLocationMeta(locationId);
+  if (!locMeta?.accessToken || !locMeta?.adAccountId) {
     return res.json({ error: 'credentials missing' });
   }
 
   try {
     const result = await metaApiCall(
-      `${META_AD_ACCOUNT_ID}/campaigns`,
+      `${locMeta.adAccountId}/campaigns`,
       'POST',
       {
         name: 'AHRI API Test — Delete Me',
@@ -1412,7 +1426,9 @@ app.get('/api/meta/test-campaign', async (req, res) => {
         status: 'PAUSED',
         special_ad_categories: [],
         is_adset_budget_sharing_enabled: false
-      }
+      },
+      3,
+      locMeta.accessToken
     );
     return res.json({
       success: true,
@@ -1428,10 +1444,6 @@ app.get('/api/meta/test-campaign', async (req, res) => {
 
 // POST /api/meta/create-campaign — create a complete campaign via Meta Marketing API
 app.post('/api/meta/create-campaign', async (req, res) => {
-  if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID || !META_PAGE_ID) {
-    return res.status(503).json({ success: false, error: 'Meta API credentials not configured' });
-  }
-
   const {
     campaign_name,
     cold_hook,
@@ -1450,6 +1462,10 @@ app.post('/api/meta/create-campaign', async (req, res) => {
   const campaignLoc = locationConfig.getLocation(location_id) || locationConfig.getLocation('bloomington');
   const locMeta = getLocationMeta(campaignLoc.id);
 
+  if (!locMeta?.accessToken || !locMeta?.adAccountId || !locMeta?.pageId) {
+    return res.status(503).json({ success: false, error: 'Meta API credentials not configured for this location' });
+  }
+
   const results = { campaign: null, ad_set_cold: null, ad_set_warm: null, ad_cold: null, ad_warm: null, errors: [] };
 
   try {
@@ -1461,7 +1477,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       status: 'PAUSED',
       special_ad_categories: [],
       is_adset_budget_sharing_enabled: false,
-    });
+    }, 3, locMeta.accessToken);
     results.campaign = { id: campaign.id, name: campaign_name };
     console.log('[Meta] Campaign created:', campaign.id);
 
@@ -1491,7 +1507,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       targeting: JSON.stringify(coldTargeting),
       status: 'PAUSED',
       start_time: new Date(Date.now() + 3600000).toISOString(),
-    });
+    }, 3, locMeta.accessToken);
     results.ad_set_cold = { id: coldAdSet.id };
     console.log('[Meta] Cold ad set created:', coldAdSet.id);
 
@@ -1518,7 +1534,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       targeting: JSON.stringify(warmTargeting),
       status: 'PAUSED',
       start_time: new Date(Date.now() + 3600000).toISOString(),
-    });
+    }, 3, locMeta.accessToken);
     results.ad_set_warm = { id: warmAdSet.id };
     console.log('[Meta] Warm ad set created:', warmAdSet.id);
 
@@ -1536,7 +1552,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     const coldCreative = await metaApiCall(`${locMeta.adAccountId}/adcreatives`, 'POST', {
       name: 'Hook A — Parent Child — Cold',
       object_story_spec: JSON.stringify({ page_id: locMeta.pageId, link_data: coldLinkData }),
-    });
+    }, 3, locMeta.accessToken);
     console.log('[Meta] Cold creative created:', coldCreative.id);
 
     // STEP 5 — Create Cold Ad
@@ -1546,7 +1562,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       adset_id: coldAdSet.id,
       creative: JSON.stringify({ creative_id: coldCreative.id }),
       status: 'PAUSED',
-    });
+    }, 3, locMeta.accessToken);
     results.ad_cold = { id: coldAd.id };
     console.log('[Meta] Cold ad created:', coldAd.id);
 
@@ -1564,7 +1580,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
           call_to_action: { type: 'LEARN_MORE', value: { link: warmLink } },
         },
       }),
-    });
+    }, 3, locMeta.accessToken);
     console.log('[Meta] Warm creative created:', warmCreative.id);
 
     // STEP 7 — Create Warm Ad
@@ -1574,7 +1590,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       adset_id: warmAdSet.id,
       creative: JSON.stringify({ creative_id: warmCreative.id }),
       status: 'PAUSED',
-    });
+    }, 3, locMeta.accessToken);
     results.ad_warm = { id: warmAd.id };
     console.log('[Meta] Warm ad created:', warmAd.id);
 
@@ -1599,7 +1615,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     await atomicWriteJSON(campaignPath, campaignResult);
     console.log('[Meta] Campaign data written to intelligence-db');
 
-    const accountNum = (META_AD_ACCOUNT_ID || '').replace('act_', '');
+    const accountNum = (locMeta.adAccountId || '').replace('act_', '');
     logToSession('meta_create_campaign', `Campaign created: ${campaign.id}`);
     return res.json({
       success: true,
@@ -1627,6 +1643,8 @@ app.post('/api/meta/create-campaign', async (req, res) => {
 
 // GET /api/meta/campaign-status — status of active campaign from intelligence-db + live Meta API
 app.get('/api/meta/campaign-status', async (req, res) => {
+  const locationId = req.query.location || 'bloomington';
+  const locMeta = getLocationMeta(locationId);
   const campaignPath = path.join(PERSISTENT_DATA_DIR, 'paid', 'active-campaign.json');
   const localData = safeReadJSON(campaignPath);
 
@@ -1634,7 +1652,8 @@ app.get('/api/meta/campaign-status', async (req, res) => {
     return res.json({ campaign_exists: false, message: 'No active campaign found' });
   }
 
-  if (!META_ACCESS_TOKEN) {
+  const accountNum = (locMeta?.adAccountId || '').replace('act_', '');
+  if (!locMeta?.accessToken) {
     return res.json({
       campaign_exists: true,
       campaign_id: localData.campaign_id,
@@ -1642,12 +1661,12 @@ app.get('/api/meta/campaign-status', async (req, res) => {
       status: localData.status || 'UNKNOWN',
       created_at: localData.created_at,
       api_error: 'META_ACCESS_TOKEN not configured — live status unavailable',
-      ads_manager_url: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${(META_AD_ACCOUNT_ID || '').replace('act_', '')}`,
+      ads_manager_url: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${accountNum}`,
     });
   }
 
   try {
-    const liveStatus = await metaApiCall(localData.campaign_id, 'GET', { fields: 'name,status,effective_status' });
+    const liveStatus = await metaApiCall(localData.campaign_id, 'GET', { fields: 'name,status,effective_status' }, 3, locMeta.accessToken);
     return res.json({
       campaign_exists: true,
       campaign_id: localData.campaign_id,
@@ -1655,7 +1674,7 @@ app.get('/api/meta/campaign-status', async (req, res) => {
       status: liveStatus.status,
       effective_status: liveStatus.effective_status,
       created_at: localData.created_at,
-      ads_manager_url: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${(META_AD_ACCOUNT_ID || '').replace('act_', '')}`,
+      ads_manager_url: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${accountNum}`,
     });
   } catch (error) {
     return res.json({
@@ -1704,12 +1723,15 @@ app.get('/api/rules', async (req, res) => {
 
 // ── Attribution System ───────────────────────────────────────────────────────
 
-async function fireCAPIEvent({ eventName, fbclid, email, phone, leadType, campaign, content, value, currency, clickedAt }) {
-  if (!META_ACCESS_TOKEN || !META_PIXEL_ID) {
+async function fireCAPIEvent({ eventName, fbclid, email, phone, leadType, campaign, content, value, currency, clickedAt, locationId = 'bloomington' }) {
+  const locMeta = getLocationMeta(locationId);
+  const accessToken = locMeta?.accessToken || META_ACCESS_TOKEN;
+  const pixelId = locMeta?.pixelId || META_PIXEL_ID;
+  if (!accessToken || !pixelId) {
     console.warn('[CAPI] Credentials not set — skipping');
     return;
   }
-  const capiEndpoint = `${META_API_BASE}/${META_PIXEL_ID}/events`;
+  const capiEndpoint = `${META_API_BASE}/${pixelId}/events`;
   const hashValue = (val) => val
     ? crypto.createHash('sha256').update(val.toLowerCase().trim()).digest('hex')
     : undefined;
@@ -1732,7 +1754,7 @@ async function fireCAPIEvent({ eventName, fbclid, email, phone, leadType, campai
         ...(currency && { currency }),
       },
     }],
-    access_token: META_ACCESS_TOKEN,
+    access_token: accessToken,
   };
   try {
     const response = await fetch(capiEndpoint, {
@@ -1854,6 +1876,7 @@ async function matchContactToSession({ email, phone, name, ghlContactId, leadTyp
     await fireCAPIEvent({
       eventName: 'Lead', fbclid: bestMatch.fbclid, email, phone, leadType,
       campaign: bestMatch.utm_campaign, content: bestMatch.utm_content, clickedAt: bestMatch.clicked_at,
+      locationId: bestMatch.location_id || 'bloomington',
     });
   }
 
@@ -1878,6 +1901,7 @@ async function confirmMemberConversion(ghlContactId, status) {
           eventName: 'Purchase', fbclid: session.fbclid,
           email: session.ghl_email, phone: session.ghl_phone,
           value: 2000, currency: 'USD', clickedAt: session.clicked_at,
+          locationId: session.location_id || 'bloomington',
         });
       }
 
@@ -2020,6 +2044,44 @@ app.post('/api/leads/submit/:locationId', async (req, res) => {
     console.error('[leads/submit] error:', err.message);
     return res.status(500).json({ success: false, error: 'Internal server error' });
   }
+});
+
+// POST /api/webhooks/ghl/:locationId/contact-created — per-location GHL webhook
+app.post('/api/webhooks/ghl/:locationId/contact-created', async (req, res) => {
+  const { locationId } = req.params;
+  res.json({ received: true });
+  setImmediate(async () => {
+    try {
+      const contact = req.body;
+      const email = contact.email || contact.contactEmail || null;
+      const phone = contact.phone || contact.contactPhone || null;
+      const name = contact.name || contact.contactName || null;
+      const ghlContactId = contact.id || contact.contactId || null;
+      const leadType = (contact.tags && contact.tags[0]) || contact.source || 'unknown';
+      console.log(`[GHL/${locationId}] New contact:`, email, phone, leadType);
+      await matchContactToSession({ email, phone, name, ghlContactId, leadType, receivedAt: new Date().toISOString() });
+    } catch (error) {
+      console.error(`[GHL/${locationId}] Contact processing failed:`, error.message);
+    }
+  });
+});
+
+// POST /api/webhooks/ghl/:locationId/contact-updated — per-location GHL webhook
+app.post('/api/webhooks/ghl/:locationId/contact-updated', async (req, res) => {
+  const { locationId } = req.params;
+  res.json({ received: true });
+  setImmediate(async () => {
+    try {
+      const contact = req.body;
+      const ghlContactId = contact.id || contact.contactId;
+      const newStatus = (contact.tags && contact.tags[0]) || contact.source;
+      if (newStatus === 'joined' || newStatus === 'member') {
+        await confirmMemberConversion(ghlContactId, newStatus);
+      }
+    } catch (error) {
+      console.error(`[GHL/${locationId}] Contact update failed:`, error.message);
+    }
+  });
 });
 
 // POST /api/ghl/contact-created — GHL webhook fires when a new contact is created
