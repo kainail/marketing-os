@@ -2,7 +2,7 @@
 # AHRI reads this file before every generation. Keep it current.
 
 ## Sessions Complete
-Sessions 0–17 | Version: v2.0 | Last updated: 2026-04-29
+Sessions 0–18 | Version: v2.0 | Last updated: 2026-04-30
 
 ## Active Offer
 The No-Risk Comeback — 30 Days Coached, $1 to Start
@@ -112,10 +112,10 @@ Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
 - Campaign needs to be activated in Ads Manager (currently PAUSED — Kai must enable spend)
 - fal.ai balance needs top-up (image generation disabled)
 - GHL API key regeneration (critical — old key exposed/invalid)
-- Tracking redirect not deployed to Railway
+- GHL webhooks not yet configured — see knowledge-base/nurture/ghl-webhook-setup.md
+- META_CAPI_TOKEN (META_ACCESS_TOKEN) needs to be set in marketing-os Railway env for CAPI to fire
 - Clarity project ID not set
-- CAPI tokens not set
-- GBP links still pointing to AF.com (not tracking redirect)
+- GBP links still pointing to AF.com (not through /go redirect)
 - Landing page: Steph testimonial needs replacement with real member
 - Landing page: add image to campaign creative
 - Neural OS (end of project — not started)
@@ -172,12 +172,29 @@ Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
 10. Update all 9 GBP location website fields to use tracking redirect URL (not AF.com direct)
 11. Deploy marketing-portal/ as new Railway service → set env vars: GYM_NAME, OPS_URL, NEURAL_URL, ELEVENLABS_AGENT_ID, ANTHROPIC_API_KEY
 
-## Next Session Priorities — Session 18: Lead Tracing
-1. Full lead journey tracking — source attribution (which ad → which lead)
-2. Full journey map: ad → form → call → member
-3. Multi-source attribution: landing page + franchise website
+## Session 18 — What Was Built
+- marketing-portal/server.js — 3 path constants (ATTRIBUTION_DIR, SESSIONS_DIR, ATTRIBUTION_REPORT)
+- marketing-portal/server.js — safeReadJSONAsync helper (returns null for missing files)
+- marketing-portal/server.js — GET /go ghost redirect (captures fbclid+UTMs, writes session file, redirects <50ms)
+- marketing-portal/server.js — GET /api/attribution/session/:sessionId (session lookup)
+- marketing-portal/server.js — POST /api/ghl/contact-created (GHL webhook receiver)
+- marketing-portal/server.js — POST /api/ghl/contact-updated (member conversion tracker)
+- marketing-portal/server.js — GET /api/attribution/report (full dashboard endpoint with summary stats)
+- marketing-portal/server.js — fireCAPIEvent() sends Lead/Purchase events to Facebook CAPI
+- marketing-portal/server.js — matchContactToSession() matches GHL contacts to /go sessions
+- marketing-portal/server.js — confirmMemberConversion() fires CAPI Purchase + updates report
+- marketing-portal/server.js — updateAttributionReport() maintains attribution-report.json
+- marketing-portal/server.js — initAttributionStore() creates dirs + initializes report on startup
+- marketing-portal/server.js — ad URLs updated to route through /go ghost redirect
+- engine/ahri.ts — check_attribution intent + handleCheckAttribution() function
+- knowledge-base/nurture/ghl-webhook-setup.md — step-by-step GHL webhook config guide
+
+## Next Session Priorities — Session 19: GHL Full Integration
+1. Configure GHL outbound webhooks (see knowledge-base/nurture/ghl-webhook-setup.md)
+2. GHL API key regeneration (critical — current key invalid)
+3. GHL Workflow 1 archetype tagging (3 steps pending)
 4. Activate campaign in Ads Manager once ready to spend
-5. GHL Workflow 1 archetype tagging
+5. Test full attribution flow end-to-end once webhooks live
 
 ## Future Sessions
 - Session 19: GHL full integration (API key regeneration, workflow 1 archetype tagging, nurture load)
