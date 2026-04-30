@@ -1944,15 +1944,34 @@ app.post('/api/ghl/contact-updated', async (req, res) => {
 });
 
 // GET /api/attribution/report — full attribution report with summary stats
+// Counts are computed dynamically from session files in SESSIONS_DIR so the
+// total is accurate even before any GHL webhooks have fired.
 app.get('/api/attribution/report', async (req, res) => {
-  const report = await safeReadJSONAsync(ATTRIBUTION_REPORT);
-  if (!report) {
-    return res.json({ total_sessions: 0, total_matched: 0, total_unmatched: 0, match_rate_pct: 0, leads: [] });
-  }
+  // --- Dynamic session counts from SESSIONS_DIR ---
+  let sessionFiles = [];
+  try {
+    sessionFiles = await fs.promises.readdir(SESSIONS_DIR);
+  } catch { /* directory not created yet */ }
+
+  const sessionOnlyFiles = sessionFiles.filter(f => !f.startsWith('fbclid_') && f.endsWith('.json'));
+
+  const sessions = (await Promise.all(
+    sessionOnlyFiles.map(f => safeReadJSONAsync(path.join(SESSIONS_DIR, f)))
+  )).filter(Boolean);
+
+  const totalSessions = sessions.length;
+  const totalMatched  = sessions.filter(s => s.status === 'matched').length;
+  const totalPending  = sessions.filter(s => s.status === 'pending').length;
+  const matchRatePct  = totalSessions > 0 ? Math.round((totalMatched / totalSessions) * 100) : 0;
+
+  // --- Leads detail from attribution-report.json (populated by GHL webhooks) ---
+  const report = await safeReadJSONAsync(ATTRIBUTION_REPORT) || { leads: [] };
+  const leads = report.leads || [];
+
   const bySource = {};
   const byHook = {};
   const byLeadType = {};
-  report.leads.forEach(lead => {
+  leads.forEach(lead => {
     const source = lead.original_source || 'unknown';
     bySource[source] = (bySource[source] || 0) + 1;
     const hook = lead.hook || 'unknown';
@@ -1960,15 +1979,38 @@ app.get('/api/attribution/report', async (req, res) => {
     const type = lead.lead_type || 'unknown';
     byLeadType[type] = (byLeadType[type] || 0) + 1;
   });
-  const daysArr = report.leads.filter(l => l.days_to_convert !== null).map(l => l.days_to_convert);
+  const daysArr = leads.filter(l => l.days_to_convert !== null).map(l => l.days_to_convert);
   const avgDays = daysArr.length > 0 ? daysArr.reduce((s, v) => s + v, 0) / daysArr.length : 0;
+
+  // Also surface per-session UTM breakdown directly from session files
+  const byUtmCampaign = {};
+  const byUtmContent = {};
+  sessions.forEach(s => {
+    const camp = s.utm_campaign || 'unknown';
+    byUtmCampaign[camp] = (byUtmCampaign[camp] || 0) + 1;
+    const content = s.utm_content || 'unknown';
+    byUtmContent[content] = (byUtmContent[content] || 0) + 1;
+  });
+
   return res.json({
-    ...report,
+    version: report.version || '1.0',
+    last_updated: report.last_updated || new Date().toISOString(),
+    total_sessions: totalSessions,
+    total_matched: totalMatched,
+    total_unmatched: totalPending,
+    match_rate_pct: matchRatePct,
+    leads,
+    sessions_breakdown: {
+      by_utm_campaign: byUtmCampaign,
+      by_utm_content: byUtmContent,
+      pending: totalPending,
+      matched: totalMatched,
+    },
     summary: {
       by_source: bySource,
       by_hook: byHook,
       by_lead_type: byLeadType,
-      members: report.leads.filter(l => l.became_member).length,
+      members: leads.filter(l => l.became_member).length,
       avg_days_to_convert: avgDays,
     },
   });
