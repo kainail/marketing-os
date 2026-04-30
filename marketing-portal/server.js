@@ -1954,6 +1954,74 @@ app.get('/api/attribution/session/:sessionId', async (req, res) => {
   return res.json(session);
 });
 
+// POST /api/leads/submit/:locationId — landing page submits here; forwards to GHL server-side
+app.post('/api/leads/submit/:locationId', async (req, res) => {
+  const { locationId } = req.params;
+  const loc = locationConfig.getLocation(locationId);
+  if (!loc) return res.status(400).json({ success: false, error: 'Unknown location' });
+
+  const { firstName, phone, archetype, utm_source, utm_medium, utm_campaign, utm_content, utm_term, utm_string } = req.body;
+  if (!firstName || !phone) return res.status(400).json({ success: false, error: 'firstName and phone required' });
+
+  const apiKey = loc.ghl.apiKey;
+  const ghlLocationId = loc.ghl.locationId;
+  if (!apiKey || !ghlLocationId) {
+    return res.status(503).json({ success: false, error: 'GHL credentials not configured for this location' });
+  }
+
+  const ghlPayload = {
+    firstName,
+    phone,
+    locationId: ghlLocationId,
+    tags: ['no-risk-comeback', 'landing-page'],
+    customFields: [
+      { key: 'archetype_detected', field_value: archetype || '' },
+      { key: 'lead_source_offer', field_value: 'no-risk-comeback' },
+      { key: 'lead_source_variant', field_value: utm_medium || 'direct' },
+      { key: 'lead_source_hook', field_value: utm_content || '' },
+      { key: 'utm_string', field_value: utm_string || '' },
+    ],
+  };
+
+  try {
+    const ghlRes = await fetch('https://services.leadconnectorhq.com/contacts/', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Version': '2021-07-28',
+      },
+      body: JSON.stringify(ghlPayload),
+    });
+
+    if (!ghlRes.ok) {
+      const errText = await ghlRes.text();
+      console.error(`[leads/submit] GHL error ${ghlRes.status}:`, errText);
+      return res.status(502).json({ success: false, error: 'GHL contact creation failed' });
+    }
+
+    const ghlData = await ghlRes.json();
+    const contactId = ghlData.contact?.id || ghlData.id || null;
+
+    if (contactId) {
+      setImmediate(() => {
+        matchContactToSession({
+          phone,
+          ghlContactId: contactId,
+          leadType: 'landing-page',
+          receivedAt: new Date().toISOString(),
+        }).catch(err => console.error('[leads/submit] attribution match failed:', err.message));
+      });
+    }
+
+    console.log(`[leads/submit] ${locationId} | contact: ${contactId} | ${firstName} | ${utm_source || 'direct'}`);
+    return res.json({ success: true, contact_id: contactId });
+  } catch (err) {
+    console.error('[leads/submit] error:', err.message);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
 // POST /api/ghl/contact-created — GHL webhook fires when a new contact is created
 app.post('/api/ghl/contact-created', async (req, res) => {
   res.json({ received: true });
