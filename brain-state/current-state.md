@@ -18,6 +18,7 @@ Campaign created in Meta as PAUSED — Bloomington TEST account
 - Objective: OUTCOME_TRAFFIC (temporary — switch to OUTCOME_LEADS after 50+ pixel events)
 - Budget: $25/day ($15 cold, $10 warm)
 - Status: PAUSED — activate in Ads Manager when ready to spend
+- Ad destination URLs now route through /go ghost redirect (redirect=landing)
 
 ## Current Tests
 nurture-sync A/B variants loaded — pending GHL implementation
@@ -43,8 +44,11 @@ Status: pending GHL and ElevenLabs implementation — Kai approval required befo
 - Railway server: Node.js with env var injection — all {{custom_values.x}} placeholders resolved at request time
 - Both forms working: hero form + final CTA form — archetype radio question on both
 - Form submission: wired to GHL API via submitForm() JS handler
+- Facebook Pixel (ID: 1984794322135725) installed — fires PageView on load, Lead on form submit
 - Pending: GHL API key regeneration before go-live
 - Pending: real photos (gym-photo.jpg committed — verify display on Railway)
+- Pending: Steph testimonial replacement with real member
+- Pending: add image to campaign creative
 
 ## Skills Complete: 15 of 15
 offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync,
@@ -90,8 +94,39 @@ Manus tasks (on-demand):
 - manus-tasks/monthly-report.md
 - manus-tasks/paid-ads-setup.md (task #16 — added Session 17)
 
-## Last Session Notes
-Session 4/29/2026 — Meta API fully debugged end to end. 11 parameter errors identified and resolved across multiple iterations (act_ prefix, objective, optimization_goal, interest IDs, promoted_object, pixel guard). OUTCOME_TRAFFIC + LINK_CLICKS working without pixel event history requirement. Facebook Pixel (ID: 1984794322135725) installed on landing page — fires PageView on load, Lead on form submit. Retry logic added to metaApiCall (3 retries, 5s delay on is_transient errors). Nurture system complete: 12-touch SMS sequence, 6-email sequence, 3-signal retention system (CTR drop / form CVR drop / $50 zero leads), GHL loading guide. CREATE CAMPAIGN IN META button in portal works end to end.
+## Session 18 — What Was Built
+- marketing-portal/server.js — 3 path constants (ATTRIBUTION_DIR, SESSIONS_DIR, ATTRIBUTION_REPORT)
+- marketing-portal/server.js — safeReadJSONAsync helper (returns null for missing files)
+- marketing-portal/server.js — GET /go ghost redirect (captures fbclid+UTMs, writes session file, redirects <50ms)
+- marketing-portal/server.js — GET /api/attribution/session/:sessionId (session lookup)
+- marketing-portal/server.js — POST /api/ghl/contact-created (GHL webhook receiver)
+- marketing-portal/server.js — POST /api/ghl/contact-updated (member conversion tracker)
+- marketing-portal/server.js — GET /api/attribution/report (dynamic session counting from SESSIONS_DIR)
+- marketing-portal/server.js — fireCAPIEvent() sends Lead/Purchase events to Facebook CAPI
+- marketing-portal/server.js — matchContactToSession() matches GHL contacts to /go sessions
+- marketing-portal/server.js — confirmMemberConversion() fires CAPI Purchase + updates report
+- marketing-portal/server.js — updateAttributionReport() maintains attribution-report.json
+- marketing-portal/server.js — initAttributionStore() creates dirs + initializes report on startup
+- marketing-portal/server.js — ad URLs updated to route through /go ghost redirect (redirect=landing)
+- marketing-portal/public/index.html — Lead Journey dashboard (4 summary cards, 4 data tables, 60s auto-refresh)
+- marketing-portal/public/index.html — Performance attribution tab (hook ranking, days-to-convert, revenue by campaign)
+- marketing-portal/public/index.html — Decision Layer attribution intelligence cards (scale signal, low match rate, abandoned cart)
+- marketing-portal/public/index.html — Overview attribution widget (ad clicks, match rate, GHL leads, members)
+- engine/ahri.ts — check_attribution intent + handleCheckAttribution() function
+- knowledge-base/nurture/ghl-webhook-setup.md — step-by-step GHL webhook config guide
+
+## Session 17 — What Was Built
+- 14 scheduled tasks wired (cron-based automated routines)
+- 3 agentic rules engine (auto_pause CPL>$60, auto_scale +20%, auto_double_down +40%)
+- Queue persistence (task-runs.json, atomic writes)
+- Manus launcher with 6-state button (idle/launching/running/complete/failed/fallback)
+- Recent Runs panel with polling on active tasks
+
+## Session 18 Commits
+- 6f01456 — Session 18 attribution system (ghost redirect, session store, GHL webhooks, CAPI, attribution matcher)
+- 9ee4a94 — fix: attribution report dynamically counts session files from SESSIONS_DIR
+- 526961d — fix: campaign ad URLs route through /go with redirect=landing
+- 323886b — wire attribution data into portal UI (Lead Journey, Performance tab, Decision Layer, Overview)
 
 ## OUTCOME_LEADS Upgrade Checklist
 Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
@@ -120,85 +155,31 @@ Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
 - Landing page: add image to campaign creative
 - Neural OS (end of project — not started)
 - GHL Workflow 1 archetype tagging (3 steps pending)
-- Make scenario columns M and R
-- Landing page UTM hidden fields
+- Tracking redirect deployment (tracking-redirect/ service not yet deployed to Railway)
+- Dashboard rendering bug (unresolved)
+- Token renewal calendar reminder: 2026-05-29
 
-## Session 16 — What Was Built
-- schemas/manus-outputs/ — 16 JSON Schema Draft 2020-12 files (1 meta + 15 task-specific)
-- manus-tasks/ — OUTPUT CONTRACT section added to all 15 task files (JSON-only, no PDF/prose)
-- marketing-portal/server.js — 4 new Manus endpoints: POST /api/manus/trigger, GET /api/manus/status/:id, POST /api/manus/callback (full: atomic write + schema routing + defensive parsing), GET /api/manus/recent-runs
-- marketing-portal/data/task-runs.json — persistent task run tracking (atomic writes)
-- marketing-portal/public/index.html — 6-state LAUNCH button (idle/launching/running/complete/failed/fallback), Recent Runs panel, polling on active tasks
-- engine/ahri.ts — handleRunManusTask now calls MARKETING_PORTAL_URL/api/manus/trigger; falls back to copy/paste display if API key absent
-- .env.example — MARKETING_PORTAL_URL, MANUS_API_KEY, MANUS_API_BASE, MANUS_WEBHOOK_SECRET added
-- intelligence-db/market/competitor-ads.json — seeded with Bloomington IN market data (Orangetheory, Club Pilates, Planet Fitness)
-- intelligence-db/market/hook-saturation.json — seeded with 5 saturated hooks + 3 opportunity gaps
+## Architecture Decisions Locked
+- **Make scenarios REPLACED**: All 6 Make scenarios will be replaced with Railway-native webhook handlers in Session 19. Reason: Railway already handles GHL webhooks natively — Make adds latency, cost, and a failure point. No net new functionality.
+- **Session 19 prerequisite**: Full GymSuite AI system map transcript + GHL workflow screenshots + Make scenario configurations + Google Sheets column structure + Railway env vars for OPS dashboard required BEFORE any Session 19 code is written.
+- **Onboarding SOP first**: Complete new club onboarding SOP (PDF) must be built before Eaton location code is written. SOP documents every manual step so it can be executed without an engineer.
 
-## Session 15 — What Was Built
-- marketing-portal/server.js — Express backend, 19 API endpoints, placeholder perf data
-- marketing-portal/package.json — express, cors, @anthropic-ai/sdk deps
-- marketing-portal/railway.json — NIXPACKS builder, healthcheckPath /health
-- marketing-portal/config/agentic-rules.json — supervised mode, kill/scale/guardrail rules
-- marketing-portal/public/styles.css — full design system (CSS vars, animations, all components)
-- marketing-portal/public/index.html — 11-section SPA: overview, queue, calendar, performance,
-  decision, hooks, journey, landing, nurture, manus launcher, archive
-- AHRI panel: 3 tabs (chat via Anthropic API, voice via Web Speech, actions grid)
-- Agentic rules engine: auto_pause (CPL>$60), auto_scale (+20%), auto_double_down (+40%)
-- All 19 endpoints verified: health, status, overview, queue, approve, reject, content-calendar,
-  morning-brief, manus-tasks, manus-tasks/:filename, hooks-library, nurture, ab-tests,
-  campaign-archive, agentic-rules (GET+POST), ahri, competitor-intel, alerts, performance
-- Graceful degradation: missing API key, empty intelligence files, placeholder data with banner
+## Session 19 — Scope (next conversation)
+1. Replace all 6 Make scenarios with Railway-native handlers
+2. Build location config system (multi-location support)
+3. Portal location switcher UI
+4. Complete new club onboarding SOP (PDF)
+5. Add Eaton as second location
+6. Cloudflare R2 migration (before additional gym onboarding)
 
-## Session 14 — What Was Built
-- knowledge-base/paid-media/thresholds.md — CPL targets, kill/scale signals, pacing rules
-- knowledge-base/paid-media/creative-framework.md — thumbstop benchmarks, hook types, testing protocol
-- intelligence-db/ READMEs for paid/, lead-journey/, clarity/, retention/, nurture/
-- tracking-redirect/ — Express server: CAPI async, journey-log.json, 4 first-party cookies, 301 redirect in < 100ms
-- Clarity tracking installed on landing-server — CLARITY_PROJECT_ID env var injection
-- 15 Manus tasks: all 5 intelligence files ready, all 12 new tasks created
-- engine/ahri.ts: 13 new IntentType values, INTENT_TO_MANUS_TASK + TASK_INTELLIGENCE_FILES constants, handleDisplayManusTask() + handleProcessManusResults()
-- outputs/automation-schedule.md: full weekly/monthly rhythm documented
-
-## Pending Before First Campaign Launch
-1. Regenerate GHL API key (critical — current key invalid)
-2. GHL Workflow 1 — add archetype tagging actions
-3. Make scenario — pipe lead_source and archetype_detected to Sheet columns M and R
-4. Approve assets in AHRI queue (distribution/queue/pending-review/)
-5. Budget decision: Meta $25/day, Google $20/day — Kai approval required
-6. Run competitor research in Manus first (before launching ads)
-7. Confirm gym-photo.jpg loading on iPhone after Railway redeploy
-8. Create Clarity project at clarity.microsoft.com → add CLARITY_PROJECT_ID to landing-server Railway env vars
-9. Deploy tracking-redirect/ as new Railway service → add META_PIXEL_ID + META_CAPI_TOKEN env vars
-10. Update all 9 GBP location website fields to use tracking redirect URL (not AF.com direct)
-11. Deploy marketing-portal/ as new Railway service → set env vars: GYM_NAME, OPS_URL, NEURAL_URL, ELEVENLABS_AGENT_ID, ANTHROPIC_API_KEY
-
-## Session 18 — What Was Built
-- marketing-portal/server.js — 3 path constants (ATTRIBUTION_DIR, SESSIONS_DIR, ATTRIBUTION_REPORT)
-- marketing-portal/server.js — safeReadJSONAsync helper (returns null for missing files)
-- marketing-portal/server.js — GET /go ghost redirect (captures fbclid+UTMs, writes session file, redirects <50ms)
-- marketing-portal/server.js — GET /api/attribution/session/:sessionId (session lookup)
-- marketing-portal/server.js — POST /api/ghl/contact-created (GHL webhook receiver)
-- marketing-portal/server.js — POST /api/ghl/contact-updated (member conversion tracker)
-- marketing-portal/server.js — GET /api/attribution/report (full dashboard endpoint with summary stats)
-- marketing-portal/server.js — fireCAPIEvent() sends Lead/Purchase events to Facebook CAPI
-- marketing-portal/server.js — matchContactToSession() matches GHL contacts to /go sessions
-- marketing-portal/server.js — confirmMemberConversion() fires CAPI Purchase + updates report
-- marketing-portal/server.js — updateAttributionReport() maintains attribution-report.json
-- marketing-portal/server.js — initAttributionStore() creates dirs + initializes report on startup
-- marketing-portal/server.js — ad URLs updated to route through /go ghost redirect
-- engine/ahri.ts — check_attribution intent + handleCheckAttribution() function
-- knowledge-base/nurture/ghl-webhook-setup.md — step-by-step GHL webhook config guide
-
-## Next Session Priorities — Session 19: GHL Full Integration
-1. Configure GHL outbound webhooks (see knowledge-base/nurture/ghl-webhook-setup.md)
-2. GHL API key regeneration (critical — current key invalid)
-3. GHL Workflow 1 archetype tagging (3 steps pending)
-4. Activate campaign in Ads Manager once ready to spend
-5. Test full attribution flow end-to-end once webhooks live
-
-## Future Sessions
-- Session 19: GHL full integration (API key regeneration, workflow 1 archetype tagging, nurture load)
-- Session 20: Cloudflare R2 migration (before second gym location onboarding)
+## Session 19 — What New Conversation Needs Before Building
+1. Full GymSuite AI transcript (for accurate SOP — covers all 17 system phases)
+2. GHL workflow screenshots (Workflow 1 + all active workflows)
+3. Make scenario configurations (all 6 scenarios — inputs, outputs, column mappings)
+4. Google Sheets column structure (columns M and R + full sheet layout)
+5. Railway env vars for OPS dashboard (current values to port into location config)
+6. Then: build complete onboarding SOP PDF
+7. Then: build Session 19 code
 
 ## Cross-Brain Insights (updated 2026-04-24 — 75 calls analyzed)
 - INSIGHT 1: Source attribution is null for 3 of 75 calls (4%). AHRI enforces UTM injection on all assets. Default source value "direct_untagged" appended to all untagged leads.
@@ -206,3 +187,7 @@ Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
 - INSIGHT 3: Top objection = commitment resistance across multiple calls. All ad copy and landing page text frames the call as a concierge scheduling service, not a sales interaction.
 - INSIGHT 4: 94.7% of calls (71/75) unclassified — zero archetype data. Landing page archetype radio question now captures this pre-call. GHL Workflow 1 archetype tagging still pending.
 - INSIGHT 5: Soft commitments ("I guess, later today") result in zero show rate. Pre-appointment nurture sequence (confirmation SMS + 2-hour reminder) designed in nurture-sync v1.1 — pending GHL implementation.
+
+## Future Sessions
+- Session 20: Second gym location live (Eaton) — after SOP complete and R2 migrated
+- Session 21+: Vision + Syndra cross-brain data sharing (once both systems have meaningful data)
