@@ -1816,38 +1816,48 @@ async function updateAttributionReport({ matched, session, email, phone, ghlCont
   console.log(`[Attribution] Report updated: ${report.total_matched}/${report.total_sessions} matched (${report.match_rate_pct}%)`);
 }
 
-async function matchContactToSession({ email, phone, name, ghlContactId, leadType, receivedAt }) {
+async function matchContactToSession({ email, phone, name, ghlContactId, leadType, receivedAt, sessionId }) {
   console.log('[Attribution] Running match for:', email, phone);
-  let sessionFiles;
-  try {
-    sessionFiles = await fs.promises.readdir(SESSIONS_DIR);
-  } catch {
-    console.log('[Attribution] No sessions yet');
-    return;
-  }
-  const pendingSessions = sessionFiles
-    .filter(f => !f.startsWith('fbclid_') && f.endsWith('.json'))
-    .sort().reverse();
-
   let bestMatch = null;
   let matchMethod = null;
 
-  for (const file of pendingSessions) {
-    const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, file));
-    if (!session || session.status !== 'pending') continue;
-    if (email && session.ghl_email === email) { bestMatch = session; matchMethod = 'email_match'; break; }
-    if (phone && session.ghl_phone === phone) { bestMatch = session; matchMethod = 'phone_match'; break; }
+  if (sessionId) {
+    const directSession = await safeReadJSONAsync(path.join(SESSIONS_DIR, `${sessionId}.json`));
+    if (directSession && directSession.status === 'pending') {
+      bestMatch = directSession;
+      matchMethod = 'session_id_match';
+    }
   }
 
   if (!bestMatch) {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    let sessionFiles;
+    try {
+      sessionFiles = await fs.promises.readdir(SESSIONS_DIR);
+    } catch {
+      console.log('[Attribution] No sessions yet');
+      return;
+    }
+    const pendingSessions = sessionFiles
+      .filter(f => !f.startsWith('fbclid_') && f.endsWith('.json'))
+      .sort().reverse();
+
     for (const file of pendingSessions) {
       const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, file));
-      if (!session) continue;
-      const clickedAt = new Date(session.clicked_at);
-      if (clickedAt > thirtyDaysAgo && session.status === 'pending' && session.fbclid) {
-        bestMatch = session;
-        matchMethod = 'fbclid_unconfirmed';
+      if (!session || session.status !== 'pending') continue;
+      if (email && session.ghl_email === email) { bestMatch = session; matchMethod = 'email_match'; break; }
+      if (phone && session.ghl_phone === phone) { bestMatch = session; matchMethod = 'phone_match'; break; }
+    }
+
+    if (!bestMatch) {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      for (const file of pendingSessions) {
+        const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, file));
+        if (!session) continue;
+        const clickedAt = new Date(session.clicked_at);
+        if (clickedAt > thirtyDaysAgo && session.status === 'pending' && session.fbclid) {
+          bestMatch = session;
+          matchMethod = 'fbclid_unconfirmed';
+        }
       }
     }
   }
@@ -1927,7 +1937,7 @@ app.get('/go', async (req, res) => {
   const sessionId = crypto.randomUUID();
   const FRANCHISE_URL = loc.franchiseUrl || 'https://www.anytimefitness.com/locations/bloomington-indiana-2822/';
   const LANDING_PAGE_URL = 'https://no-risk-comeback-landing-page-production.up.railway.app';
-  const destination = redirect === 'landing' ? `${LANDING_PAGE_URL}/?location=${loc.id}` : FRANCHISE_URL;
+  const destination = redirect === 'landing' ? `${LANDING_PAGE_URL}/?location=${loc.id}&session_id=${sessionId}` : FRANCHISE_URL;
 
   const session = {
     session_id: sessionId,
@@ -1978,13 +1988,15 @@ app.get('/api/attribution/session/:sessionId', async (req, res) => {
   return res.json(session);
 });
 
-// POST /api/leads/submit/:locationId — landing page submits here; forwards to GHL server-side
-app.post('/api/leads/submit/:locationId', async (req, res) => {
-  const { locationId } = req.params;
-  const loc = locationConfig.getLocation(locationId);
+// POST /api/leads/submit — landing page submits here; locationId in body; forwards to GHL server-side
+app.post('/api/leads/submit', async (req, res) => {
+  const { locationId, sessionId, firstName, phone, archetype, archetype_answer,
+          utm_source, utm_medium, utm_campaign, utm_content, utm_term, utm_string } = req.body;
+
+  const resolvedLocationId = locationId || 'bloomington';
+  const loc = locationConfig.getLocation(resolvedLocationId);
   if (!loc) return res.status(400).json({ success: false, error: 'Unknown location' });
 
-  const { firstName, phone, archetype, utm_source, utm_medium, utm_campaign, utm_content, utm_term, utm_string } = req.body;
   if (!firstName || !phone) return res.status(400).json({ success: false, error: 'firstName and phone required' });
 
   const apiKey = loc.ghl.apiKey;
@@ -1993,13 +2005,20 @@ app.post('/api/leads/submit/:locationId', async (req, res) => {
     return res.status(503).json({ success: false, error: 'GHL credentials not configured for this location' });
   }
 
+  const ARCHETYPE_MAP = { social: 'Social', analytical: 'Analytical', supportive: 'Supportive', independent: 'Independent' };
+  const rawArchetype = archetype_answer || archetype || '';
+  const mappedArchetype = ARCHETYPE_MAP[rawArchetype] || rawArchetype;
+
+  const tags = ['no-risk-comeback', 'landing-page'];
+  if (mappedArchetype) tags.push(`archetype:${mappedArchetype}`);
+
   const ghlPayload = {
     firstName,
     phone,
     locationId: ghlLocationId,
-    tags: ['no-risk-comeback', 'landing-page'],
+    tags,
     customFields: [
-      { key: 'archetype_detected', field_value: archetype || '' },
+      { key: 'archetype_detected', field_value: mappedArchetype },
       { key: 'lead_source_offer', field_value: 'no-risk-comeback' },
       { key: 'lead_source_variant', field_value: utm_medium || 'direct' },
       { key: 'lead_source_hook', field_value: utm_content || '' },
@@ -2020,7 +2039,7 @@ app.post('/api/leads/submit/:locationId', async (req, res) => {
 
     if (!ghlRes.ok) {
       const errText = await ghlRes.text();
-      console.error(`[leads/submit] GHL error ${ghlRes.status}:`, errText);
+      console.error(`[LeadSubmit] GHL error ${ghlRes.status}:`, errText);
       return res.status(502).json({ success: false, error: 'GHL contact creation failed' });
     }
 
@@ -2034,14 +2053,15 @@ app.post('/api/leads/submit/:locationId', async (req, res) => {
           ghlContactId: contactId,
           leadType: 'landing-page',
           receivedAt: new Date().toISOString(),
-        }).catch(err => console.error('[leads/submit] attribution match failed:', err.message));
+          sessionId: sessionId || null,
+        }).catch(err => console.error('[LeadSubmit] attribution match failed:', err.message));
       });
     }
 
-    console.log(`[leads/submit] ${locationId} | contact: ${contactId} | ${firstName} | ${utm_source || 'direct'}`);
+    console.log(`[LeadSubmit] ${resolvedLocationId} | contact: ${contactId} | ${firstName} | archetype: ${mappedArchetype} | ${utm_source || 'direct'}`);
     return res.json({ success: true, contact_id: contactId });
   } catch (err) {
-    console.error('[leads/submit] error:', err.message);
+    console.error('[LeadSubmit] error:', err.message);
     return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
