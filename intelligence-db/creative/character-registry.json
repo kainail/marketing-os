@@ -50,7 +50,10 @@
             "image-pattern_interrupt-20260427-A-I3LX",
             "image-pattern_interrupt-20260427-B-4DS8",
             "image-identity_shift-20260427-A-WL5S",
-            "image-identity_shift-20260427-B-E55C"
+            "image-identity_shift-20260427-B-E55C",
+            "image-p1-20260427-P1-C665",
+            "image-p2-20260427-P2-CDNM",
+            "image-p1-20260427-P1-RMJH"
           ]
         },
         {
@@ -59,7 +62,11 @@
           "seed_offset": 100,
           "description": "Man, 38-48, suburban, slightly out of shape, genuine face, dressed casually — office-casual or weekend clothes",
           "avoid": "muscular, tank top, fitness model look, exaggerated expressions",
-          "used_in": []
+          "used_in": [
+            "image-p1-20260427-P1-IZNR",
+            "image-p2-20260427-P2-2WLX",
+            "image-p2-20260427-P2-GMFG"
+          ]
         },
         {
           "character_id": "char-C",

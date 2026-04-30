@@ -85,6 +85,7 @@
   <!-- Section: Overview -->
   <div id="section-overview" class="section active">
     <div id="overview-metrics" class="metrics-row"></div>
+    <div id="attribution-overview-widget"></div>
     <div id="overview-brief" class="card mb-24"></div>
     <div id="meta-campaign-status" class="card mb-24" style="display:none"></div>
     <div class="section-title">ACTIVE ALERTS</div>
@@ -131,36 +132,40 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
       <div class="section-title" style="margin-bottom:0">PERFORMANCE ANALYTICS</div>
       <div class="filter-bar" style="margin-bottom:0">
-        <button class="filter-chip active" onclick="setPerfRange('7d',this)">7D</button>
-        <button class="filter-chip" onclick="setPerfRange('30d',this)">30D</button>
-        <button class="filter-chip" onclick="setPerfRange('90d',this)">90D</button>
-        <button class="filter-chip" onclick="setPerfRange('mtd',this)">MTD</button>
+        <button class="filter-chip active" onclick="setPerfTab('7d',this)">7D</button>
+        <button class="filter-chip" onclick="setPerfTab('30d',this)">30D</button>
+        <button class="filter-chip" onclick="setPerfTab('90d',this)">90D</button>
+        <button class="filter-chip" onclick="setPerfTab('mtd',this)">MTD</button>
+        <button class="filter-chip" onclick="setPerfTab('attribution',this)" style="color:#8B5CF6;border-color:rgba(139,92,246,0.4)">ATTRIBUTION</button>
       </div>
     </div>
-    <div id="perf-placeholder-notice"></div>
-    <div class="metrics-row" id="perf-metrics"></div>
-    <div class="card mb-16">
-      <div class="section-title">FULL FUNNEL</div>
-      <div id="funnel-chart"></div>
-      <div id="funnel-insight" style="margin-top:12px;padding:10px;background:rgba(249,115,22,0.08);border-radius:8px;font-size:12px;color:var(--gold)"></div>
-    </div>
-    <div class="section-grid-2 mb-16">
+    <div id="perf-attribution-view" style="display:none"></div>
+    <div id="perf-standard-view">
+      <div id="perf-placeholder-notice"></div>
+      <div class="metrics-row" id="perf-metrics"></div>
+      <div class="card mb-16">
+        <div class="section-title">FULL FUNNEL</div>
+        <div id="funnel-chart"></div>
+        <div id="funnel-insight" style="margin-top:12px;padding:10px;background:rgba(249,115,22,0.08);border-radius:8px;font-size:12px;color:var(--gold)"></div>
+      </div>
+      <div class="section-grid-2 mb-16">
+        <div class="card">
+          <div class="section-title">CPL TREND</div>
+          <canvas id="cpl-chart" height="160"></canvas>
+        </div>
+        <div class="card">
+          <div class="section-title">SPEND vs LEADS</div>
+          <canvas id="spend-chart" height="160"></canvas>
+        </div>
+      </div>
+      <div class="card mb-16">
+        <div class="section-title">PER CHANNEL</div>
+        <div id="channel-table"></div>
+      </div>
       <div class="card">
-        <div class="section-title">CPL TREND</div>
-        <canvas id="cpl-chart" height="160"></canvas>
+        <div class="section-title">BUDGET EFFICIENCY</div>
+        <div id="efficiency-note"></div>
       </div>
-      <div class="card">
-        <div class="section-title">SPEND vs LEADS</div>
-        <canvas id="spend-chart" height="160"></canvas>
-      </div>
-    </div>
-    <div class="card mb-16">
-      <div class="section-title">PER CHANNEL</div>
-      <div id="channel-table"></div>
-    </div>
-    <div class="card">
-      <div class="section-title">BUDGET EFFICIENCY</div>
-      <div id="efficiency-note"></div>
     </div>
   </div>
 
@@ -207,6 +212,7 @@
       <div style="font-size:12px;color:var(--text-muted);margin-top:10px;text-align:center">Campaign created as PAUSED — activate in Ads Manager when ready to spend</div>
     </div>
 
+    <div id="attribution-intelligence"></div>
     <div class="section-title">ACTIVE SIGNALS</div>
     <div id="signals-list"></div>
     <div class="section-title" style="margin-top:24px">A/B TEST DASHBOARD</div>
@@ -231,26 +237,11 @@
 
   <!-- Section: Lead Journey -->
   <div id="section-journey" class="section">
-    <div class="section-title">LEAD JOURNEY & ATTRIBUTION</div>
-    <div id="journey-attribution" class="card mb-16"></div>
-    <div class="section-grid-2 mb-16">
-      <div class="card">
-        <div class="section-title">SOURCE ATTRIBUTION</div>
-        <canvas id="attribution-pie" height="200"></canvas>
-      </div>
-      <div class="card">
-        <div class="section-title">MULTI-TOUCH STATS</div>
-        <div id="multitouch-stats"></div>
-      </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="section-title" style="margin-bottom:0">LEAD JOURNEY & ATTRIBUTION</div>
+      <button class="btn" onclick="loadJourney()" style="font-size:12px">↻ Refresh</button>
     </div>
-    <div class="card mb-16">
-      <div class="section-title">TRACKING GAP</div>
-      <div id="tracking-gap"></div>
-    </div>
-    <div class="card">
-      <div class="section-title">TRACKING REDIRECT STATUS</div>
-      <div id="tracking-status"></div>
-    </div>
+    <div id="journey-content"></div>
   </div>
 
   <!-- Section: Landing Page Intel -->
@@ -566,6 +557,48 @@ async function loadOverview() {
   ).join('');
 
   loadMetaCampaignStatus();
+  loadAttributionOverviewWidget();
+}
+
+async function loadAttributionOverviewWidget() {
+  const el = document.getElementById('attribution-overview-widget');
+  if (!el) return;
+  const data = await api('/api/attribution/report');
+  if (!data) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const leadsToday = (data.leads || []).filter(l => l.received_at && l.received_at.slice(0,10) === today).length;
+  const sessionsToday = data.sessions_breakdown
+    ? (Object.values(data.sessions_breakdown.by_utm_campaign || {})).reduce((s,v)=>s+v,0) // proxy
+    : 0;
+  const matchRate = data.match_rate_pct || 0;
+  const membersTotal = (data.summary && data.summary.members) || 0;
+
+  el.innerHTML = `
+    <div class="card mb-24" style="border-color:rgba(139,92,246,0.3)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="section-title" style="margin-bottom:0;font-size:11px">ATTRIBUTION TRACKER</div>
+        <button class="btn" style="font-size:11px;padding:4px 10px" onclick="navigate('journey')">Full Report →</button>
+      </div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div>
+          <div class="card-label">Ad Clicks Tracked</div>
+          <div style="font-size:20px;font-weight:700;color:#fff">${data.total_sessions}</div>
+        </div>
+        <div>
+          <div class="card-label">Match Rate</div>
+          <div style="font-size:20px;font-weight:700;color:${matchRate >= 60 ? 'var(--green)' : matchRate >= 30 ? 'var(--gold)' : matchRate > 0 ? 'var(--red)' : '#fff'}">${matchRate}%</div>
+        </div>
+        <div>
+          <div class="card-label">GHL Leads</div>
+          <div style="font-size:20px;font-weight:700;color:#fff">${data.total_matched + data.total_unmatched}</div>
+        </div>
+        <div>
+          <div class="card-label">Members</div>
+          <div style="font-size:20px;font-weight:700;color:var(--green)">${membersTotal}</div>
+        </div>
+      </div>
+    </div>`;
 }
 
 async function loadMetaCampaignStatus() {
@@ -977,17 +1010,91 @@ function renderSpendChart(data) {
   });
 }
 
-function setPerfRange(range, btn) {
+function setPerfRange(range, btn) { setPerfTab(range, btn); }
+
+function setPerfTab(tab, btn) {
   document.querySelectorAll('#section-performance .filter-chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
-  // In production: re-fetch with date range param
+  if (btn) btn.classList.add('active');
+  const standardView = document.getElementById('perf-standard-view');
+  const attrView = document.getElementById('perf-attribution-view');
+  if (tab === 'attribution') {
+    if (standardView) standardView.style.display = 'none';
+    if (attrView) { attrView.style.display = 'block'; loadPerfAttribution(); }
+  } else {
+    if (standardView) standardView.style.display = 'block';
+    if (attrView) attrView.style.display = 'none';
+  }
+}
+
+async function loadPerfAttribution() {
+  const el = document.getElementById('perf-attribution-view');
+  if (!el) return;
+  el.innerHTML = '<div class="skeleton skeleton-text" style="height:80px;margin-bottom:12px"></div>'.repeat(2);
+  const data = await api('/api/attribution/report');
+  if (!data || data.total_sessions === 0) {
+    el.innerHTML = `<div class="empty-state" style="padding:32px"><div class="icon">📊</div><h3>No attribution data yet</h3><p>Configure GHL webhooks and run ad campaigns to populate this view.</p></div>`;
+    return;
+  }
+  const leads = data.leads || [];
+  const byHook = (data.summary && data.summary.by_hook) || {};
+
+  // Hook conversion ranking
+  const hookRankRows = Object.entries(byHook).sort((a,b)=>b[1]-a[1]).map(([hook, count]) => {
+    const members = leads.filter(l => l.hook === hook && l.became_member).length;
+    const convRate = count > 0 ? Math.round((members/count)*100) : 0;
+    const bar = `<div style="background:var(--bg-void);border-radius:3px;height:6px;margin-top:4px;overflow:hidden"><div style="width:${Math.min(convRate,100)}%;background:linear-gradient(90deg,var(--purple),var(--violet));height:100%"></div></div>`;
+    return `<tr><td><code style="font-size:11px">${hook}</code></td><td>${count}</td><td>${members}</td><td>${convRate}%${bar}</td></tr>`;
+  }).join('');
+
+  // Days to convert distribution
+  const daysData = leads.filter(l=>l.days_to_convert!==null).map(l=>l.days_to_convert);
+  const avgDays = daysData.length > 0 ? (daysData.reduce((s,v)=>s+v,0)/daysData.length).toFixed(1) : '—';
+  const maxDays = daysData.length > 0 ? Math.max(...daysData) : 0;
+  const sameDay = daysData.filter(d=>d===0).length;
+  const within7 = daysData.filter(d=>d<=7).length;
+
+  // Revenue by campaign
+  const byCampaign = (data.sessions_breakdown && data.sessions_breakdown.by_utm_campaign) || {};
+  const campaignRows = Object.entries(byCampaign).sort((a,b)=>b[1]-a[1]).map(([camp, count]) => {
+    const campMembers = leads.filter(l=>l.campaign===camp&&l.became_member).length;
+    return `<tr><td>${camp}</td><td>${count}</td><td>${campMembers}</td><td>$${(campMembers*2000).toLocaleString()}</td></tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="metrics-row mb-16">
+      <div class="card"><div class="card-label">Match Rate</div><div class="metric-value ${data.match_rate_pct>=60?'green':data.match_rate_pct>=30?'yellow':'red'}">${data.match_rate_pct}%</div></div>
+      <div class="card"><div class="card-label">Avg Days to Convert</div><div class="metric-value">${avgDays}</div></div>
+      <div class="card"><div class="card-label">Same-Day Converts</div><div class="metric-value green">${sameDay}</div></div>
+      <div class="card"><div class="card-label">Est. Revenue</div><div class="metric-value green">$${((data.summary&&data.summary.members||0)*2000).toLocaleString()}</div></div>
+    </div>
+    <div class="card mb-16">
+      <div class="section-title">HOOK CONVERSION RANKING</div>
+      ${hookRankRows ? `<table class="data-table"><thead><tr><th>Hook</th><th>Leads</th><th>Members</th><th>Conv Rate</th></tr></thead><tbody>${hookRankRows}</tbody></table>` : '<div class="text-muted">No hook data yet</div>'}
+    </div>
+    <div class="section-grid-2 mb-16">
+      <div class="card">
+        <div class="section-title">DAYS TO CONVERT</div>
+        <div style="font-size:13px;color:var(--text-secondary)">
+          ${daysData.length > 0 ? `
+            <div style="margin-bottom:8px">Avg: <strong>${avgDays} days</strong> · Max: <strong>${maxDays} days</strong></div>
+            <div style="margin-bottom:6px">Same day: <strong>${sameDay}</strong> (${daysData.length>0?Math.round(sameDay/daysData.length*100):0}%)</div>
+            <div>Within 7 days: <strong>${within7}</strong> (${daysData.length>0?Math.round(within7/daysData.length*100):0}%)</div>` : '<div class="text-muted">No conversion data yet</div>'}
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title">REVENUE BY CAMPAIGN</div>
+        ${campaignRows ? `<table class="data-table"><thead><tr><th>Campaign</th><th>Sessions</th><th>Members</th><th>Revenue</th></tr></thead><tbody>${campaignRows}</tbody></table>` : '<div class="text-muted">No campaign data yet</div>'}
+      </div>
+    </div>`;
 }
 
 // ════════════════════════════════════════════
 // DECISION LAYER
 // ════════════════════════════════════════════
 async function loadDecision() {
-  const [perfData, testsData] = await Promise.all([api('/api/performance'), api('/api/ab-tests')]);
+  const [perfData, testsData, attrData] = await Promise.all([
+    api('/api/performance'), api('/api/ab-tests'), api('/api/attribution/report')
+  ]);
   state.abTests = testsData;
 
   // Signals from performance data
@@ -995,6 +1102,74 @@ async function loadDecision() {
   const signals = buildSignals(perf);
   renderSignals(signals);
   renderAbTests(testsData);
+  renderAttributionIntelligence(attrData);
+}
+
+function renderAttributionIntelligence(data) {
+  const el = document.getElementById('attribution-intelligence');
+  if (!el) return;
+  if (!data || data.total_sessions === 0) { el.innerHTML = ''; return; }
+
+  const cards = [];
+  const leads = data.leads || [];
+  const byHook = (data.summary && data.summary.by_hook) || {};
+
+  // Condition 1: hook with 5+ leads and 30%+ member conversion
+  Object.entries(byHook).forEach(([hook, count]) => {
+    if (count >= 5) {
+      const members = leads.filter(l => l.hook === hook && l.became_member).length;
+      const convRate = Math.round((members / count) * 100);
+      if (convRate >= 30) {
+        cards.push(`
+          <div class="signal-card scale mb-12">
+            <div class="signal-header">
+              <div class="signal-icon">🟢</div>
+              <div>
+                <div class="signal-title">SCALE SIGNAL: Hook converting at ${convRate}%</div>
+                <div class="signal-subtitle">Hook <strong>${hook}</strong> has ${members} members from ${count} leads — recommend scaling budget</div>
+              </div>
+            </div>
+          </div>`);
+      }
+    }
+  });
+
+  // Condition 2: match rate < 50%
+  if (data.total_sessions >= 5 && data.match_rate_pct < 50) {
+    cards.push(`
+      <div class="signal-card kill mb-12">
+        <div class="signal-header">
+          <div class="signal-icon">🔴</div>
+          <div>
+            <div class="signal-title">ATTRIBUTION MATCH RATE LOW: ${data.match_rate_pct}%</div>
+            <div class="signal-subtitle">Less than half of ad clicks are being matched to GHL contacts — check GHL webhook configuration</div>
+          </div>
+        </div>
+        <div class="signal-actions"><button class="btn" onclick="navigate('journey')">View Attribution Report</button></div>
+      </div>`);
+  }
+
+  // Condition 3: lost_join count > 5
+  const lostJoin = leads.filter(l => l.lead_type === 'lost_join').length;
+  if (lostJoin > 5) {
+    cards.push(`
+      <div class="signal-card mb-12" style="border-color:var(--gold)">
+        <div class="signal-header">
+          <div class="signal-icon">🟡</div>
+          <div>
+            <div class="signal-title">ABANDONED CART OPPORTUNITY: ${lostJoin} lost_join leads</div>
+            <div class="signal-subtitle">${lostJoin} leads reached the join page but didn't complete — consider an abandoned follow-up sequence</div>
+          </div>
+        </div>
+        <div class="signal-actions"><button class="btn" onclick="navigate('journey')">View Leads</button></div>
+      </div>`);
+  }
+
+  if (cards.length === 0) { el.innerHTML = ''; return; }
+
+  el.innerHTML = `
+    <div class="section-title">ATTRIBUTION INTELLIGENCE</div>
+    ${cards.join('')}`;
 }
 
 function getLocalPlaceholderSignals() {
@@ -1142,62 +1317,154 @@ function filterHooks(filter, btn) {
 // ════════════════════════════════════════════
 // LEAD JOURNEY
 // ════════════════════════════════════════════
+let journeyRefreshTimer = null;
+
 async function loadJourney() {
-  const data = await api('/api/performance');
-  if (!data) return;
+  const el = document.getElementById('journey-content');
+  if (!el) return;
+  el.innerHTML = '<div class="skeleton skeleton-text" style="height:80px;margin-bottom:12px"></div>'.repeat(3);
 
-  const isPlaceholder = data._is_placeholder;
-  const reported = data.overview.meta_cpl || 38;
-  const blended = data.overview.blended_cpl || 34;
+  const data = await api('/api/attribution/report');
 
-  document.getElementById('journey-attribution').innerHTML = `
-    ${isPlaceholder ? '<div class="placeholder-notice">⚠ Placeholder data — run lead-journey-tracker to populate real attribution</div>' : ''}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;text-align:center">
-      <div>
-        <div class="card-label">META-REPORTED CPL</div>
-        <div class="metric-value yellow">$${reported}</div>
-        <div class="text-muted">What Meta says</div>
+  if (!data || data.total_sessions === 0) {
+    el.innerHTML = `
+      <div class="empty-state" style="padding:40px">
+        <div class="icon">🗺</div>
+        <h3>No attribution data yet</h3>
+        <p style="max-width:400px;color:var(--text-muted)">Visit <strong>/go</strong> with UTM params to create your first session, then configure GHL webhooks to start matching leads to ad clicks.</p>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;justify-content:center">
+          <a href="/api/attribution/report" target="_blank" class="btn" style="font-size:12px">View Raw Report</a>
+          <button class="btn" style="font-size:12px" onclick="navigate('manus')">▶ GHL Webhook Setup</button>
+        </div>
+      </div>`;
+    if (journeyRefreshTimer) clearInterval(journeyRefreshTimer);
+    journeyRefreshTimer = setInterval(loadJourney, 60000);
+    return;
+  }
+
+  const leads = data.leads || [];
+  const estRevenue = (data.summary && data.summary.members || 0) * 2000;
+  const matchRatePct = data.match_rate_pct || 0;
+
+  // Summary cards
+  const cards = `
+    <div class="metrics-row mb-24">
+      <div class="card">
+        <div class="card-label">Leads Tracked</div>
+        <div class="metric-value">${data.total_sessions}</div>
+        <div class="text-muted" style="margin-top:4px">${data.sessions_breakdown && data.sessions_breakdown.pending || 0} pending match</div>
       </div>
-      <div>
-        <div class="card-label">TRUE BLENDED CPL</div>
-        <div class="metric-value green">$${blended}</div>
-        <div class="text-muted">What we tracked</div>
+      <div class="card">
+        <div class="card-label">Match Rate</div>
+        <div class="metric-value ${matchRatePct >= 60 ? 'green' : matchRatePct >= 30 ? 'yellow' : matchRatePct > 0 ? 'red' : ''}">${matchRatePct}%</div>
+        <div class="text-muted" style="margin-top:4px">${data.total_matched} matched</div>
       </div>
-    </div>
-    <div style="margin-top:16px;padding:10px;background:rgba(16,185,129,0.08);border-radius:8px;font-size:12px;color:var(--text-secondary)">
-      True CPL is typically lower because some members converted through paths the platform doesn't see (GBP clicks, direct, referral).
+      <div class="card">
+        <div class="card-label">Members Confirmed</div>
+        <div class="metric-value green">${data.summary && data.summary.members || 0}</div>
+        <div class="text-muted" style="margin-top:4px">from ${data.total_matched} matched</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Est. Revenue</div>
+        <div class="metric-value ${estRevenue > 0 ? 'green' : ''}">$${estRevenue.toLocaleString()}</div>
+        <div class="text-muted" style="margin-top:4px">@ $2,000 LTV</div>
+      </div>
     </div>`;
 
-  // Attribution pie
-  const attrData = isPlaceholder
-    ? { labels: ['Facebook', 'Google', 'GBP', 'Organic', 'Referral', 'Unattributed'], values: [40, 30, 10, 8, 7, 5] }
-    : { labels: ['Facebook', 'Google', 'GBP', 'Organic', 'Referral', 'Unattributed'], values: [35, 30, 12, 10, 8, 5] };
+  // By Source table
+  const bySource = (data.summary && data.summary.by_source) || {};
+  const sourceRows = Object.entries(bySource).sort((a,b)=>b[1]-a[1]).map(([src, count]) => {
+    const srcLeads = leads.filter(l => l.original_source === src);
+    const matched = srcLeads.filter(l => l.matched).length;
+    const members = srcLeads.filter(l => l.became_member).length;
+    const convRate = count > 0 ? Math.round((members / count) * 100) : 0;
+    return `<tr><td>${src}</td><td>${count}</td><td>${matched}</td><td>${members}</td><td>${convRate}%</td></tr>`;
+  }).join('');
+  const sourceTable = Object.keys(bySource).length > 0 ? `
+    <div class="card mb-16">
+      <div class="section-title">BY SOURCE</div>
+      <table class="data-table">
+        <thead><tr><th>Source</th><th>Leads</th><th>Matched</th><th>Members</th><th>Conv Rate</th></tr></thead>
+        <tbody>${sourceRows}</tbody>
+      </table>
+    </div>` : '';
 
-  const ctx = document.getElementById('attribution-pie');
-  if (state.attributionChart) state.attributionChart.destroy();
-  state.attributionChart = new Chart(ctx, {
-    type: 'doughnut',
-    data: { labels: attrData.labels, datasets: [{ data: attrData.values, backgroundColor: ['#7C3AED','#F97316','#10B981','#06B6D4','#EC4899','rgba(255,255,255,0.15)'], borderWidth: 0 }] },
-    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: 'rgba(255,255,255,0.5)', font: { size: 11 } } } } }
-  });
+  // By Hook table
+  const byHook = (data.summary && data.summary.by_hook) || {};
+  const hookRows = Object.entries(byHook).sort((a,b)=>b[1]-a[1]).map(([hook, count]) => {
+    const hookLeads = leads.filter(l => l.hook === hook);
+    const members = hookLeads.filter(l => l.became_member).length;
+    const daysList = hookLeads.filter(l => l.days_to_convert !== null).map(l => l.days_to_convert);
+    const avgDays = daysList.length > 0 ? (daysList.reduce((s,v)=>s+v,0)/daysList.length).toFixed(1) : '—';
+    const convRate = count > 0 ? Math.round((members / count) * 100) : 0;
+    return `<tr><td><code style="font-size:11px">${hook}</code></td><td>${count}</td><td>${members}</td><td>${convRate}%</td><td>${avgDays === '—' ? '—' : avgDays + ' days'}</td></tr>`;
+  }).join('');
+  const hookTable = Object.keys(byHook).length > 0 ? `
+    <div class="card mb-16">
+      <div class="section-title">BY HOOK</div>
+      <table class="data-table">
+        <thead><tr><th>Hook</th><th>Leads</th><th>Members</th><th>Conv Rate</th><th>Avg Days</th></tr></thead>
+        <tbody>${hookRows}</tbody>
+      </table>
+    </div>` : '';
 
-  document.getElementById('multitouch-stats').innerHTML = `
-    <div style="padding:12px 0;border-bottom:1px solid var(--border)"><div class="card-label">Multi-touch leads</div><div style="font-size:18px;font-weight:700">${isPlaceholder ? '~35%' : 'No data'}</div><div class="text-muted">Touched 2+ channels before converting</div></div>
-    <div style="padding:12px 0;border-bottom:1px solid var(--border)"><div class="card-label">Avg touches before form submit</div><div style="font-size:18px;font-weight:700">${isPlaceholder ? '2.4' : 'No data'}</div></div>
-    <div style="padding:12px 0"><div class="card-label">Avg days first touch → submit</div><div style="font-size:18px;font-weight:700">${isPlaceholder ? '4.2 days' : 'No data'}</div></div>`;
-
-  const trackingPct = isPlaceholder ? 72 : 0;
-  document.getElementById('tracking-gap').innerHTML = `
-    <div style="margin-bottom:8px;font-size:13px">${trackingPct}% of leads have journey data</div>
-    <div style="background:var(--bg-void);border-radius:4px;height:8px;margin-bottom:8px;overflow:hidden">
-      <div style="width:${trackingPct}%;background:linear-gradient(90deg,var(--purple),var(--violet));height:100%;border-radius:4px"></div>
-    </div>
-    <div class="text-muted">${100-trackingPct}% unattributed. Fix: update all GBP location website URLs to tracking redirect.</div>`;
-
-  document.getElementById('tracking-status').innerHTML = `
-    <div style="display:flex;align-items:center;gap:8px;font-size:13px">
-      ${isPlaceholder ? '<span style="color:var(--gold)">⚠</span> <span>Tracking redirect status unknown — deploy <code>tracking-redirect/</code> to Railway</span>' : '<span style="color:var(--green)">✓</span> Tracking redirect LIVE'}
+  // By Lead Type table
+  const byLeadType = (data.summary && data.summary.by_lead_type) || {};
+  const totalSessions = data.total_sessions || 1;
+  const leadTypeRows = Object.entries(byLeadType).sort((a,b)=>b[1]-a[1]).map(([type, count]) => {
+    const pct = Math.round((count / totalSessions) * 100);
+    return `<tr><td>${type}</td><td>${count}</td><td>${pct}%</td></tr>`;
+  }).join('');
+  const leadTypeTable = Object.keys(byLeadType).length > 0 ? `
+    <div class="card mb-16">
+      <div class="section-title">BY LEAD TYPE</div>
+      <table class="data-table">
+        <thead><tr><th>Lead Type</th><th>Count</th><th>% of Total</th></tr></thead>
+        <tbody>${leadTypeRows}</tbody>
+      </table>
+    </div>` : `
+    <div class="card mb-16">
+      <div class="section-title">BY LEAD TYPE</div>
+      <div class="text-muted">No GHL contacts matched yet — configure GHL webhooks to start populating lead types.</div>
     </div>`;
+
+  // Recent Leads table (last 10, newest first)
+  const recentLeads = leads.slice().reverse().slice(0, 10);
+  const recentRows = recentLeads.map(l => {
+    const date = l.received_at ? l.received_at.slice(0,10) : '—';
+    const matchedBadge = l.matched
+      ? `<span style="color:var(--green);font-weight:600">✓</span>`
+      : `<span style="color:var(--text-muted)">—</span>`;
+    const memberBadge = l.became_member
+      ? `<span style="color:var(--green);font-weight:600">✓ member</span>`
+      : '—';
+    return `<tr>
+      <td style="font-size:11px;color:var(--text-muted)">${date}</td>
+      <td><span class="chip chip-purple" style="font-size:10px">${l.lead_type || '—'}</span></td>
+      <td>${l.original_source || '—'}</td>
+      <td><code style="font-size:10px">${l.hook || '—'}</code></td>
+      <td>${matchedBadge}</td>
+      <td>${memberBadge}</td>
+    </tr>`;
+  }).join('');
+  const recentTable = `
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="section-title" style="margin-bottom:0">RECENT LEADS</div>
+        <div class="text-muted" style="font-size:11px">Auto-refresh every 60s · Last updated ${new Date().toLocaleTimeString()}</div>
+      </div>
+      ${recentLeads.length === 0
+        ? '<div class="text-muted">No GHL contacts matched yet. Configure GHL webhooks to start matching.</div>'
+        : `<table class="data-table">
+            <thead><tr><th>Date</th><th>Lead Type</th><th>Source</th><th>Hook</th><th>Matched</th><th>Member</th></tr></thead>
+            <tbody>${recentRows}</tbody>
+          </table>`}
+    </div>`;
+
+  el.innerHTML = cards + sourceTable + hookTable + leadTypeTable + recentTable;
+
+  if (journeyRefreshTimer) clearInterval(journeyRefreshTimer);
+  journeyRefreshTimer = setInterval(loadJourney, 60000);
 }
 
 // ════════════════════════════════════════════
