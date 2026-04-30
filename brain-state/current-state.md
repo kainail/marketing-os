@@ -2,7 +2,7 @@
 # AHRI reads this file before every generation. Keep it current.
 
 ## Sessions Complete
-Sessions 0–18 | Version: v2.0 | Last updated: 2026-04-30
+Sessions 0–19 | Version: v2.0 | Last updated: 2026-04-30
 
 ## Active Offer
 The No-Risk Comeback — 30 Days Coached, $1 to Start
@@ -41,14 +41,57 @@ Status: pending GHL and ElevenLabs implementation — Kai approval required befo
 
 ## Landing Page Status
 - LIVE at: no-risk-comeback-landing-page-production.up.railway.app
-- Railway server: Node.js with env var injection — all {{custom_values.x}} placeholders resolved at request time
+- Railway server: Node.js with env var injection — all {{custom_values.x}} and {{PORTAL_URL}} placeholders resolved at request time
 - Both forms working: hero form + final CTA form — archetype radio question on both
-- Form submission: wired to GHL API via submitForm() JS handler
+- Form submission: POST /api/leads/submit on marketing-portal — GHL v1 API (Location API Key)
 - Facebook Pixel (ID: 1984794322135725) installed — fires PageView on load, Lead on form submit
-- Pending: GHL API key regeneration before go-live
+- GHL tags on submit: no-risk-comeback, landing-page, archetype-[type]
+- Debug endpoints live: /debug (env var check), /health
+- Pending: remove console.log debug statements after confirmation tests pass
 - Pending: real photos (gym-photo.jpg committed — verify display on Railway)
 - Pending: Steph testimonial replacement with real member
-- Pending: add image to campaign creative
+
+## Session 19 — Goal Status
+
+Goal 1 — Location Config System: COMPLETE ✅
+Goal 2 — Replace Make Scenarios: COMPLETE ✅
+Goal 3 — OPS Compute Functions Location-Aware: COMPLETE ✅
+Goal 4 — Attribution Pipeline: COMPLETE ✅
+  Code complete and deployed.
+  Form submission working end to end.
+  5 confirmation tests still needed next session:
+    Test 2: Railway logs show [LeadSubmit] correctly
+    Test 3: GHL contact has correct archetype tags
+    Test 4: No API key visible in page source
+    Test 5: Session ID flows through /go correctly
+    Test 6: Attribution matches session end to end
+Goal 5 — Marketing OS Campaigns: COMPLETE ✅
+  Code complete and deployed.
+  Needs same confirmation tests as Goal 4.
+Goal 6 — R2 Migration: NOT STARTED
+Goal 7 — Three-Tier Portal: NOT STARTED
+Goal 8 — Handbook Export: NOT STARTED
+
+## Pending Manual Fixes
+- "that's Adam" → "that's Jessica" in GHL SMS
+- CLARITY_PROJECT_ID not set in landing server Railway service
+- Call recording webhook not configured in GHL:
+    URL: https://gymsuiteai-dashboard-production.up.railway.app/api/webhooks/ghl/bloomington/call-recording
+    Event: Call Recording
+- Make scenarios still need disabling in Make (do not delete — 30-day reference window)
+- Switch to OUTCOME_LEADS after 50+ pixel events
+- META_ACCESS_TOKEN renewal deadline: 2026-05-29
+
+## Next Session Starts With
+1. Run 5 confirmation tests for Goals 4 and 5
+2. Then begin Goal 6 — R2 Migration
+
+R2 credentials needed from Kai before Session 20:
+  R2_ACCOUNT_ID
+  R2_ACCESS_KEY_ID
+  R2_SECRET_ACCESS_KEY
+  R2_BUCKET_NAME = gymsuiteai-storage
+  R2_ENDPOINT = https://{account_id}.r2.cloudflarestorage.com
 
 ## Skills Complete: 15 of 15
 offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync,
@@ -76,58 +119,6 @@ Manus tasks (first Monday of month):
 Manus tasks (on-demand):
 - content-posting (after Kai approves queue)
 
-## Manus Tasks Ready: 16 of 16
-- manus-tasks/content-posting.md
-- manus-tasks/competitor-research.md
-- manus-tasks/trend-monitoring.md
-- manus-tasks/paid-ads-analyzer.md
-- manus-tasks/google-ads-analyzer.md
-- manus-tasks/budget-pacing-tracker.md
-- manus-tasks/lead-journey-tracker.md
-- manus-tasks/clarity-analyzer.md
-- manus-tasks/nurture-performance-analyzer.md
-- manus-tasks/retention-early-warning.md
-- manus-tasks/review-monitoring.md
-- manus-tasks/crm-hygiene.md
-- manus-tasks/referral-tracker.md
-- manus-tasks/gbp-optimization.md
-- manus-tasks/monthly-report.md
-- manus-tasks/paid-ads-setup.md (task #16 — added Session 17)
-
-## Session 18 — What Was Built
-- marketing-portal/server.js — 3 path constants (ATTRIBUTION_DIR, SESSIONS_DIR, ATTRIBUTION_REPORT)
-- marketing-portal/server.js — safeReadJSONAsync helper (returns null for missing files)
-- marketing-portal/server.js — GET /go ghost redirect (captures fbclid+UTMs, writes session file, redirects <50ms)
-- marketing-portal/server.js — GET /api/attribution/session/:sessionId (session lookup)
-- marketing-portal/server.js — POST /api/ghl/contact-created (GHL webhook receiver)
-- marketing-portal/server.js — POST /api/ghl/contact-updated (member conversion tracker)
-- marketing-portal/server.js — GET /api/attribution/report (dynamic session counting from SESSIONS_DIR)
-- marketing-portal/server.js — fireCAPIEvent() sends Lead/Purchase events to Facebook CAPI
-- marketing-portal/server.js — matchContactToSession() matches GHL contacts to /go sessions
-- marketing-portal/server.js — confirmMemberConversion() fires CAPI Purchase + updates report
-- marketing-portal/server.js — updateAttributionReport() maintains attribution-report.json
-- marketing-portal/server.js — initAttributionStore() creates dirs + initializes report on startup
-- marketing-portal/server.js — ad URLs updated to route through /go ghost redirect (redirect=landing)
-- marketing-portal/public/index.html — Lead Journey dashboard (4 summary cards, 4 data tables, 60s auto-refresh)
-- marketing-portal/public/index.html — Performance attribution tab (hook ranking, days-to-convert, revenue by campaign)
-- marketing-portal/public/index.html — Decision Layer attribution intelligence cards (scale signal, low match rate, abandoned cart)
-- marketing-portal/public/index.html — Overview attribution widget (ad clicks, match rate, GHL leads, members)
-- engine/ahri.ts — check_attribution intent + handleCheckAttribution() function
-- knowledge-base/nurture/ghl-webhook-setup.md — step-by-step GHL webhook config guide
-
-## Session 17 — What Was Built
-- 14 scheduled tasks wired (cron-based automated routines)
-- 3 agentic rules engine (auto_pause CPL>$60, auto_scale +20%, auto_double_down +40%)
-- Queue persistence (task-runs.json, atomic writes)
-- Manus launcher with 6-state button (idle/launching/running/complete/failed/fallback)
-- Recent Runs panel with polling on active tasks
-
-## Session 18 Commits
-- 6f01456 — Session 18 attribution system (ghost redirect, session store, GHL webhooks, CAPI, attribution matcher)
-- 9ee4a94 — fix: attribution report dynamically counts session files from SESSIONS_DIR
-- 526961d — fix: campaign ad URLs route through /go with redirect=landing
-- 323886b — wire attribution data into portal UI (Lead Journey, Performance tab, Decision Layer, Overview)
-
 ## OUTCOME_LEADS Upgrade Checklist
 Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
 1. Monitor Events Manager for 50+ PageView events on pixel 1984794322135725
@@ -139,119 +130,16 @@ Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
 4. Redeploy → create new campaign via portal
 
 ## Token Renewal Schedule
-- META_ACCESS_TOKEN long-lived token expires ~2026-06-28
-- Set calendar reminder: 2026-05-29
-- Renew via Graph API Explorer → exchange for long-lived token → update META_ACCESS_TOKEN in Railway (marketing-os service)
-
-## New Railway Vars Needed (API Key Architecture)
-OPS Dashboard service:
-  ANTHROPIC_API_KEY_BLOOMINGTON — renamed from ANTHROPIC_API_KEY
-  ELEVENLABS_API_KEY_BLOOMINGTON — renamed from ELEVENLABS_API_KEY
-  ELEVENLABS_VOICE_ID_BLOOMINGTON — new (was hardcoded 'a1m16HA3i1rljUsxpKfn')
-  GOOGLE_PLACES_API_KEY_BLOOMINGTON — renamed from GOOGLE_PLACES_API_KEY
-
-Marketing OS service:
-  ANTHROPIC_API_KEY_BLOOMINGTON — renamed from ANTHROPIC_API_KEY
-  MANUS_API_KEY_BLOOMINGTON — renamed from MANUS_API_KEY
-  FAL_AI_KEY_BLOOMINGTON — new (was FAL_AI_KEY or in engine/.env only)
-
-## Outstanding Issues
-- Campaign needs to be activated in Ads Manager (currently PAUSED — Kai must enable spend)
-- fal.ai balance needs top-up (image generation disabled)
-- GHL API key regeneration (critical — old key exposed/invalid)
-- GHL webhooks not yet configured — see knowledge-base/nurture/ghl-webhook-setup.md
-- META_CAPI_TOKEN (META_ACCESS_TOKEN) needs to be set in marketing-os Railway env for CAPI to fire
-- Clarity project ID not set
-- GBP links still pointing to AF.com (not through /go redirect)
-- Landing page: Steph testimonial needs replacement with real member
-- Landing page: add image to campaign creative
-- Neural OS (end of project — not started)
-- GHL Workflow 1 archetype tagging (3 steps pending)
-- Tracking redirect deployment (tracking-redirect/ service not yet deployed to Railway)
-- Dashboard rendering bug (unresolved)
-- Token renewal calendar reminder: 2026-05-29
+- META_ACCESS_TOKEN_BLOOMINGTON expires 2026-05-29
+- Renew before that date
+- Renew via Graph API Explorer → exchange for long-lived token → update META_ACCESS_TOKEN_BLOOMINGTON in Railway (marketing-os service)
 
 ## Architecture Decisions Locked
-- **Make scenarios REPLACED**: All 6 Make scenarios will be replaced with Railway-native webhook handlers in Session 19. Reason: Railway already handles GHL webhooks natively — Make adds latency, cost, and a failure point. No net new functionality.
-- **Session 19 prerequisite**: Full GymSuite AI system map transcript + GHL workflow screenshots + Make scenario configurations + Google Sheets column structure + Railway env vars for OPS dashboard required BEFORE any Session 19 code is written.
-- **Onboarding SOP first**: Complete new club onboarding SOP (PDF) must be built before Eaton location code is written. SOP documents every manual step so it can be executed without an engineer.
-
-## Session 19 — Goal Status
-Goal 1 — Location Config: COMPLETE
-Goal 1.5 — API Keys Per-Location: COMPLETE
-Goal 2 — Replace Make: not started
-Goal 3 — OPS Compute: not started
-Goal 4 — Attribution: not started
-Goal 5 — Marketing OS: not started
-Goal 6 — R2 Migration: not started
-Goal 7 — Portal System: not started
-Goal 8 — Handbook Export: not started
-
-## Session 19 — API Key Architecture (between Goal 1 and Goal 2)
-- All 4 locations.js files — added keys: {} block with 6 per-location API keys (anthropicApiKey, elevenLabsApiKey, elevenLabsVoiceId, falAiKey, manusApiKey, googlePlacesApiKey)
-- gymsuiteai-dashboard/server.js — getAnthropicClient(locationId) reads from loc.keys.anthropicApiKey
-- gymsuiteai-dashboard/server.js — synthesizeSpeech(text, locationId) reads voice ID + API key from loc.keys
-- gymsuiteai-dashboard/server.js — removed module-level ELEVENLABS_VOICE_ID constant
-- gymsuiteai-dashboard/server.js — getNearbyGyms(lat, lng, radius, locationId) reads from loc.keys.googlePlacesApiKey
-- gymsuiteai-dashboard/server.js — computeNetworkIntelligence() passes location name to getNearbyGyms
-- marketing-portal/server.js — MANUS_API_KEY moved after locationConfig require, reads from loc.keys.manusApiKey
-- marketing-portal/server.js — /api/ahri reads apiKey from loc.keys.anthropicApiKey
-- gymsuite-new-club-handbook.md — Appendix A: added 6 API key rows + step-by-step account creation instructions
-- gymsuite-new-club-handbook.md — Appendix C OPS: moved ANTHROPIC_API_KEY + ELEVENLABS_API_KEY from Shared to Per-gym
-- gymsuite-new-club-handbook.md — Appendix C Marketing OS: moved ANTHROPIC_API_KEY + MANUS_API_KEY from Shared to Per-gym, added FAL_AI_KEY per-gym row
-- Railway: ANTHROPIC_API_KEY_BLOOMINGTON, ELEVENLABS_API_KEY_BLOOMINGTON, ELEVENLABS_VOICE_ID_BLOOMINGTON, FAL_AI_KEY_BLOOMINGTON, MANUS_API_KEY_BLOOMINGTON, GOOGLE_PLACES_API_KEY_BLOOMINGTON must be added (see Outstanding Issues)
-
-## Session 19 — Goal 1 What Was Built
-- gymsuiteai-dashboard/config/locations.js — location registry (bloomington active, eaton inactive)
-- .claude/marketing-os/config/locations.js — root-level config (reference only)
-- .claude/marketing-os/marketing-portal/config/locations.js — deployed config for marketing-portal
-- .claude/marketing-os/landing-server/config/locations.js — deployed config for landing-server
-- gymsuiteai-dashboard/server.js — removed SHEET1_ID/SHEET2_ID hardcoded declarations
-- gymsuiteai-dashboard/server.js — removed GHL_SUBACCOUNTS object
-- gymsuiteai-dashboard/server.js — added getSheet1Id(locationId), getGHLAccount(id), getAllGHLAccounts() helpers
-- gymsuiteai-dashboard/server.js — added startup validation (throws if SHEET1_ID_BLOOMINGTON missing)
-- gymsuiteai-dashboard/server.js — all SHEET1_ID refs → getSheet1Id(), all SHEET2_ID refs → getSheet1Id() + 'AI Call Review' tab
-- gymsuiteai-dashboard/server.js — added GET /api/locations endpoint
-- .claude/marketing-os/marketing-portal/server.js — Meta constants sourced from locationConfig
-- .claude/marketing-os/marketing-portal/server.js — added getLocationMeta(locationId) helper
-- .claude/marketing-os/marketing-portal/server.js — FRANCHISE_URL in /go now from loc.franchiseUrl
-- .claude/marketing-os/marketing-portal/server.js — /go session now includes location_id field
-- .claude/marketing-os/marketing-portal/server.js — campaign creation uses campaignLoc + locMeta
-- .claude/marketing-os/marketing-portal/server.js — seed competitor data no longer hardcodes Bloomington
-- .claude/marketing-os/marketing-portal/server.js — renderHook(hookText, locationId) function added
-- .claude/marketing-os/marketing-portal/server.js — /api/hooks-library renders hooks for requested location
-- .claude/marketing-os/marketing-portal/server.js — /api/queue returns location_id per asset, supports ?location= filter
-- .claude/marketing-os/landing-server/server.js — rewrote to read ?location= param and serve per-location content
-- gymsuite-new-club-handbook.md — Phase 1, 2, 3 filled in. Appendix A, C filled in.
-
-## Env Vars Still Needed From Kai (Goal 1)
-OPS Dashboard service:
-  SHEET1_ID_BLOOMINGTON — Bloomington Google Sheet ID (currently using old SHEET1_ID)
-  GHL_BLOOMINGTON_LOCATION_ID — replace hardcoded h4FkKJzyBbX0vR71RJFI
-  ALERT_EMAIL_BLOOMINGTON — email for Bloomington missed-lead alerts
-
-Marketing OS service:
-  META_ACCESS_TOKEN_BLOOMINGTON — renamed from META_ACCESS_TOKEN
-  META_AD_ACCOUNT_ID_BLOOMINGTON — renamed from META_AD_ACCOUNT_ID
-  META_PAGE_ID_BLOOMINGTON — renamed from META_PAGE_ID
-  META_PIXEL_ID_BLOOMINGTON — renamed from META_PIXEL_ID
-  GYM_ADDRESS_BLOOMINGTON, GYM_PHONE_BLOOMINGTON, MANAGER_NAME_BLOOMINGTON
-  REVIEW_COUNT_BLOOMINGTON, REVIEW_RATING_BLOOMINGTON
-  COHORT_START_DATE_BLOOMINGTON, SPOTS_REMAINING_BLOOMINGTON
-  SPECIAL_PROMO_BLOOMINGTON, HOURS_OF_OPERATION_BLOOMINGTON
-  ALERT_EMAIL_BLOOMINGTON
-
-Eaton (for when Kai provides credentials):
-  All per-gym vars with _EATON suffix + META_GEO_KEY_EATON
-
-## Session 19 — What New Conversation Needs Before Building
-1. Full GymSuite AI transcript (for accurate SOP — covers all 17 system phases)
-2. GHL workflow screenshots (Workflow 1 + all active workflows)
-3. Make scenario configurations (all 6 scenarios — inputs, outputs, column mappings)
-4. Google Sheets column structure (columns M and R + full sheet layout)
-5. Railway env vars for OPS dashboard (current values to port into location config)
-6. Then: build complete onboarding SOP PDF
-7. Then: build Session 19 code
+- GHL lead submission: POST /api/leads/submit on marketing-portal — GHL v1 API — Location API Key in GHL_BLOOMINGTON_API_KEY
+- Attribution: /go writes session file with session_id; landing page URL receives session_id; form submit passes sessionId to matchContactToSession for direct file lookup
+- All email via Resend (HTTP, not SMTP) — Railway blocks Gmail SMTP
+- Long tasks fire-and-forget: respond 200 immediately, run async with .catch()
+- MP3 hosted at ./data/reports/, served via GET /reports/:filename?token=JWT_SECRET
 
 ## Cross-Brain Insights (updated 2026-04-24 — 75 calls analyzed)
 - INSIGHT 1: Source attribution is null for 3 of 75 calls (4%). AHRI enforces UTM injection on all assets. Default source value "direct_untagged" appended to all untagged leads.
@@ -261,5 +149,7 @@ Eaton (for when Kai provides credentials):
 - INSIGHT 5: Soft commitments ("I guess, later today") result in zero show rate. Pre-appointment nurture sequence (confirmation SMS + 2-hour reminder) designed in nurture-sync v1.1 — pending GHL implementation.
 
 ## Future Sessions
-- Session 20: Second gym location live (Eaton) — after SOP complete and R2 migrated
-- Session 21+: Vision + Syndra cross-brain data sharing (once both systems have meaningful data)
+- Session 20: Confirmation tests → Goal 6 R2 Migration (needs R2 credentials from Kai)
+- Session 21: Goal 7 Three-Tier Portal + Goal 8 Handbook Export
+- Session 22+: Second gym location live (Eaton) — after SOP complete and R2 migrated
+- Session 23+: Vision + Syndra cross-brain data sharing (once both systems have meaningful data)
