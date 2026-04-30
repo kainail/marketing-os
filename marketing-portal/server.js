@@ -1481,7 +1481,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
 
     // STEP 4 — Create Cold Creative
     console.log('[Meta] Creating cold creative...');
-    const coldLink = destination_url || 'https://marketing-os-production-2b85.up.railway.app/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-parent-child&utm_term=cold-lifestyle&redirect=franchise';
+    const coldLink = destination_url || 'https://marketing-os-production-2b85.up.railway.app/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-parent-child&utm_term=cold-lifestyle&redirect=landing';
     const coldLinkData = {
       message: cold_primary_text || `The moment you realized you couldn't keep up with your own kids.\n\nThat feeling isn't about fitness. It's about who you want to be.\n\nAt Anytime Fitness Bloomington, your first 30 days are fully coached for $1.\n\nPrivate orientation. Weekly check-ins. A coach who texts you in week two — because that's when people stop. We know.\n\nShow up 12 times. If it's not worth it, full refund. You keep everything.\n\nThe form is below.`,
       link: coldLink,
@@ -1509,7 +1509,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
 
     // STEP 6 — Create Warm Creative
     console.log('[Meta] Creating warm creative...');
-    const warmLink = destination_url || 'https://marketing-os-production-2b85.up.railway.app/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-offer-direct&utm_term=warm-retarget&redirect=franchise';
+    const warmLink = destination_url || 'https://marketing-os-production-2b85.up.railway.app/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-offer-direct&utm_term=warm-retarget&redirect=landing';
     const warmCreative = await metaApiCall(`${META_AD_ACCOUNT_ID}/adcreatives`, 'POST', {
       name: 'Hook E — Offer Direct — Warm',
       object_story_spec: JSON.stringify({
