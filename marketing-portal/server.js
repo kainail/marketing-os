@@ -42,31 +42,43 @@ const ASSET_LOG = path.join(ROOT, 'performance', 'asset-log.csv');
 const SESSION_LOG = path.join(LOGS, 'session-log.csv');
 const RULES_FILE = path.join(__dirname, 'config', 'agentic-rules.json');
 const MANUS_API_BASE = process.env.MANUS_API_BASE || 'https://api.manus.ai/v2';
-const MANUS_API_KEY = process.env.MANUS_API_KEY || '';
 const WEBHOOK_URL = process.env.WEBHOOK_URL
   || process.env.PORTAL_WEBHOOK_URL
   || (process.env.RAILWAY_PUBLIC_DOMAIN
     ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
     : null);
 
+const locationConfig = require('./config/locations.js');
+const MANUS_API_KEY = locationConfig.getLocation('bloomington').keys?.manusApiKey || '';
+
 // --- Meta Marketing API ---
-// Required Railway env vars:
-// META_ACCESS_TOKEN — long-lived token from Graph API Explorer
-// META_AD_ACCOUNT_ID — format: act_XXXXXXXX
-// META_PAGE_ID — Anytime Fitness Bloomington Facebook page ID
-// META_APP_ID — from developers.facebook.com
-// META_APP_SECRET — from app settings
-const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
-const META_AD_ACCOUNT_ID = (() => { const raw = process.env.META_AD_ACCOUNT_ID || ''; return raw.startsWith('act_') ? raw : (raw ? `act_${raw}` : ''); })();
-const META_PAGE_ID = process.env.META_PAGE_ID;
+// Credentials are sourced from config/locations.js which reads per-location env vars:
+// META_ACCESS_TOKEN_BLOOMINGTON, META_AD_ACCOUNT_ID_BLOOMINGTON, META_PAGE_ID_BLOOMINGTON, etc.
+// META_APP_ID and META_APP_SECRET are app-level (shared across all locations).
+const _bloomingtonMeta = locationConfig.getLocation('bloomington').meta;
+const META_ACCESS_TOKEN = _bloomingtonMeta.accessToken;
+const META_AD_ACCOUNT_ID = (() => { const raw = _bloomingtonMeta.adAccountId || ''; return raw.startsWith('act_') ? raw : (raw ? `act_${raw}` : ''); })();
+const META_PAGE_ID = _bloomingtonMeta.pageId;
 const META_APP_ID = process.env.META_APP_ID;
 const META_APP_SECRET = process.env.META_APP_SECRET;
-const META_PIXEL_ID = process.env.META_PIXEL_ID;
+const META_PIXEL_ID = _bloomingtonMeta.pixelId;
 const META_API_VERSION = 'v19.0';
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`;
 
+function getLocationMeta(locationId) {
+  const loc = locationConfig.getLocation(locationId);
+  if (!loc) return null;
+  const raw = loc.meta.adAccountId || '';
+  return {
+    accessToken: loc.meta.accessToken,
+    adAccountId: raw.startsWith('act_') ? raw : (raw ? `act_${raw}` : ''),
+    pageId: loc.meta.pageId,
+    pixelId: loc.meta.pixelId,
+  };
+}
+
 if (!META_ACCESS_TOKEN || !META_AD_ACCOUNT_ID || !META_PAGE_ID) {
-  console.warn('⚠ Meta API credentials not configured — campaign creation disabled. Add META_ACCESS_TOKEN, META_AD_ACCOUNT_ID, META_PAGE_ID to env vars.');
+  console.warn('⚠ Meta API credentials not configured — campaign creation disabled. Set META_ACCESS_TOKEN_BLOOMINGTON, META_AD_ACCOUNT_ID_BLOOMINGTON, META_PAGE_ID_BLOOMINGTON in Railway env vars.');
 }
 const DATA_DIR = path.join(__dirname, 'data');
 const TASK_RUNS_FILE = path.join(DATA_DIR, 'task-runs.json');
@@ -463,7 +475,7 @@ app.get('/api/status', (req, res) => {
     version: '1.0',
     portal: 'AHRI Marketing Command Center',
     timestamp: new Date().toISOString(),
-    gym_name: process.env.GYM_NAME || 'GymSuite AI',
+    gym_name: locationConfig.getLocation('bloomington').gymName || 'GymSuite AI',
     ops_url: process.env.OPS_URL || 'https://gymsuiteai-dashboard-production.up.railway.app',
     neural_url: process.env.NEURAL_URL || 'https://gymsuiteai-neural-os-production.up.railway.app',
   });
@@ -707,8 +719,9 @@ app.get('/api/performance', (req, res) => {
 });
 
 app.get('/api/queue', (req, res) => {
+  const locationFilter = req.query.location || null;
   const files = safeReadDir(QUEUE).filter(f => f.endsWith('.md'));
-  const assets = files.map(filename => {
+  let assets = files.map(filename => {
     const content = safeRead(path.join(QUEUE, filename)) || '';
     const { headers, body } = extractFrontmatter(content);
     const skillType = headers.skill || filename.split('-')[0] || 'unknown';
@@ -719,9 +732,11 @@ app.get('/api/queue', (req, res) => {
     const daysOld = createdTs
       ? Math.max(0, Math.floor((Date.now() - new Date(createdTs).getTime()) / 86400000))
       : 0;
+    const assetLocationId = headers.location_id || 'bloomington';
     return {
       filename,
       asset_id: headers.asset_id || filename.replace('.md', ''),
+      location_id: assetLocationId,
       skill_type: skillType,
       variant: headers.variant || '',
       platform,
@@ -732,7 +747,11 @@ app.get('/api/queue', (req, res) => {
       caption_preview: captionPreview,
       full_content: content,
     };
-  }).sort((a, b) => a.created_date.localeCompare(b.created_date));
+  });
+  if (locationFilter) {
+    assets = assets.filter(a => a.location_id === locationFilter);
+  }
+  assets = assets.sort((a, b) => a.created_date.localeCompare(b.created_date));
   res.json({ assets, total: assets.length });
 });
 
@@ -860,7 +879,25 @@ app.get('/api/manus-tasks/:filename', (req, res) => {
   res.json({ filename, content });
 });
 
+const HOOK_TOKENS = ['{{GYM_NAME}}', '{{GYM_CITY}}', '{{GYM_STATE}}', '{{GYM_ADDRESS}}', '{{GYM_PHONE}}', '{{OFFER_NAME}}', '{{OFFER_PRICE}}', '{{OFFER_DURATION}}', '{{OFFER_DESCRIPTION}}', '{{MANAGER_NAME}}'];
+
+function renderHook(hookText, locationId = 'bloomington') {
+  const loc = locationConfig.getLocation(locationId) || locationConfig.getLocation('bloomington');
+  return hookText
+    .replace(/\{\{GYM_NAME\}\}/g, loc.gymName || '')
+    .replace(/\{\{GYM_CITY\}\}/g, loc.city || '')
+    .replace(/\{\{GYM_STATE\}\}/g, loc.state || '')
+    .replace(/\{\{GYM_ADDRESS\}\}/g, loc.address || '')
+    .replace(/\{\{GYM_PHONE\}\}/g, loc.phone || '')
+    .replace(/\{\{OFFER_NAME\}\}/g, loc.offer?.name || '')
+    .replace(/\{\{OFFER_PRICE\}\}/g, loc.offer?.price || '')
+    .replace(/\{\{OFFER_DURATION\}\}/g, loc.offer?.duration || '')
+    .replace(/\{\{OFFER_DESCRIPTION\}\}/g, loc.offer?.description || '')
+    .replace(/\{\{MANAGER_NAME\}\}/g, loc.managerName || '');
+}
+
 app.get('/api/hooks-library', (req, res) => {
+  const locationId = req.query.location || 'bloomington';
   const hooksRaw = safeReadJSON(path.join(ROOT, 'intelligence-db', 'assets', 'hooks.json'));
   let hooks = Array.isArray(hooksRaw) ? hooksRaw : (hooksRaw.hooks || []);
 
@@ -898,8 +935,10 @@ app.get('/api/hooks-library', (req, res) => {
   const enriched = hooks.map(hook => {
     const perfKey = Object.keys(perfMap).find(k => (hook.hook_text || '').startsWith(k));
     const perf = perfKey ? perfMap[perfKey] : {};
+    const renderedText = hook.hook_text ? renderHook(hook.hook_text, locationId) : hook.hook_text;
     return {
       ...hook,
+      hook_text: renderedText,
       cpl: hook.cpl ?? perf.cpl ?? null,
       ctr: hook.ctr ?? perf.ctr ?? null,
       thumbstop_rate: hook.thumbstop_rate ?? perf.thumbstop ?? null,
@@ -975,10 +1014,10 @@ app.post('/api/ahri', async (req, res) => {
   const { message, context } = req.body;
   if (!message) return res.status(400).json({ error: 'message required' });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = locationConfig.getLocation('bloomington').keys?.anthropicApiKey;
   if (!apiKey) {
     return res.json({
-      response: `AHRI here. I received your message: "${message}". To enable AI responses, add ANTHROPIC_API_KEY to your environment variables. In the meantime, check your approval queue and decision layer for the most urgent actions.`
+      response: `AHRI here. I received your message: "${message}". To enable AI responses, add ANTHROPIC_API_KEY_BLOOMINGTON to your Railway environment variables. In the meantime, check your approval queue and decision layer for the most urgent actions.`
     });
   }
 
@@ -1308,10 +1347,10 @@ app.get('/api/debug/env', (req, res) => {
     manus_key_preview: process.env.MANUS_API_KEY ? process.env.MANUS_API_KEY.substring(0, 8) + '...' : 'NOT SET',
     node_env: process.env.NODE_ENV,
     railway_env: process.env.RAILWAY_ENVIRONMENT_NAME,
-    meta_token_set: !!process.env.META_ACCESS_TOKEN,
-    meta_token_preview: process.env.META_ACCESS_TOKEN ? process.env.META_ACCESS_TOKEN.substring(0, 8) + '...' : 'NOT SET',
-    meta_account_id: process.env.META_AD_ACCOUNT_ID || 'NOT SET',
-    meta_page_id: process.env.META_PAGE_ID || 'NOT SET'
+    meta_token_set: !!META_ACCESS_TOKEN,
+    meta_token_preview: META_ACCESS_TOKEN ? META_ACCESS_TOKEN.substring(0, 8) + '...' : 'NOT SET',
+    meta_account_id: META_AD_ACCOUNT_ID || 'NOT SET',
+    meta_page_id: META_PAGE_ID || 'NOT SET'
   });
 });
 
@@ -1405,15 +1444,19 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     cold_daily_budget = 1500,
     warm_daily_budget = 1000,
     image_url = null,
+    location_id = 'bloomington',
   } = req.body;
+
+  const campaignLoc = locationConfig.getLocation(location_id) || locationConfig.getLocation('bloomington');
+  const locMeta = getLocationMeta(campaignLoc.id);
 
   const results = { campaign: null, ad_set_cold: null, ad_set_warm: null, ad_cold: null, ad_warm: null, errors: [] };
 
   try {
     // STEP 1 — Create Campaign
     console.log('[Meta] Creating campaign...');
-    const campaign = await metaApiCall(`${META_AD_ACCOUNT_ID}/campaigns`, 'POST', {
-      name: campaign_name || `30-Day Kickstart — Bloomington — ${new Date().toISOString().split('T')[0]}`,
+    const campaign = await metaApiCall(`${locMeta.adAccountId}/campaigns`, 'POST', {
+      name: campaign_name || `30-Day Kickstart — ${campaignLoc.name} — ${new Date().toISOString().split('T')[0]}`,
       objective: 'OUTCOME_TRAFFIC',
       status: 'PAUSED',
       special_ad_categories: [],
@@ -1426,7 +1469,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     console.log('[Meta] Creating cold ad set...');
     const coldTargeting = {
       geo_locations: {
-        cities: [{ key: '2418779', name: 'Bloomington', region: 'Indiana', country: 'US', radius: 15, distance_unit: 'mile' }]
+        cities: [{ key: campaignLoc.meta.geoKey, name: campaignLoc.city, region: campaignLoc.meta.geoRegion, country: campaignLoc.meta.geoCountry, radius: 15, distance_unit: 'mile' }]
       },
       age_min: 30,
       age_max: 55,
@@ -1434,11 +1477,11 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       facebook_positions: ['feed'],
       targeting_automation: { advantage_audience: 0 },
     };
-    const promotedObject = { page_id: META_PAGE_ID };
+    const promotedObject = { page_id: locMeta.pageId };
     console.log('[Meta] promoted_object:', JSON.stringify(promotedObject));
 
-    const coldAdSet = await metaApiCall(`${META_AD_ACCOUNT_ID}/adsets`, 'POST', {
-      name: 'Cold — Lifestyle Member — Bloomington — Hook A',
+    const coldAdSet = await metaApiCall(`${locMeta.adAccountId}/adsets`, 'POST', {
+      name: `Cold — Lifestyle Member — ${campaignLoc.name} — Hook A`,
       campaign_id: campaign.id,
       daily_budget: cold_daily_budget,
       billing_event: 'IMPRESSIONS',
@@ -1456,7 +1499,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     console.log('[Meta] Creating warm ad set...');
     const warmTargeting = {
       geo_locations: {
-        cities: [{ key: '2418779', name: 'Bloomington', region: 'Indiana', country: 'US', radius: 15, distance_unit: 'mile' }]
+        cities: [{ key: campaignLoc.meta.geoKey, name: campaignLoc.city, region: campaignLoc.meta.geoRegion, country: campaignLoc.meta.geoCountry, radius: 15, distance_unit: 'mile' }]
       },
       age_min: 30,
       age_max: 55,
@@ -1464,8 +1507,8 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       facebook_positions: ['feed'],
       targeting_automation: { advantage_audience: 0 },
     };
-    const warmAdSet = await metaApiCall(`${META_AD_ACCOUNT_ID}/adsets`, 'POST', {
-      name: 'Warm — Page Engagement — Bloomington — Hook E',
+    const warmAdSet = await metaApiCall(`${locMeta.adAccountId}/adsets`, 'POST', {
+      name: `Warm — Page Engagement — ${campaignLoc.name} — Hook E`,
       campaign_id: campaign.id,
       daily_budget: warm_daily_budget,
       billing_event: 'IMPRESSIONS',
@@ -1483,22 +1526,22 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     console.log('[Meta] Creating cold creative...');
     const coldLink = destination_url || 'https://marketing-os-production-2b85.up.railway.app/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-parent-child&utm_term=cold-lifestyle&redirect=landing';
     const coldLinkData = {
-      message: cold_primary_text || `The moment you realized you couldn't keep up with your own kids.\n\nThat feeling isn't about fitness. It's about who you want to be.\n\nAt Anytime Fitness Bloomington, your first 30 days are fully coached for $1.\n\nPrivate orientation. Weekly check-ins. A coach who texts you in week two — because that's when people stop. We know.\n\nShow up 12 times. If it's not worth it, full refund. You keep everything.\n\nThe form is below.`,
+      message: cold_primary_text || `The moment you realized you couldn't keep up with your own kids.\n\nThat feeling isn't about fitness. It's about who you want to be.\n\nAt ${campaignLoc.gymName}, your first 30 days are fully coached for $1.\n\nPrivate orientation. Weekly check-ins. A coach who texts you in week two — because that's when people stop. We know.\n\nShow up 12 times. If it's not worth it, full refund. You keep everything.\n\nThe form is below.`,
       link: coldLink,
       name: cold_headline || '30 Days Fully Coached. $1 to Start.',
       call_to_action: { type: 'LEARN_MORE', value: { link: coldLink } },
     };
     if (image_url) coldLinkData.picture = image_url;
 
-    const coldCreative = await metaApiCall(`${META_AD_ACCOUNT_ID}/adcreatives`, 'POST', {
+    const coldCreative = await metaApiCall(`${locMeta.adAccountId}/adcreatives`, 'POST', {
       name: 'Hook A — Parent Child — Cold',
-      object_story_spec: JSON.stringify({ page_id: META_PAGE_ID, link_data: coldLinkData }),
+      object_story_spec: JSON.stringify({ page_id: locMeta.pageId, link_data: coldLinkData }),
     });
     console.log('[Meta] Cold creative created:', coldCreative.id);
 
     // STEP 5 — Create Cold Ad
     console.log('[Meta] Creating cold ad...');
-    const coldAd = await metaApiCall(`${META_AD_ACCOUNT_ID}/ads`, 'POST', {
+    const coldAd = await metaApiCall(`${locMeta.adAccountId}/ads`, 'POST', {
       name: 'Hook A — Parent Child — Cold',
       adset_id: coldAdSet.id,
       creative: JSON.stringify({ creative_id: coldCreative.id }),
@@ -1510,10 +1553,10 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     // STEP 6 — Create Warm Creative
     console.log('[Meta] Creating warm creative...');
     const warmLink = destination_url || 'https://marketing-os-production-2b85.up.railway.app/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-offer-direct&utm_term=warm-retarget&redirect=landing';
-    const warmCreative = await metaApiCall(`${META_AD_ACCOUNT_ID}/adcreatives`, 'POST', {
+    const warmCreative = await metaApiCall(`${locMeta.adAccountId}/adcreatives`, 'POST', {
       name: 'Hook E — Offer Direct — Warm',
       object_story_spec: JSON.stringify({
-        page_id: META_PAGE_ID,
+        page_id: locMeta.pageId,
         link_data: {
           message: warm_primary_text || `First 30 days, fully coached. One dollar to start.\n\nPrivate orientation. Done-for-you plan. Weekly coach check-ins. Direct text access.\n\nWe built this for people who've tried gyms before and stopped. The difference isn't motivation — it's having someone who notices when you go quiet.\n\nShow up 12 times or full refund. You keep the workout plan either way.\n\nClaim your spot below.`,
           link: warmLink,
@@ -1526,7 +1569,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
 
     // STEP 7 — Create Warm Ad
     console.log('[Meta] Creating warm ad...');
-    const warmAd = await metaApiCall(`${META_AD_ACCOUNT_ID}/ads`, 'POST', {
+    const warmAd = await metaApiCall(`${locMeta.adAccountId}/ads`, 'POST', {
       name: 'Hook E — Offer Direct — Warm',
       adset_id: warmAdSet.id,
       creative: JSON.stringify({ creative_id: warmCreative.id }),
@@ -1539,9 +1582,10 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     const campaignResult = {
       last_updated: new Date().toISOString(),
       campaign_id: campaign.id,
-      campaign_name: campaign_name || `30-Day Kickstart — Bloomington — ${new Date().toISOString().split('T')[0]}`,
+      campaign_name: campaign_name || `30-Day Kickstart — ${campaignLoc.name} — ${new Date().toISOString().split('T')[0]}`,
       status: 'PAUSED',
-      ad_account: META_AD_ACCOUNT_ID,
+      ad_account: locMeta.adAccountId,
+      location_id: campaignLoc.id,
       ad_sets: {
         cold: { id: coldAdSet.id, name: 'Cold — Lifestyle Member', daily_budget: cold_daily_budget / 100, hook: 'parent_child_moment' },
         warm: { id: warmAdSet.id, name: 'Warm — Page Engagement', daily_budget: warm_daily_budget / 100, hook: 'direct_offer' },
@@ -1853,14 +1897,17 @@ async function confirmMemberConversion(ghlContactId, status) {
 
 // GET /go — ghost redirect: captures fbclid + UTMs, creates session, redirects to destination <50ms
 app.get('/go', async (req, res) => {
-  const { fbclid, utm_source, utm_medium, utm_campaign, utm_content, utm_term, redirect } = req.query;
+  const { fbclid, utm_source, utm_medium, utm_campaign, utm_content, utm_term, redirect, location: locationParam } = req.query;
+  const locationId = locationParam || 'bloomington';
+  const loc = locationConfig.getLocation(locationId) || locationConfig.getLocation('bloomington');
   const sessionId = crypto.randomUUID();
-  const FRANCHISE_URL = 'https://www.anytimefitness.com/locations/bloomington-indiana-2822/';
+  const FRANCHISE_URL = loc.franchiseUrl || 'https://www.anytimefitness.com/locations/bloomington-indiana-2822/';
   const LANDING_PAGE_URL = 'https://no-risk-comeback-landing-page-production.up.railway.app';
-  const destination = redirect === 'landing' ? LANDING_PAGE_URL : FRANCHISE_URL;
+  const destination = redirect === 'landing' ? `${LANDING_PAGE_URL}/?location=${loc.id}` : FRANCHISE_URL;
 
   const session = {
     session_id: sessionId,
+    location_id: loc.id,
     fbclid: fbclid || null,
     utm_source: utm_source || null,
     utm_medium: utm_medium || null,
@@ -2023,7 +2070,7 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`AHRI Marketing Command Center running on port ${PORT}`);
-  console.log(`  Gym: ${process.env.GYM_NAME || 'GymSuite AI'}`);
+  console.log(`  Gym: ${locationConfig.getLocation('bloomington').gymName || 'GymSuite AI'}`);
   console.log(`  Reading from: ${ROOT}`);
 });
 
@@ -2038,12 +2085,13 @@ async function seedIntelligenceIfEmpty() {
 
     await fs.promises.mkdir(path.join(PERSISTENT_DATA_DIR, 'market'), { recursive: true });
 
+    const defaultLoc = locationConfig.getLocation('bloomington');
     const seedData = {
       last_updated: '2026-04-26T16:00:00Z',
-      city: 'Bloomington, IN',
+      city: `${defaultLoc.city}, ${defaultLoc.state}`,
       total_ads_found: 13,
       searches_run: ['gym', 'fitness center', 'personal training', 'anytime fitness', 'workout'],
-      active_competitors: ['Orangetheory Fitness', 'Club Pilates', 'Anytime Fitness Bloomington'],
+      active_competitors: ['Orangetheory Fitness', 'Club Pilates', `${defaultLoc.gymName}`],
       saturated_hooks: [
         { hook_type: 'risk-free-trial', appears_in_count: 8, example_advertisers: ['Orangetheory Fitness'] },
         { hook_type: 'free-intro-class', appears_in_count: 4, example_advertisers: ['Club Pilates'] },
@@ -2052,7 +2100,7 @@ async function seedIntelligenceIfEmpty() {
       common_offers: ['30-Day Risk-Free Trial', 'Free Intro Class', '2 Months Free'],
       winning_ads: [
         {
-          advertiser: 'Orangetheory Fitness Bloomington',
+          advertiser: 'Orangetheory Fitness',
           hook_type: 'transformation-curiosity',
           offer_type: '30-day-risk-free-trial',
           days_running: 33,
@@ -2065,7 +2113,7 @@ async function seedIntelligenceIfEmpty() {
       ],
       new_this_week: [
         { advertiser: 'Club Pilates', summary: 'Two shorter video cuts of Spring campaign — split-testing video lengths' },
-        { advertiser: 'Anytime Fitness Bloomington', summary: 'New campaign launched April 24 — 2 months FREE offer' },
+        { advertiser: defaultLoc.gymName, summary: 'New campaign launched April 24 — 2 months FREE offer' },
       ],
       disappeared_this_week: [],
       absent_competitors: ['Planet Fitness', 'YMCA', 'Force Fitness & Performance', 'Iron Pit Gym'],

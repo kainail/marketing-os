@@ -143,6 +143,18 @@ Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
 - Set calendar reminder: 2026-05-29
 - Renew via Graph API Explorer → exchange for long-lived token → update META_ACCESS_TOKEN in Railway (marketing-os service)
 
+## New Railway Vars Needed (API Key Architecture)
+OPS Dashboard service:
+  ANTHROPIC_API_KEY_BLOOMINGTON — renamed from ANTHROPIC_API_KEY
+  ELEVENLABS_API_KEY_BLOOMINGTON — renamed from ELEVENLABS_API_KEY
+  ELEVENLABS_VOICE_ID_BLOOMINGTON — new (was hardcoded 'a1m16HA3i1rljUsxpKfn')
+  GOOGLE_PLACES_API_KEY_BLOOMINGTON — renamed from GOOGLE_PLACES_API_KEY
+
+Marketing OS service:
+  ANTHROPIC_API_KEY_BLOOMINGTON — renamed from ANTHROPIC_API_KEY
+  MANUS_API_KEY_BLOOMINGTON — renamed from MANUS_API_KEY
+  FAL_AI_KEY_BLOOMINGTON — new (was FAL_AI_KEY or in engine/.env only)
+
 ## Outstanding Issues
 - Campaign needs to be activated in Ads Manager (currently PAUSED — Kai must enable spend)
 - fal.ai balance needs top-up (image generation disabled)
@@ -164,13 +176,73 @@ Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
 - **Session 19 prerequisite**: Full GymSuite AI system map transcript + GHL workflow screenshots + Make scenario configurations + Google Sheets column structure + Railway env vars for OPS dashboard required BEFORE any Session 19 code is written.
 - **Onboarding SOP first**: Complete new club onboarding SOP (PDF) must be built before Eaton location code is written. SOP documents every manual step so it can be executed without an engineer.
 
-## Session 19 — Scope (next conversation)
-1. Replace all 6 Make scenarios with Railway-native handlers
-2. Build location config system (multi-location support)
-3. Portal location switcher UI
-4. Complete new club onboarding SOP (PDF)
-5. Add Eaton as second location
-6. Cloudflare R2 migration (before additional gym onboarding)
+## Session 19 — Goal Status
+Goal 1 — Location Config: COMPLETE
+Goal 1.5 — API Keys Per-Location: COMPLETE
+Goal 2 — Replace Make: not started
+Goal 3 — OPS Compute: not started
+Goal 4 — Attribution: not started
+Goal 5 — Marketing OS: not started
+Goal 6 — R2 Migration: not started
+Goal 7 — Portal System: not started
+Goal 8 — Handbook Export: not started
+
+## Session 19 — API Key Architecture (between Goal 1 and Goal 2)
+- All 4 locations.js files — added keys: {} block with 6 per-location API keys (anthropicApiKey, elevenLabsApiKey, elevenLabsVoiceId, falAiKey, manusApiKey, googlePlacesApiKey)
+- gymsuiteai-dashboard/server.js — getAnthropicClient(locationId) reads from loc.keys.anthropicApiKey
+- gymsuiteai-dashboard/server.js — synthesizeSpeech(text, locationId) reads voice ID + API key from loc.keys
+- gymsuiteai-dashboard/server.js — removed module-level ELEVENLABS_VOICE_ID constant
+- gymsuiteai-dashboard/server.js — getNearbyGyms(lat, lng, radius, locationId) reads from loc.keys.googlePlacesApiKey
+- gymsuiteai-dashboard/server.js — computeNetworkIntelligence() passes location name to getNearbyGyms
+- marketing-portal/server.js — MANUS_API_KEY moved after locationConfig require, reads from loc.keys.manusApiKey
+- marketing-portal/server.js — /api/ahri reads apiKey from loc.keys.anthropicApiKey
+- gymsuite-new-club-handbook.md — Appendix A: added 6 API key rows + step-by-step account creation instructions
+- gymsuite-new-club-handbook.md — Appendix C OPS: moved ANTHROPIC_API_KEY + ELEVENLABS_API_KEY from Shared to Per-gym
+- gymsuite-new-club-handbook.md — Appendix C Marketing OS: moved ANTHROPIC_API_KEY + MANUS_API_KEY from Shared to Per-gym, added FAL_AI_KEY per-gym row
+- Railway: ANTHROPIC_API_KEY_BLOOMINGTON, ELEVENLABS_API_KEY_BLOOMINGTON, ELEVENLABS_VOICE_ID_BLOOMINGTON, FAL_AI_KEY_BLOOMINGTON, MANUS_API_KEY_BLOOMINGTON, GOOGLE_PLACES_API_KEY_BLOOMINGTON must be added (see Outstanding Issues)
+
+## Session 19 — Goal 1 What Was Built
+- gymsuiteai-dashboard/config/locations.js — location registry (bloomington active, eaton inactive)
+- .claude/marketing-os/config/locations.js — root-level config (reference only)
+- .claude/marketing-os/marketing-portal/config/locations.js — deployed config for marketing-portal
+- .claude/marketing-os/landing-server/config/locations.js — deployed config for landing-server
+- gymsuiteai-dashboard/server.js — removed SHEET1_ID/SHEET2_ID hardcoded declarations
+- gymsuiteai-dashboard/server.js — removed GHL_SUBACCOUNTS object
+- gymsuiteai-dashboard/server.js — added getSheet1Id(locationId), getGHLAccount(id), getAllGHLAccounts() helpers
+- gymsuiteai-dashboard/server.js — added startup validation (throws if SHEET1_ID_BLOOMINGTON missing)
+- gymsuiteai-dashboard/server.js — all SHEET1_ID refs → getSheet1Id(), all SHEET2_ID refs → getSheet1Id() + 'AI Call Review' tab
+- gymsuiteai-dashboard/server.js — added GET /api/locations endpoint
+- .claude/marketing-os/marketing-portal/server.js — Meta constants sourced from locationConfig
+- .claude/marketing-os/marketing-portal/server.js — added getLocationMeta(locationId) helper
+- .claude/marketing-os/marketing-portal/server.js — FRANCHISE_URL in /go now from loc.franchiseUrl
+- .claude/marketing-os/marketing-portal/server.js — /go session now includes location_id field
+- .claude/marketing-os/marketing-portal/server.js — campaign creation uses campaignLoc + locMeta
+- .claude/marketing-os/marketing-portal/server.js — seed competitor data no longer hardcodes Bloomington
+- .claude/marketing-os/marketing-portal/server.js — renderHook(hookText, locationId) function added
+- .claude/marketing-os/marketing-portal/server.js — /api/hooks-library renders hooks for requested location
+- .claude/marketing-os/marketing-portal/server.js — /api/queue returns location_id per asset, supports ?location= filter
+- .claude/marketing-os/landing-server/server.js — rewrote to read ?location= param and serve per-location content
+- gymsuite-new-club-handbook.md — Phase 1, 2, 3 filled in. Appendix A, C filled in.
+
+## Env Vars Still Needed From Kai (Goal 1)
+OPS Dashboard service:
+  SHEET1_ID_BLOOMINGTON — Bloomington Google Sheet ID (currently using old SHEET1_ID)
+  GHL_BLOOMINGTON_LOCATION_ID — replace hardcoded h4FkKJzyBbX0vR71RJFI
+  ALERT_EMAIL_BLOOMINGTON — email for Bloomington missed-lead alerts
+
+Marketing OS service:
+  META_ACCESS_TOKEN_BLOOMINGTON — renamed from META_ACCESS_TOKEN
+  META_AD_ACCOUNT_ID_BLOOMINGTON — renamed from META_AD_ACCOUNT_ID
+  META_PAGE_ID_BLOOMINGTON — renamed from META_PAGE_ID
+  META_PIXEL_ID_BLOOMINGTON — renamed from META_PIXEL_ID
+  GYM_ADDRESS_BLOOMINGTON, GYM_PHONE_BLOOMINGTON, MANAGER_NAME_BLOOMINGTON
+  REVIEW_COUNT_BLOOMINGTON, REVIEW_RATING_BLOOMINGTON
+  COHORT_START_DATE_BLOOMINGTON, SPOTS_REMAINING_BLOOMINGTON
+  SPECIAL_PROMO_BLOOMINGTON, HOURS_OF_OPERATION_BLOOMINGTON
+  ALERT_EMAIL_BLOOMINGTON
+
+Eaton (for when Kai provides credentials):
+  All per-gym vars with _EATON suffix + META_GEO_KEY_EATON
 
 ## Session 19 — What New Conversation Needs Before Building
 1. Full GymSuite AI transcript (for accurate SOP — covers all 17 system phases)
