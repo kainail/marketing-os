@@ -2010,20 +2010,14 @@ app.post('/api/leads/submit', async (req, res) => {
   const mappedArchetype = ARCHETYPE_MAP[rawArchetype] || rawArchetype;
 
   const tags = ['no-risk-comeback', 'landing-page'];
-  if (mappedArchetype) tags.push(`archetype:${mappedArchetype}`);
+  if (mappedArchetype) tags.push(`archetype-${mappedArchetype.toLowerCase()}`);
 
   const ghlPayload = {
     firstName,
     phone,
     locationId: ghlLocationId,
     tags,
-    customFields: [
-      { key: 'archetype_detected', field_value: mappedArchetype },
-      { key: 'lead_source_offer', field_value: 'no-risk-comeback' },
-      { key: 'lead_source_variant', field_value: utm_medium || 'direct' },
-      { key: 'lead_source_hook', field_value: utm_content || '' },
-      { key: 'utm_string', field_value: utm_string || '' },
-    ],
+    source: utm_source || 'landing-page',
   };
 
   try {
@@ -2040,7 +2034,7 @@ app.post('/api/leads/submit', async (req, res) => {
     if (!ghlRes.ok) {
       const errText = await ghlRes.text();
       console.error(`[LeadSubmit] GHL error ${ghlRes.status}:`, errText);
-      return res.status(502).json({ success: false, error: 'GHL contact creation failed' });
+      return res.status(502).json({ success: false, error: 'GHL contact creation failed', ghl_status: ghlRes.status, ghl_error: errText });
     }
 
     const ghlData = await ghlRes.json();
