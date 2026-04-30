@@ -114,6 +114,10 @@ const QUEUE  = path.join(PERSISTENT_DATA_DIR, 'queue', 'pending-review');
 const READY  = path.join(PERSISTENT_DATA_DIR, 'queue', 'ready-to-post');
 const POSTED = path.join(PERSISTENT_DATA_DIR, 'queue', 'posted');
 
+const ATTRIBUTION_DIR    = path.join(PERSISTENT_DATA_DIR, 'attribution');
+const SESSIONS_DIR       = path.join(ATTRIBUTION_DIR, 'sessions');
+const ATTRIBUTION_REPORT = path.join(ATTRIBUTION_DIR, 'attribution-report.json');
+
 if (!process.env.WEBHOOK_URL && !process.env.PORTAL_WEBHOOK_URL && !process.env.RAILWAY_PUBLIC_DOMAIN) {
   console.warn('[cron] ⚠ WEBHOOK_URL not set — Manus callbacks may not reach portal. Add WEBHOOK_URL=https://marketing-os-production-2b85.up.railway.app to Railway env vars.');
 }
@@ -126,6 +130,15 @@ function safeRead(p) {
 
 function safeReadJSON(p) {
   try { const t = safeRead(p); return t ? JSON.parse(t) : {}; } catch { return {}; }
+}
+
+async function safeReadJSONAsync(p) {
+  try {
+    const data = await fs.promises.readFile(p, 'utf-8');
+    return data ? JSON.parse(data) : null;
+  } catch {
+    return null;
+  }
 }
 
 function safeReadDir(p) {
@@ -1468,7 +1481,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
 
     // STEP 4 — Create Cold Creative
     console.log('[Meta] Creating cold creative...');
-    const coldLink = destination_url || 'https://no-risk-comeback-landing-page-production.up.railway.app?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-parent-child&utm_term=cold-lifestyle';
+    const coldLink = destination_url || 'https://marketing-os-production-2b85.up.railway.app/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-parent-child&utm_term=cold-lifestyle&redirect=franchise';
     const coldLinkData = {
       message: cold_primary_text || `The moment you realized you couldn't keep up with your own kids.\n\nThat feeling isn't about fitness. It's about who you want to be.\n\nAt Anytime Fitness Bloomington, your first 30 days are fully coached for $1.\n\nPrivate orientation. Weekly check-ins. A coach who texts you in week two — because that's when people stop. We know.\n\nShow up 12 times. If it's not worth it, full refund. You keep everything.\n\nThe form is below.`,
       link: coldLink,
@@ -1496,7 +1509,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
 
     // STEP 6 — Create Warm Creative
     console.log('[Meta] Creating warm creative...');
-    const warmLink = destination_url || 'https://no-risk-comeback-landing-page-production.up.railway.app?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-offer-direct&utm_term=warm-retarget';
+    const warmLink = destination_url || 'https://marketing-os-production-2b85.up.railway.app/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-offer-direct&utm_term=warm-retarget&redirect=franchise';
     const warmCreative = await metaApiCall(`${META_AD_ACCOUNT_ID}/adcreatives`, 'POST', {
       name: 'Hook E — Offer Direct — Warm',
       object_story_spec: JSON.stringify({
@@ -1645,6 +1658,322 @@ app.get('/api/rules', async (req, res) => {
   res.json({ rules: rulesStatus });
 });
 
+// ── Attribution System ───────────────────────────────────────────────────────
+
+async function fireCAPIEvent({ eventName, fbclid, email, phone, leadType, campaign, content, value, currency, clickedAt }) {
+  if (!META_ACCESS_TOKEN || !META_PIXEL_ID) {
+    console.warn('[CAPI] Credentials not set — skipping');
+    return;
+  }
+  const capiEndpoint = `${META_API_BASE}/${META_PIXEL_ID}/events`;
+  const hashValue = (val) => val
+    ? crypto.createHash('sha256').update(val.toLowerCase().trim()).digest('hex')
+    : undefined;
+  const eventTime = Math.floor(new Date(clickedAt).getTime() / 1000);
+  const payload = {
+    data: [{
+      event_name: eventName,
+      event_time: eventTime,
+      action_source: 'website',
+      user_data: {
+        ...(email && { em: [hashValue(email)] }),
+        ...(phone && { ph: [hashValue(phone.replace(/\D/g, ''))] }),
+        ...(fbclid && { fbc: `fb.1.${eventTime}.${fbclid}` }),
+      },
+      custom_data: {
+        ...(leadType && { lead_type: leadType }),
+        ...(campaign && { campaign }),
+        ...(content && { hook: content }),
+        ...(value && { value }),
+        ...(currency && { currency }),
+      },
+    }],
+    access_token: META_ACCESS_TOKEN,
+  };
+  try {
+    const response = await fetch(capiEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (result.events_received > 0) {
+      console.log(`[CAPI] ${eventName} fired: fbclid: ${fbclid}, events_received: ${result.events_received}`);
+    } else {
+      console.error('[CAPI] Event not received:', JSON.stringify(result));
+    }
+  } catch (error) {
+    console.error('[CAPI] Failed to fire event:', error.message);
+  }
+}
+
+async function updateAttributionReport({ matched, session, email, phone, ghlContactId, leadType, receivedAt, matchMethod, name }) {
+  const report = await safeReadJSONAsync(ATTRIBUTION_REPORT) || {
+    version: '1.0', leads: [], total_sessions: 0, total_matched: 0, total_unmatched: 0,
+  };
+  const entry = {
+    ghl_contact_id: ghlContactId,
+    name: name || null,
+    email_hashed: email ? crypto.createHash('sha256').update(email.toLowerCase().trim()).digest('hex') : null,
+    phone_hashed: phone ? crypto.createHash('sha256').update(phone.replace(/\D/g, '')).digest('hex') : null,
+    received_at: receivedAt,
+    lead_type: leadType,
+    matched,
+    attribution_method: matchMethod || null,
+    attribution_confidence: matched ? (session && session.attribution_confidence) : null,
+    original_source: (session && session.utm_source) || null,
+    campaign: (session && session.utm_campaign) || null,
+    hook: (session && session.utm_content) || null,
+    creative: (session && session.utm_term) || null,
+    first_click: (session && session.clicked_at) || null,
+    days_to_convert: (session && session.clicked_at)
+      ? Math.floor((new Date(receivedAt) - new Date(session.clicked_at)) / (1000 * 60 * 60 * 24))
+      : null,
+    fbclid: (session && session.fbclid) || null,
+    became_member: false,
+    member_date: null,
+    ltv: null,
+  };
+  const existingIndex = report.leads.findIndex(l => l.ghl_contact_id === ghlContactId);
+  if (existingIndex >= 0) {
+    report.leads[existingIndex] = { ...report.leads[existingIndex], ...entry };
+  } else {
+    report.leads.push(entry);
+  }
+  report.total_sessions = report.leads.length;
+  report.total_matched = report.leads.filter(l => l.matched).length;
+  report.total_unmatched = report.leads.filter(l => !l.matched).length;
+  report.match_rate_pct = report.total_sessions > 0
+    ? Math.round((report.total_matched / report.total_sessions) * 100) : 0;
+  report.last_updated = new Date().toISOString();
+  await atomicWriteJSON(ATTRIBUTION_REPORT, report);
+  console.log(`[Attribution] Report updated: ${report.total_matched}/${report.total_sessions} matched (${report.match_rate_pct}%)`);
+}
+
+async function matchContactToSession({ email, phone, name, ghlContactId, leadType, receivedAt }) {
+  console.log('[Attribution] Running match for:', email, phone);
+  let sessionFiles;
+  try {
+    sessionFiles = await fs.promises.readdir(SESSIONS_DIR);
+  } catch {
+    console.log('[Attribution] No sessions yet');
+    return;
+  }
+  const pendingSessions = sessionFiles
+    .filter(f => !f.startsWith('fbclid_') && f.endsWith('.json'))
+    .sort().reverse();
+
+  let bestMatch = null;
+  let matchMethod = null;
+
+  for (const file of pendingSessions) {
+    const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, file));
+    if (!session || session.status !== 'pending') continue;
+    if (email && session.ghl_email === email) { bestMatch = session; matchMethod = 'email_match'; break; }
+    if (phone && session.ghl_phone === phone) { bestMatch = session; matchMethod = 'phone_match'; break; }
+  }
+
+  if (!bestMatch) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    for (const file of pendingSessions) {
+      const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, file));
+      if (!session) continue;
+      const clickedAt = new Date(session.clicked_at);
+      if (clickedAt > thirtyDaysAgo && session.status === 'pending' && session.fbclid) {
+        bestMatch = session;
+        matchMethod = 'fbclid_unconfirmed';
+      }
+    }
+  }
+
+  if (!bestMatch) {
+    console.log('[Attribution] No match found for:', email);
+    await updateAttributionReport({ matched: false, email, phone, ghlContactId, leadType, receivedAt });
+    return;
+  }
+
+  bestMatch.status = 'matched';
+  bestMatch.matched_at = new Date().toISOString();
+  bestMatch.ghl_contact_id = ghlContactId;
+  bestMatch.ghl_lead_type = leadType;
+  bestMatch.ghl_email = email;
+  bestMatch.ghl_phone = phone;
+  bestMatch.attribution_method = matchMethod;
+  bestMatch.attribution_confidence =
+    matchMethod === 'fbclid_unconfirmed' ? 'low' :
+    (matchMethod === 'email_match' || matchMethod === 'phone_match') ? 'high' : 'medium';
+
+  await atomicWriteJSON(path.join(SESSIONS_DIR, `${bestMatch.session_id}.json`), bestMatch);
+  console.log(`[Attribution] Match found: ${matchMethod} | Session: ${bestMatch.session_id} | fbclid: ${bestMatch.fbclid}`);
+
+  if (bestMatch.fbclid) {
+    await fireCAPIEvent({
+      eventName: 'Lead', fbclid: bestMatch.fbclid, email, phone, leadType,
+      campaign: bestMatch.utm_campaign, content: bestMatch.utm_content, clickedAt: bestMatch.clicked_at,
+    });
+  }
+
+  await updateAttributionReport({ matched: true, session: bestMatch, email, phone, ghlContactId, leadType, receivedAt, matchMethod, name });
+}
+
+async function confirmMemberConversion(ghlContactId, status) {
+  let sessionFiles;
+  try { sessionFiles = await fs.promises.readdir(SESSIONS_DIR); } catch { return; }
+  for (const file of sessionFiles) {
+    if (file.startsWith('fbclid_')) continue;
+    const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, file));
+    if (session && session.ghl_contact_id === ghlContactId) {
+      session.converted_to_member = true;
+      session.member_confirmed_at = new Date().toISOString();
+      session.ghl_lead_type = status;
+      await atomicWriteJSON(path.join(SESSIONS_DIR, file), session);
+      console.log('[Attribution] Member conversion confirmed:', ghlContactId, `fbclid: ${session.fbclid}`);
+
+      if (session.fbclid) {
+        await fireCAPIEvent({
+          eventName: 'Purchase', fbclid: session.fbclid,
+          email: session.ghl_email, phone: session.ghl_phone,
+          value: 2000, currency: 'USD', clickedAt: session.clicked_at,
+        });
+      }
+
+      const report = await safeReadJSONAsync(ATTRIBUTION_REPORT) || { leads: [] };
+      const leadIndex = report.leads.findIndex(l => l.ghl_contact_id === ghlContactId);
+      if (leadIndex >= 0) {
+        report.leads[leadIndex].became_member = true;
+        report.leads[leadIndex].member_date = new Date().toISOString();
+        report.leads[leadIndex].ltv = 2000;
+        report.last_updated = new Date().toISOString();
+        await atomicWriteJSON(ATTRIBUTION_REPORT, report);
+      }
+      break;
+    }
+  }
+}
+
+// GET /go — ghost redirect: captures fbclid + UTMs, creates session, redirects to destination <50ms
+app.get('/go', async (req, res) => {
+  const { fbclid, utm_source, utm_medium, utm_campaign, utm_content, utm_term, redirect } = req.query;
+  const sessionId = crypto.randomUUID();
+  const FRANCHISE_URL = 'https://www.anytimefitness.com/locations/bloomington-indiana-2822/';
+  const LANDING_PAGE_URL = 'https://no-risk-comeback-landing-page-production.up.railway.app';
+  const destination = redirect === 'landing' ? LANDING_PAGE_URL : FRANCHISE_URL;
+
+  const session = {
+    session_id: sessionId,
+    fbclid: fbclid || null,
+    utm_source: utm_source || null,
+    utm_medium: utm_medium || null,
+    utm_campaign: utm_campaign || null,
+    utm_content: utm_content || null,
+    utm_term: utm_term || null,
+    clicked_at: new Date().toISOString(),
+    redirect_to: destination,
+    redirect_type: redirect || 'franchise',
+    ip_address: req.ip || null,
+    user_agent: req.headers['user-agent'] || null,
+    status: 'pending',
+    matched_at: null,
+    ghl_contact_id: null,
+    ghl_lead_type: null,
+    ghl_email: null,
+    ghl_phone: null,
+    capi_fired: false,
+    capi_fired_at: null,
+    converted_to_member: false,
+    member_confirmed_at: null,
+    estimated_ltv: 2000,
+  };
+
+  try {
+    await atomicWriteJSON(path.join(SESSIONS_DIR, `${sessionId}.json`), session);
+    if (fbclid) {
+      await atomicWriteJSON(path.join(SESSIONS_DIR, `fbclid_${fbclid}.json`), {
+        session_id: sessionId, fbclid, clicked_at: session.clicked_at,
+      });
+    }
+    console.log(`[Attribution] Session created: ${sessionId}`, fbclid ? `fbclid: ${fbclid}` : 'no fbclid');
+  } catch (error) {
+    console.error('[Attribution] Failed to write session:', error.message);
+  }
+
+  return res.redirect(301, destination);
+});
+
+// GET /api/attribution/session/:sessionId — look up a session by ID
+app.get('/api/attribution/session/:sessionId', async (req, res) => {
+  const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, `${req.params.sessionId}.json`));
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  return res.json(session);
+});
+
+// POST /api/ghl/contact-created — GHL webhook fires when a new contact is created
+app.post('/api/ghl/contact-created', async (req, res) => {
+  res.json({ received: true });
+  setImmediate(async () => {
+    try {
+      const contact = req.body;
+      const email = contact.email || contact.contactEmail || null;
+      const phone = contact.phone || contact.contactPhone || null;
+      const name = contact.name || contact.contactName || null;
+      const ghlContactId = contact.id || contact.contactId || null;
+      const leadType = (contact.tags && contact.tags[0]) || contact.source || 'unknown';
+      console.log('[GHL] New contact received:', email, phone, leadType);
+      await matchContactToSession({ email, phone, name, ghlContactId, leadType, receivedAt: new Date().toISOString() });
+    } catch (error) {
+      console.error('[GHL] Contact processing failed:', error.message);
+    }
+  });
+});
+
+// POST /api/ghl/contact-updated — GHL webhook fires when contact status changes
+app.post('/api/ghl/contact-updated', async (req, res) => {
+  res.json({ received: true });
+  setImmediate(async () => {
+    try {
+      const contact = req.body;
+      const ghlContactId = contact.id || contact.contactId;
+      const newStatus = (contact.tags && contact.tags[0]) || contact.source;
+      if (newStatus === 'joined' || newStatus === 'member') {
+        await confirmMemberConversion(ghlContactId, newStatus);
+      }
+    } catch (error) {
+      console.error('[GHL] Contact update failed:', error.message);
+    }
+  });
+});
+
+// GET /api/attribution/report — full attribution report with summary stats
+app.get('/api/attribution/report', async (req, res) => {
+  const report = await safeReadJSONAsync(ATTRIBUTION_REPORT);
+  if (!report) {
+    return res.json({ total_sessions: 0, total_matched: 0, total_unmatched: 0, match_rate_pct: 0, leads: [] });
+  }
+  const bySource = {};
+  const byHook = {};
+  const byLeadType = {};
+  report.leads.forEach(lead => {
+    const source = lead.original_source || 'unknown';
+    bySource[source] = (bySource[source] || 0) + 1;
+    const hook = lead.hook || 'unknown';
+    byHook[hook] = (byHook[hook] || 0) + 1;
+    const type = lead.lead_type || 'unknown';
+    byLeadType[type] = (byLeadType[type] || 0) + 1;
+  });
+  const daysArr = report.leads.filter(l => l.days_to_convert !== null).map(l => l.days_to_convert);
+  const avgDays = daysArr.length > 0 ? daysArr.reduce((s, v) => s + v, 0) / daysArr.length : 0;
+  return res.json({
+    ...report,
+    summary: {
+      by_source: bySource,
+      by_hook: byHook,
+      by_lead_type: byLeadType,
+      members: report.leads.filter(l => l.became_member).length,
+      avg_days_to_convert: avgDays,
+    },
+  });
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -1743,6 +2072,26 @@ async function seedQueueIfEmpty() {
 }
 
 seedQueueIfEmpty().catch(console.error);
+
+async function initAttributionStore() {
+  await fs.promises.mkdir(SESSIONS_DIR, { recursive: true });
+  const reportExists = await fs.promises.access(ATTRIBUTION_REPORT).then(() => true).catch(() => false);
+  if (!reportExists) {
+    await atomicWriteJSON(ATTRIBUTION_REPORT, {
+      version: '1.0',
+      last_updated: new Date().toISOString(),
+      total_sessions: 0,
+      total_matched: 0,
+      total_unmatched: 0,
+      match_rate_pct: 0,
+      leads: [],
+    });
+    console.log('[Attribution] Report initialized');
+  }
+  console.log('[Attribution] Session store ready:', SESSIONS_DIR);
+}
+
+initAttributionStore().catch(console.error);
 
 // ── Cron: scheduled Manus tasks ─────────────────────────────────────────────
 

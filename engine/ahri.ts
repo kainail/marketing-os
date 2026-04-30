@@ -79,6 +79,7 @@ type IntentType =
   | 'check_creative_performance'
   | 'update_visual_map'
   | 'generate_nurture_sequence'
+  | 'check_attribution'
   | 'exit';
 
 interface SessionHistoryEntry {
@@ -215,7 +216,7 @@ async function parseIntent(client: Anthropic, input: string, ctx: SessionContext
 Return this exact shape:
 {"intent":"<type>","skills":[],"context":"<biz>","avatar_override":null,"awareness_override":null,"budget_required":false,"message":""}
 
-intent values: generate_skill | batch_generate | review_queue | update_brain_state | show_status | run_campaign | switch_context | get_help | sync_media | sync_brains | update_funnel | update_workflows | run_manus_task | show_routines | run_routine_manually | analyze_paid_ads | analyze_google_ads | check_budget_pacing | track_lead_journey | analyze_landing_page | analyze_nurture | check_retention | monitor_reviews | track_referrals | audit_gbp | clean_crm | generate_monthly_report | process_manus_results | generate_campaign_images | check_creative_performance | update_visual_map | generate_nurture_sequence | exit
+intent values: generate_skill | batch_generate | review_queue | update_brain_state | show_status | run_campaign | switch_context | get_help | sync_media | sync_brains | update_funnel | update_workflows | run_manus_task | show_routines | run_routine_manually | analyze_paid_ads | analyze_google_ads | check_budget_pacing | track_lead_journey | analyze_landing_page | analyze_nurture | check_retention | monitor_reviews | track_referrals | audit_gbp | clean_crm | generate_monthly_report | process_manus_results | generate_campaign_images | check_creative_performance | update_visual_map | generate_nurture_sequence | check_attribution | exit
 
 Rules:
 - "run campaign" / "build everything" / "full campaign" → run_campaign
@@ -252,6 +253,7 @@ Rules:
 - "generate images" / "image generator" / "generate campaign images" / "create images" / "run image generator" → generate_campaign_images
 - "creative performance" / "check image performance" / "how are images performing" / "visual performance" → check_creative_performance
 - "update visual map" / "sync creative data" / "update hook visual map" / "update image performance" → update_visual_map
+- "check attribution" / "lead tracing report" / "where are leads coming from" / "show attribution report" / "which ads are converting" → check_attribution
 - ad-copy, google-ads are paid skills → set budget_required: true
 - "image-generator" is NOT a skill — use generate_campaign_images intent for any image generation request
 - Default context: ${ctx.activeBusiness}
@@ -1964,6 +1966,10 @@ async function main(): Promise<void> {
           await handleUpdateVisualMap();
           break;
 
+        case 'check_attribution':
+          await handleCheckAttribution();
+          break;
+
         case 'exit':
           await handleExit(ctx, rl);
           return;
@@ -1975,6 +1981,83 @@ async function main(): Promise<void> {
   };
 
   await loop();
+}
+
+/** Display full lead attribution report from the marketing portal API. */
+async function handleCheckAttribution(): Promise<void> {
+  const portalUrl = process.env['MARKETING_PORTAL_URL'] || 'https://marketing-os-production-2b85.up.railway.app';
+  console.log('');
+  console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log(chalk.bold.white('  ATTRIBUTION REPORT — ' + new Date().toISOString().slice(0, 10)));
+  console.log(chalk.bold.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+
+  interface AttributionSummary {
+    by_source: Record<string, number>;
+    by_hook: Record<string, number>;
+    by_lead_type: Record<string, number>;
+    members: number;
+    avg_days_to_convert: number;
+  }
+  interface AttributionReport {
+    total_sessions: number;
+    total_matched: number;
+    total_unmatched: number;
+    match_rate_pct: number;
+    summary?: AttributionSummary;
+  }
+
+  try {
+    const response = await fetch(`${portalUrl}/api/attribution/report`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const report = await response.json() as AttributionReport;
+
+    console.log('');
+    console.log(chalk.white(`  Total leads tracked:     ${report.total_sessions ?? 0}`));
+    console.log(chalk.white(`  Attribution matched:     ${report.total_matched ?? 0} (${report.match_rate_pct ?? 0}%)`));
+    console.log(chalk.white(`  Unmatched:               ${report.total_unmatched ?? 0}`));
+
+    if (report.summary) {
+      const { by_source, by_hook, by_lead_type, members, avg_days_to_convert } = report.summary;
+
+      if (Object.keys(by_source ?? {}).length > 0) {
+        console.log(chalk.gray('\n  By source:'));
+        for (const [src, count] of Object.entries(by_source)) {
+          console.log(chalk.gray(`    ${src}: ${count} leads`));
+        }
+      }
+
+      if (Object.keys(by_hook ?? {}).length > 0) {
+        console.log(chalk.gray('\n  By hook:'));
+        for (const [hook, count] of Object.entries(by_hook)) {
+          console.log(chalk.gray(`    ${hook}: ${count} leads`));
+        }
+      }
+
+      if (Object.keys(by_lead_type ?? {}).length > 0) {
+        console.log(chalk.gray('\n  By lead type:'));
+        for (const [type, count] of Object.entries(by_lead_type)) {
+          console.log(chalk.gray(`    ${type}: ${count}`));
+        }
+      }
+
+      console.log('');
+      console.log(chalk.white(`  Members confirmed:       ${members ?? 0}`));
+      console.log(chalk.white(`  Avg days to convert:     ${typeof avg_days_to_convert === 'number' ? avg_days_to_convert.toFixed(1) : '0.0'} days`));
+
+      const hookEntries = Object.entries(by_hook ?? {});
+      if (hookEntries.length > 0) {
+        const topHook = hookEntries.sort(([, a], [, b]) => b - a)[0];
+        console.log(chalk.cyan(`\n  Top converting hook:     ${topHook[0]}`));
+      }
+    }
+  } catch (err) {
+    console.log(chalk.yellow(`  Could not fetch report from portal: ${(err as Error).message}`));
+    console.log(chalk.gray(`  Check portal directly: ${portalUrl}/api/attribution/report`));
+  }
+
+  console.log(chalk.bold.cyan('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
+  console.log('');
+  logAction('check_attribution', [], 0, false, 'Attribution report displayed');
 }
 
 main().catch((err: Error) => {
