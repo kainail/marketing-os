@@ -2015,18 +2015,16 @@ app.post('/api/leads/submit', async (req, res) => {
   const ghlPayload = {
     firstName,
     phone,
-    locationId: ghlLocationId,
     tags,
     source: utm_source || 'landing-page',
   };
 
   try {
-    const ghlRes = await fetch('https://services.leadconnectorhq.com/contacts/', {
+    const ghlRes = await fetch('https://rest.gohighlevel.com/v1/contacts/', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'Version': '2021-07-28',
       },
       body: JSON.stringify(ghlPayload),
     });
