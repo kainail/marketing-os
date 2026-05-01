@@ -2,7 +2,7 @@
 # AHRI reads this file before every generation. Keep it current.
 
 ## Sessions Complete
-Sessions 0–19 | Version: v2.0 | Last updated: 2026-04-30
+Sessions 0–20 | Version: v2.0 | Last updated: 2026-05-01
 
 ## Active Offer
 The No-Risk Comeback — 30 Days Coached, $1 to Start
@@ -32,7 +32,7 @@ nurture-sync A/B variants loaded — pending GHL implementation
 Commitment resistance — leads ask to use the pass without scheduling, prefer to call back or book online themselves, or are too busy to commit on the call.
 
 ## Seasonal Context
-Late April — spring motivation window
+Early May — post-spring motivation, Mother's Day window
 
 ## Active Script Version
 nurture-sync v1.1 — No-Risk Comeback (2026-04-24)
@@ -51,28 +51,48 @@ Status: pending GHL and ElevenLabs implementation — Kai approval required befo
 - Pending: real photos (gym-photo.jpg committed — verify display on Railway)
 - Pending: Steph testimonial replacement with real member
 
-## Session 19 — Goal Status
+## Session 20 — Goal Status
 
-Goal 1 — Location Config System: COMPLETE ✅
-Goal 2 — Replace Make Scenarios: COMPLETE ✅
-Goal 3 — OPS Compute Functions Location-Aware: COMPLETE ✅
-Goal 4 — Attribution Pipeline: COMPLETE ✅
-  Code complete and deployed.
-  Form submission working end to end.
-  5 confirmation tests still needed next session:
-    Test 2: Railway logs show [LeadSubmit] correctly
-    Test 3: GHL contact has correct archetype tags
-    Test 4: No API key visible in page source
-    Test 5: Session ID flows through /go correctly
-    Test 6: Attribution matches session end to end
-Goal 5 — Marketing OS Campaigns: COMPLETE ✅
-  Code complete and deployed.
-  Needs same confirmation tests as Goal 4.
-Goal 6 — R2 Migration: NOT STARTED
+Goal 4 — Attribution Pipeline: FULLY CONFIRMED ✅
+  All 5 confirmation tests passed (Session 20)
+
+Goal 5 — Marketing OS Campaigns: FULLY CONFIRMED ✅
+  All 5 confirmation tests passed (Session 20)
+
+LTV Correction: COMPLETE ✅
+  Changed $975 → $2,000 throughout OPS Dashboard server.js
+  Updated intelligence-phases.html Revenue section
+  MEMBER_LTV now env-var overridable (add MEMBER_LTV=2000 to Railway OPS Dashboard)
+  Marketing-portal was already using $2,000
+
+Goal 6 — R2 Migration: CODE COMPLETE ✅ — awaiting deployment verification
+  Step 1 ✅ @aws-sdk/client-s3 installed in both projects
+  Step 2 ✅ lib/r2.js created in both projects (7 functions: r2Get/r2Put/r2List/r2Delete/r2GetShared/r2PutShared/r2Exists)
+  Step 3 ✅ GET /api/admin/r2-test endpoint added to both servers
+  Step 4 ✅ Marketing OS: all PERSISTENT_DATA_DIR/SESSIONS_DIR/ATTRIBUTION_REPORT ops migrated to R2
+    - Sessions (all CRUD): R2 at {locationId}/attribution/sessions/{sessionId}.json
+    - Attribution report: R2 at {locationId}/attribution/attribution-report.json
+    - Manus task outputs: R2 via persistentPathToR2Key() helper
+    - Task runs: R2 at bloomington/intelligence-db/queue/task-runs.json (async)
+    - Campaign: R2 at {locationId}/intelligence-db/paid/active-campaign.json
+    - Rules/cooldowns: R2 at bloomington/intelligence-db/rules/{rule.id}.json
+    - Seed data: R2 at bloomington/intelligence-db/market/competitor-ads.json
+    - Agentic rule checks: async, read from R2
+  Step 5 ✅ OPS Dashboard: R2 archive writes added (fire-and-forget)
+    - After Vision run: r2Put(locationId, 'intelligence-db/vision/{runId}.json', result)
+    - After Jarvis run: r2Put(locationId, 'intelligence-db/jarvis/{timestamp}.json', report)
+    - After script optimization: r2Put(locationId, 'intelligence-db/scripts/{timestamp}.json', result)
+  Step 6 ✅ migrateVolumeToR2() function added — runs on startup, idempotent (checks migration-complete.json)
+  Step 7 — PENDING: deploy to Railway and run verification checks
+    Check 1: GET /api/admin/r2-test on both servers → { success: true }
+    Check 2: Trigger intelligence task, confirm file in Cloudflare R2 dashboard
+    Check 3: POST /api/vision/run, confirm vision file in R2 dashboard
+
 Goal 7 — Three-Tier Portal: NOT STARTED
 Goal 8 — Handbook Export: NOT STARTED
 
 ## Pending Manual Fixes
+- Add MEMBER_LTV=2000 to Railway → OPS Dashboard service → Variables
 - "that's Adam" → "that's Jessica" in GHL SMS
 - CLARITY_PROJECT_ID not set in landing server Railway service
 - Call recording webhook not configured in GHL:
@@ -82,16 +102,18 @@ Goal 8 — Handbook Export: NOT STARTED
 - Switch to OUTCOME_LEADS after 50+ pixel events
 - META_ACCESS_TOKEN renewal deadline: 2026-05-29
 
-## Next Session Starts With
-1. Run 5 confirmation tests for Goals 4 and 5
-2. Then begin Goal 6 — R2 Migration
+## Deployment Needed Before Goal 6 Verification
+Push both projects to Railway:
+  git push origin main (gymsuiteai-dashboard)
+  git push origin main (marketing-os)
+Then verify:
+  GET gymsuiteai-dashboard-production.up.railway.app/api/admin/r2-test → { success: true }
+  GET marketing-os-production-2b85.up.railway.app/api/admin/r2-test → { success: true }
 
-R2 credentials needed from Kai before Session 20:
-  R2_ACCOUNT_ID
-  R2_ACCESS_KEY_ID
-  R2_SECRET_ACCESS_KEY
-  R2_BUCKET_NAME = gymsuiteai-storage
-  R2_ENDPOINT = https://{account_id}.r2.cloudflarestorage.com
+## Next Session Starts With
+1. Deploy Goal 6 code to Railway (git push)
+2. Run Step 7 verification checks (r2-test + R2 dashboard confirmation)
+3. Then begin Goal 7 — Three-Tier Portal
 
 ## Skills Complete: 15 of 15
 offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync,
@@ -136,10 +158,13 @@ Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
 
 ## Architecture Decisions Locked
 - GHL lead submission: POST /api/leads/submit on marketing-portal — GHL v1 API — Location API Key in GHL_BLOOMINGTON_API_KEY
-- Attribution: /go writes session file with session_id; landing page URL receives session_id; form submit passes sessionId to matchContactToSession for direct file lookup
+- Attribution: /go writes session to R2 at {locationId}/attribution/sessions/{sessionId}.json; form submit reads session from R2 by session_id; matchContactToSession is location-aware
 - All email via Resend (HTTP, not SMTP) — Railway blocks Gmail SMTP
 - Long tasks fire-and-forget: respond 200 immediately, run async with .catch()
 - MP3 hosted at ./data/reports/, served via GET /reports/:filename?token=JWT_SECRET
+- R2 is primary persistent storage for Marketing OS (volume retired)
+- R2 is archive layer for OPS Dashboard (Sheets is still primary)
+- LTV = $2,000 per member (set via MEMBER_LTV env var in Railway OPS Dashboard)
 
 ## Cross-Brain Insights (updated 2026-04-24 — 75 calls analyzed)
 - INSIGHT 1: Source attribution is null for 3 of 75 calls (4%). AHRI enforces UTM injection on all assets. Default source value "direct_untagged" appended to all untagged leads.
@@ -148,8 +173,15 @@ Switch from OUTCOME_TRAFFIC → OUTCOME_LEADS once pixel has event history:
 - INSIGHT 4: 94.7% of calls (71/75) unclassified — zero archetype data. Landing page archetype radio question now captures this pre-call. GHL Workflow 1 archetype tagging still pending.
 - INSIGHT 5: Soft commitments ("I guess, later today") result in zero show rate. Pre-appointment nurture sequence (confirmation SMS + 2-hour reminder) designed in nurture-sync v1.1 — pending GHL implementation.
 
+## R2 Credentials (in Railway — both services)
+R2_ACCOUNT_ID — Cloudflare account ID
+R2_ACCESS_KEY_ID — R2 API token access key
+R2_SECRET_ACCESS_KEY — R2 API token secret key
+R2_BUCKET_NAME = gymsuiteai-storage
+R2_ENDPOINT = https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+
 ## Future Sessions
-- Session 20: Confirmation tests → Goal 6 R2 Migration (needs R2 credentials from Kai)
-- Session 21: Goal 7 Three-Tier Portal + Goal 8 Handbook Export
-- Session 22+: Second gym location live (Eaton) — after SOP complete and R2 migrated
-- Session 23+: Vision + Syndra cross-brain data sharing (once both systems have meaningful data)
+- Session 21: Deploy Goal 6 → verify R2 checks → Goal 7 Three-Tier Portal
+- Session 22: Goal 8 Handbook Export
+- Session 23+: Second gym location live (Eaton) — after SOP complete and R2 verified
+- Session 24+: Vision + Syndra cross-brain data sharing (once both systems have meaningful data)

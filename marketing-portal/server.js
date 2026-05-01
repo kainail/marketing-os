@@ -6,6 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const cron = require('node-cron');
+const { r2Get, r2Put, r2List, r2Delete, r2GetShared, r2PutShared, r2Exists } = require('./lib/r2');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -117,7 +118,14 @@ const PERSISTENT_DATA_DIR = (() => {
 })();
 
 if (!process.env.RAILWAY_VOLUME_MOUNT_PATH) {
-  console.warn('⚠ RAILWAY_VOLUME_MOUNT_PATH not set. Intelligence files will not persist across deploys. Add a Railway volume mounted at /data to fix this.');
+  console.warn('⚠ RAILWAY_VOLUME_MOUNT_PATH not set. Intelligence files fall back to local paths. R2 is now primary storage.');
+}
+
+// Maps a PERSISTENT_DATA_DIR filesystem path to an R2 key under intelligence-db/.
+function persistentPathToR2Key(fsPath) {
+  const base = PERSISTENT_DATA_DIR.endsWith(path.sep) ? PERSISTENT_DATA_DIR : PERSISTENT_DATA_DIR + path.sep;
+  const rel = fsPath.startsWith(base) ? fsPath.slice(base.length) : path.basename(fsPath);
+  return `intelligence-db/${rel.replace(/\\/g, '/')}`;
 }
 
 // Queue paths live on the persistent volume so approvals survive redeploys.
@@ -306,36 +314,34 @@ const TASK_OUTPUT_PATHS = {
   'paid-ads-setup': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'paid', 'account-verification.json') }],
 };
 
-function loadTaskRuns() {
+const TASK_RUNS_R2_PATH = 'intelligence-db/queue/task-runs.json';
+const TASK_RUNS_LOCATION = 'bloomington';
+
+async function loadTaskRuns() {
   try {
-    const raw = fs.readFileSync(TASK_RUNS_FILE, 'utf-8');
-    return JSON.parse(raw);
+    const data = await r2Get(TASK_RUNS_LOCATION, TASK_RUNS_R2_PATH);
+    return (data && typeof data === 'object') ? data : {};
   } catch {
     return {};
   }
 }
 
-function saveTaskRun(taskId, data) {
+async function saveTaskRun(taskId, data) {
   try {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    const runs = loadTaskRuns();
+    const runs = await loadTaskRuns();
     runs[taskId] = { ...data, updated_at: new Date().toISOString() };
-    const tmp = TASK_RUNS_FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(runs, null, 2));
-    fs.renameSync(tmp, TASK_RUNS_FILE);
+    await r2Put(TASK_RUNS_LOCATION, TASK_RUNS_R2_PATH, runs);
   } catch (err) {
     console.error('[task-runs] save failed:', err.message);
   }
 }
 
-function updateTaskRun(taskId, updates) {
+async function updateTaskRun(taskId, updates) {
   try {
-    const runs = loadTaskRuns();
+    const runs = await loadTaskRuns();
     if (!runs[taskId]) return;
     runs[taskId] = { ...runs[taskId], ...updates, updated_at: new Date().toISOString() };
-    const tmp = TASK_RUNS_FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(runs, null, 2));
-    fs.renameSync(tmp, TASK_RUNS_FILE);
+    await r2Put(TASK_RUNS_LOCATION, TASK_RUNS_R2_PATH, runs);
   } catch (err) {
     console.error('[task-runs] update failed:', err.message);
   }
@@ -902,7 +908,7 @@ function renderHook(hookText, locationId = 'bloomington') {
     .replace(/\{\{MANAGER_NAME\}\}/g, loc.managerName || '');
 }
 
-app.get('/api/hooks-library', (req, res) => {
+app.get('/api/hooks-library', async (req, res) => {
   const locationId = req.query.location || 'bloomington';
   const hooksRaw = safeReadJSON(path.join(ROOT, 'intelligence-db', 'assets', 'hooks.json'));
   let hooks = Array.isArray(hooksRaw) ? hooksRaw : (hooksRaw.hooks || []);
@@ -933,8 +939,8 @@ app.get('/api/hooks-library', (req, res) => {
     });
   }
 
-  // Perf overlay from Manus-written volume data
-  const metaPerf = safeReadJSON(path.join(PERSISTENT_DATA_DIR, 'paid', 'meta-performance.json'));
+  // Perf overlay from Manus-written R2 data
+  const metaPerf = await r2Get('bloomington', 'intelligence-db/paid/meta-performance.json') || {};
   const perfMap = {};
   (metaPerf.hooks || []).forEach(h => { if (h.hook_text) perfMap[h.hook_text.slice(0, 40)] = h; });
 
@@ -1152,6 +1158,7 @@ app.post('/api/manus/trigger', async (req, res) => {
     saveTaskRun(task_id, {
       task_type,
       task_filename: filename,
+      location_id: req.body.location_id || 'bloomington',
       started_at: new Date().toISOString(),
       status: 'running',
       task_url: data.task_url || null,
@@ -1174,7 +1181,7 @@ app.post('/api/manus/trigger', async (req, res) => {
 // GET /api/manus/status/:task_id — poll task status from Manus
 app.get('/api/manus/status/:task_id', async (req, res) => {
   const { task_id } = req.params;
-  const runs = loadTaskRuns();
+  const runs = await loadTaskRuns();
   const local = runs[task_id] || null;
 
   if (!MANUS_API_KEY) {
@@ -1236,7 +1243,7 @@ app.post('/api/manus/callback', (req, res) => {
         const task_id = task_detail.task_id;
 
         // Look up task_type from task-runs.json
-        const runs = loadTaskRuns();
+        const runs = await loadTaskRuns();
         const runRecord = runs[task_id];
         const task_type = runRecord ? runRecord.task_type : null;
 
@@ -1280,12 +1287,14 @@ app.post('/api/manus/callback', (req, res) => {
         });
 
         const outputs = TASK_OUTPUT_PATHS[task_type] || [];
+        const cbLocId = (runRecord && runRecord.location_id) || 'bloomington';
         for (const output of outputs) {
           try {
             const payload = output.key ? (taskData || {})[output.key] : taskData;
             if (payload && typeof payload === 'object') {
-              await atomicWriteJSON(output.path, payload);
-              console.log(`[manus/callback] task complete — wrote to ${output.path}`);
+              const r2Key = persistentPathToR2Key(output.path);
+              await r2Put(cbLocId, r2Key, payload);
+              console.log(`[manus/callback] task complete — wrote to R2: ${cbLocId}/${r2Key}`);
             }
           } catch (writeErr) {
             console.error(`[manus/callback] write failed for ${output.path}:`, writeErr.message);
@@ -1323,12 +1332,16 @@ app.post('/api/manus/callback', (req, res) => {
       });
 
       const outputs = TASK_OUTPUT_PATHS[task_type] || [];
+      const legacyRuns = await loadTaskRuns();
+      const legacyRecord = legacyRuns[task_id];
+      const legacyLocId = (legacyRecord && legacyRecord.location_id) || 'bloomington';
       for (const output of outputs) {
         try {
           const payload = output.key ? (data || {})[output.key] : data;
           if (payload && typeof payload === 'object') {
-            await atomicWriteJSON(output.path, payload);
-            console.log(`[manus/callback] wrote ${output.path}`);
+            const r2Key = persistentPathToR2Key(output.path);
+            await r2Put(legacyLocId, r2Key, payload);
+            console.log(`[manus/callback] wrote R2: ${legacyLocId}/${r2Key}`);
           }
         } catch (writeErr) {
           console.error(`[manus/callback] write failed for ${output.path}:`, writeErr.message);
@@ -1343,8 +1356,8 @@ app.post('/api/manus/callback', (req, res) => {
 });
 
 // GET /api/manus/recent-runs — last 20 task runs with status
-app.get('/api/manus/recent-runs', (req, res) => {
-  const runs = loadTaskRuns();
+app.get('/api/manus/recent-runs', async (req, res) => {
+  const runs = await loadTaskRuns();
   const sorted = Object.entries(runs)
     .map(([task_id, run]) => ({ task_id, ...run }))
     .sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''))
@@ -1611,9 +1624,8 @@ app.post('/api/meta/create-campaign', async (req, res) => {
       created_at: new Date().toISOString(),
       notes: 'Created via Meta Marketing API. Status PAUSED — activate in Ads Manager when ready to spend.',
     };
-    const campaignPath = path.join(PERSISTENT_DATA_DIR, 'paid', 'active-campaign.json');
-    await atomicWriteJSON(campaignPath, campaignResult);
-    console.log('[Meta] Campaign data written to intelligence-db');
+    await r2Put(campaignLoc.id || 'bloomington', 'intelligence-db/paid/active-campaign.json', campaignResult);
+    console.log('[Meta] Campaign data written to R2');
 
     const accountNum = (locMeta.adAccountId || '').replace('act_', '');
     logToSession('meta_create_campaign', `Campaign created: ${campaign.id}`);
@@ -1645,8 +1657,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
 app.get('/api/meta/campaign-status', async (req, res) => {
   const locationId = req.query.location || 'bloomington';
   const locMeta = getLocationMeta(locationId);
-  const campaignPath = path.join(PERSISTENT_DATA_DIR, 'paid', 'active-campaign.json');
-  const localData = safeReadJSON(campaignPath);
+  const localData = await r2Get(locationId, 'intelligence-db/paid/active-campaign.json');
 
   if (!localData || !localData.campaign_id) {
     return res.json({ campaign_exists: false, message: 'No active campaign found' });
@@ -1702,11 +1713,10 @@ app.get('/api/schedule', (req, res) => {
 
 // GET /api/rules — show agentic rules status
 app.get('/api/rules', async (req, res) => {
+  const ruleLocId = req.query.location || 'bloomington';
   const rulesStatus = await Promise.all(
     AGENTIC_RULES.map(async rule => {
-      const cooldownPath = path.join(PERSISTENT_DATA_DIR, 'rules', `${rule.id}.json`);
-      let lastFired = null;
-      try { lastFired = JSON.parse(fs.readFileSync(cooldownPath, 'utf-8')); } catch {}
+      const lastFired = await r2Get(ruleLocId, `intelligence-db/rules/${rule.id}.json`);
       return {
         id: rule.id,
         name: rule.name,
@@ -1773,8 +1783,8 @@ async function fireCAPIEvent({ eventName, fbclid, email, phone, leadType, campai
   }
 }
 
-async function updateAttributionReport({ matched, session, email, phone, ghlContactId, leadType, receivedAt, matchMethod, name }) {
-  const report = await safeReadJSONAsync(ATTRIBUTION_REPORT) || {
+async function updateAttributionReport({ matched, session, email, phone, ghlContactId, leadType, receivedAt, matchMethod, name, locationId = 'bloomington' }) {
+  const report = await r2Get(locationId, 'attribution/attribution-report.json') || {
     version: '1.0', leads: [], total_sessions: 0, total_matched: 0, total_unmatched: 0,
   };
   const entry = {
@@ -1812,17 +1822,17 @@ async function updateAttributionReport({ matched, session, email, phone, ghlCont
   report.match_rate_pct = report.total_sessions > 0
     ? Math.round((report.total_matched / report.total_sessions) * 100) : 0;
   report.last_updated = new Date().toISOString();
-  await atomicWriteJSON(ATTRIBUTION_REPORT, report);
+  await r2Put(locationId, 'attribution/attribution-report.json', report);
   console.log(`[Attribution] Report updated: ${report.total_matched}/${report.total_sessions} matched (${report.match_rate_pct}%)`);
 }
 
-async function matchContactToSession({ email, phone, name, ghlContactId, leadType, receivedAt, sessionId }) {
+async function matchContactToSession({ email, phone, name, ghlContactId, leadType, receivedAt, sessionId, locationId = 'bloomington' }) {
   console.log('[Attribution] Running match for:', email, phone);
   let bestMatch = null;
   let matchMethod = null;
 
   if (sessionId) {
-    const directSession = await safeReadJSONAsync(path.join(SESSIONS_DIR, `${sessionId}.json`));
+    const directSession = await r2Get(locationId, `attribution/sessions/${sessionId}.json`);
     if (directSession && directSession.status === 'pending') {
       bestMatch = directSession;
       matchMethod = 'session_id_match';
@@ -1830,19 +1840,19 @@ async function matchContactToSession({ email, phone, name, ghlContactId, leadTyp
   }
 
   if (!bestMatch) {
-    let sessionFiles;
-    try {
-      sessionFiles = await fs.promises.readdir(SESSIONS_DIR);
-    } catch {
-      console.log('[Attribution] No sessions yet');
-      return;
-    }
-    const pendingSessions = sessionFiles
-      .filter(f => !f.startsWith('fbclid_') && f.endsWith('.json'))
+    const allKeys = await r2List(locationId, 'attribution/sessions/');
+    const pendingKeys = allKeys
+      .filter(k => !path.basename(k).startsWith('fbclid_') && k.endsWith('.json'))
       .sort().reverse();
 
-    for (const file of pendingSessions) {
-      const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, file));
+    if (pendingKeys.length === 0) {
+      console.log('[Attribution] No sessions yet');
+      await updateAttributionReport({ matched: false, email, phone, ghlContactId, leadType, receivedAt, locationId });
+      return;
+    }
+
+    for (const key of pendingKeys) {
+      const session = await r2Get(locationId, key.replace(`${locationId}/`, ''));
       if (!session || session.status !== 'pending') continue;
       if (email && session.ghl_email === email) { bestMatch = session; matchMethod = 'email_match'; break; }
       if (phone && session.ghl_phone === phone) { bestMatch = session; matchMethod = 'phone_match'; break; }
@@ -1850,8 +1860,8 @@ async function matchContactToSession({ email, phone, name, ghlContactId, leadTyp
 
     if (!bestMatch) {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      for (const file of pendingSessions) {
-        const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, file));
+      for (const key of pendingKeys) {
+        const session = await r2Get(locationId, key.replace(`${locationId}/`, ''));
         if (!session) continue;
         const clickedAt = new Date(session.clicked_at);
         if (clickedAt > thirtyDaysAgo && session.status === 'pending' && session.fbclid) {
@@ -1864,7 +1874,7 @@ async function matchContactToSession({ email, phone, name, ghlContactId, leadTyp
 
   if (!bestMatch) {
     console.log('[Attribution] No match found for:', email);
-    await updateAttributionReport({ matched: false, email, phone, ghlContactId, leadType, receivedAt });
+    await updateAttributionReport({ matched: false, email, phone, ghlContactId, leadType, receivedAt, locationId });
     return;
   }
 
@@ -1879,7 +1889,8 @@ async function matchContactToSession({ email, phone, name, ghlContactId, leadTyp
     matchMethod === 'fbclid_unconfirmed' ? 'low' :
     (matchMethod === 'email_match' || matchMethod === 'phone_match') ? 'high' : 'medium';
 
-  await atomicWriteJSON(path.join(SESSIONS_DIR, `${bestMatch.session_id}.json`), bestMatch);
+  const sessionLocId = bestMatch.location_id || locationId;
+  await r2Put(sessionLocId, `attribution/sessions/${bestMatch.session_id}.json`, bestMatch);
   console.log(`[Attribution] Match found: ${matchMethod} | Session: ${bestMatch.session_id} | fbclid: ${bestMatch.fbclid}`);
 
   if (bestMatch.fbclid) {
@@ -1890,20 +1901,20 @@ async function matchContactToSession({ email, phone, name, ghlContactId, leadTyp
     });
   }
 
-  await updateAttributionReport({ matched: true, session: bestMatch, email, phone, ghlContactId, leadType, receivedAt, matchMethod, name });
+  await updateAttributionReport({ matched: true, session: bestMatch, email, phone, ghlContactId, leadType, receivedAt, matchMethod, name, locationId: sessionLocId });
 }
 
-async function confirmMemberConversion(ghlContactId, status) {
-  let sessionFiles;
-  try { sessionFiles = await fs.promises.readdir(SESSIONS_DIR); } catch { return; }
-  for (const file of sessionFiles) {
-    if (file.startsWith('fbclid_')) continue;
-    const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, file));
+async function confirmMemberConversion(ghlContactId, status, locationId = 'bloomington') {
+  const allKeys = await r2List(locationId, 'attribution/sessions/');
+  for (const key of allKeys) {
+    if (path.basename(key).startsWith('fbclid_')) continue;
+    const session = await r2Get(locationId, key.replace(`${locationId}/`, ''));
     if (session && session.ghl_contact_id === ghlContactId) {
+      const sessionLocId = session.location_id || locationId;
       session.converted_to_member = true;
       session.member_confirmed_at = new Date().toISOString();
       session.ghl_lead_type = status;
-      await atomicWriteJSON(path.join(SESSIONS_DIR, file), session);
+      await r2Put(sessionLocId, `attribution/sessions/${session.session_id}.json`, session);
       console.log('[Attribution] Member conversion confirmed:', ghlContactId, `fbclid: ${session.fbclid}`);
 
       if (session.fbclid) {
@@ -1911,18 +1922,18 @@ async function confirmMemberConversion(ghlContactId, status) {
           eventName: 'Purchase', fbclid: session.fbclid,
           email: session.ghl_email, phone: session.ghl_phone,
           value: 2000, currency: 'USD', clickedAt: session.clicked_at,
-          locationId: session.location_id || 'bloomington',
+          locationId: sessionLocId,
         });
       }
 
-      const report = await safeReadJSONAsync(ATTRIBUTION_REPORT) || { leads: [] };
+      const report = await r2Get(sessionLocId, 'attribution/attribution-report.json') || { leads: [] };
       const leadIndex = report.leads.findIndex(l => l.ghl_contact_id === ghlContactId);
       if (leadIndex >= 0) {
         report.leads[leadIndex].became_member = true;
         report.leads[leadIndex].member_date = new Date().toISOString();
         report.leads[leadIndex].ltv = 2000;
         report.last_updated = new Date().toISOString();
-        await atomicWriteJSON(ATTRIBUTION_REPORT, report);
+        await r2Put(sessionLocId, 'attribution/attribution-report.json', report);
       }
       break;
     }
@@ -1967,9 +1978,9 @@ app.get('/go', async (req, res) => {
   };
 
   try {
-    await atomicWriteJSON(path.join(SESSIONS_DIR, `${sessionId}.json`), session);
+    await r2Put(loc.id, `attribution/sessions/${sessionId}.json`, session);
     if (fbclid) {
-      await atomicWriteJSON(path.join(SESSIONS_DIR, `fbclid_${fbclid}.json`), {
+      await r2Put(loc.id, `attribution/sessions/fbclid_${fbclid}.json`, {
         session_id: sessionId, fbclid, clicked_at: session.clicked_at,
       });
     }
@@ -1983,7 +1994,8 @@ app.get('/go', async (req, res) => {
 
 // GET /api/attribution/session/:sessionId — look up a session by ID
 app.get('/api/attribution/session/:sessionId', async (req, res) => {
-  const session = await safeReadJSONAsync(path.join(SESSIONS_DIR, `${req.params.sessionId}.json`));
+  const locationId = req.query.location || 'bloomington';
+  const session = await r2Get(locationId, `attribution/sessions/${req.params.sessionId}.json`);
   if (!session) return res.status(404).json({ error: 'Session not found' });
   return res.json(session);
 });
@@ -2046,6 +2058,7 @@ app.post('/api/leads/submit', async (req, res) => {
           leadType: 'landing-page',
           receivedAt: new Date().toISOString(),
           sessionId: sessionId || null,
+          locationId: resolvedLocationId,
         }).catch(err => console.error('[LeadSubmit] attribution match failed:', err.message));
       });
     }
@@ -2071,7 +2084,7 @@ app.post('/api/webhooks/ghl/:locationId/contact-created', async (req, res) => {
       const ghlContactId = contact.id || contact.contactId || null;
       const leadType = (contact.tags && contact.tags[0]) || contact.source || 'unknown';
       console.log(`[GHL/${locationId}] New contact:`, email, phone, leadType);
-      await matchContactToSession({ email, phone, name, ghlContactId, leadType, receivedAt: new Date().toISOString() });
+      await matchContactToSession({ email, phone, name, ghlContactId, leadType, receivedAt: new Date().toISOString(), locationId });
     } catch (error) {
       console.error(`[GHL/${locationId}] Contact processing failed:`, error.message);
     }
@@ -2133,19 +2146,17 @@ app.post('/api/ghl/contact-updated', async (req, res) => {
 });
 
 // GET /api/attribution/report — full attribution report with summary stats
-// Counts are computed dynamically from session files in SESSIONS_DIR so the
+// Counts are computed dynamically from session files in R2 so the
 // total is accurate even before any GHL webhooks have fired.
 app.get('/api/attribution/report', async (req, res) => {
-  // --- Dynamic session counts from SESSIONS_DIR ---
-  let sessionFiles = [];
-  try {
-    sessionFiles = await fs.promises.readdir(SESSIONS_DIR);
-  } catch { /* directory not created yet */ }
+  const locationId = req.query.location || 'bloomington';
 
-  const sessionOnlyFiles = sessionFiles.filter(f => !f.startsWith('fbclid_') && f.endsWith('.json'));
+  // --- Dynamic session counts from R2 ---
+  const allKeys = await r2List(locationId, 'attribution/sessions/');
+  const sessionOnlyKeys = allKeys.filter(k => !path.basename(k).startsWith('fbclid_') && k.endsWith('.json'));
 
   const sessions = (await Promise.all(
-    sessionOnlyFiles.map(f => safeReadJSONAsync(path.join(SESSIONS_DIR, f)))
+    sessionOnlyKeys.map(k => r2Get(locationId, k.replace(`${locationId}/`, '')))
   )).filter(Boolean);
 
   const totalSessions = sessions.length;
@@ -2154,7 +2165,7 @@ app.get('/api/attribution/report', async (req, res) => {
   const matchRatePct  = totalSessions > 0 ? Math.round((totalMatched / totalSessions) * 100) : 0;
 
   // --- Leads detail from attribution-report.json (populated by GHL webhooks) ---
-  const report = await safeReadJSONAsync(ATTRIBUTION_REPORT) || { leads: [] };
+  const report = await r2Get(locationId, 'attribution/attribution-report.json') || { leads: [] };
   const leads = report.leads || [];
 
   const bySource = {};
@@ -2210,6 +2221,21 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// GET /api/admin/r2-test — creates a test object, reads it back, deletes it
+app.get('/api/admin/r2-test', async (req, res) => {
+  const testPath = 'r2-test.json';
+  const testData = { test: true, ts: new Date().toISOString() };
+  try {
+    await r2Put('bloomington', testPath, testData);
+    const read = await r2Get('bloomington', testPath);
+    await r2Delete('bloomington', testPath);
+    if (!read || read.test !== true) throw new Error('Read-back mismatch');
+    res.json({ success: true, key: `bloomington/${testPath}` });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`AHRI Marketing Command Center running on port ${PORT}`);
   console.log(`  Gym: ${locationConfig.getLocation('bloomington').gymName || 'GymSuite AI'}`);
@@ -2217,15 +2243,15 @@ app.listen(PORT, () => {
 });
 
 async function seedIntelligenceIfEmpty() {
-  const competitorAdsPath = path.join(PERSISTENT_DATA_DIR, 'market', 'competitor-ads.json');
+  const existing = await r2Get('bloomington', 'intelligence-db/market/competitor-ads.json');
 
-  try {
-    await fs.promises.access(competitorAdsPath);
-    console.log('[Seed] competitor-ads.json exists — skipping');
-  } catch {
-    console.log('[Seed] Writing seed data...');
+  if (existing && typeof existing === 'object') {
+    console.log('[Seed] competitor-ads.json exists in R2 — skipping');
+    return;
+  }
 
-    await fs.promises.mkdir(path.join(PERSISTENT_DATA_DIR, 'market'), { recursive: true });
+  {
+    console.log('[Seed] Writing seed data to R2...');
 
     const defaultLoc = locationConfig.getLocation('bloomington');
     const seedData = {
@@ -2262,8 +2288,8 @@ async function seedIntelligenceIfEmpty() {
       recommendation_for_ahri: 'Pivot away from free time and discount offers — saturated by Orangetheory and Club Pilates. Attack schedule constraints: run 24/7 access and no-waitlist hooks targeting prospects frustrated by fixed class times.',
     };
 
-    await atomicWriteJSON(competitorAdsPath, seedData);
-    console.log('[Seed] competitor-ads.json written successfully');
+    await r2Put('bloomington', 'intelligence-db/market/competitor-ads.json', seedData);
+    console.log('[Seed] competitor-ads.json written to R2 successfully');
   }
 }
 
@@ -2306,10 +2332,9 @@ async function seedQueueIfEmpty() {
 seedQueueIfEmpty().catch(console.error);
 
 async function initAttributionStore() {
-  await fs.promises.mkdir(SESSIONS_DIR, { recursive: true });
-  const reportExists = await fs.promises.access(ATTRIBUTION_REPORT).then(() => true).catch(() => false);
+  const reportExists = await r2Exists('bloomington', 'attribution/attribution-report.json');
   if (!reportExists) {
-    await atomicWriteJSON(ATTRIBUTION_REPORT, {
+    await r2Put('bloomington', 'attribution/attribution-report.json', {
       version: '1.0',
       last_updated: new Date().toISOString(),
       total_sessions: 0,
@@ -2318,12 +2343,67 @@ async function initAttributionStore() {
       match_rate_pct: 0,
       leads: [],
     });
-    console.log('[Attribution] Report initialized');
+    console.log('[Attribution] Report initialized in R2');
   }
-  console.log('[Attribution] Session store ready:', SESSIONS_DIR);
+  console.log('[Attribution] R2 session store ready');
 }
 
 initAttributionStore().catch(console.error);
+
+async function migrateVolumeToR2() {
+  const migrationKey = 'migration-complete.json';
+  const alreadyDone = await r2Exists('bloomington', migrationKey);
+  if (alreadyDone) {
+    console.log('[R2 Migration] Already complete — skipping');
+    return;
+  }
+
+  if (!process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+    console.log('[R2 Migration] No volume mounted — nothing to migrate');
+    await r2Put('bloomington', migrationKey, { migratedAt: new Date().toISOString(), source: 'no-volume' });
+    return;
+  }
+
+  console.log('[R2 Migration] Starting volume → R2 migration...');
+  let migrated = 0;
+  let failed = 0;
+
+  async function migrateDir(baseDir, r2Prefix) {
+    let entries;
+    try { entries = await fs.promises.readdir(baseDir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const fullPath = path.join(baseDir, entry.name);
+      const r2Key = `${r2Prefix}/${entry.name}`;
+      if (entry.isDirectory()) {
+        await migrateDir(fullPath, r2Key);
+      } else if (entry.name.endsWith('.json')) {
+        try {
+          const content = await fs.promises.readFile(fullPath, 'utf-8');
+          const parsed = JSON.parse(content);
+          await r2Put('bloomington', r2Key, parsed);
+          migrated++;
+          console.log(`[R2 Migration] Migrated: bloomington/${r2Key}`);
+        } catch (err) {
+          failed++;
+          console.error(`[R2 Migration] Failed: ${r2Key}:`, err.message);
+        }
+      }
+    }
+  }
+
+  await migrateDir(PERSISTENT_DATA_DIR, 'intelligence-db');
+  await migrateDir(ATTRIBUTION_DIR, 'attribution');
+
+  await r2Put('bloomington', migrationKey, {
+    migratedAt: new Date().toISOString(),
+    filesSucceeded: migrated,
+    filesFailed: failed,
+  });
+
+  console.log(`[R2 Migration] Complete — ${migrated} files migrated, ${failed} failed`);
+}
+
+migrateVolumeToR2().catch(err => console.error('[R2 Migration] Fatal:', err.message));
 
 // ── Cron: scheduled Manus tasks ─────────────────────────────────────────────
 
@@ -2414,9 +2494,9 @@ const AGENTIC_RULES = [
     id: 'high_cpl_alert',
     name: 'CPL Kill Threshold',
     description: 'Trigger paid-ads-analyzer if CPL > $60 after $50 spend',
-    check: () => {
+    check: async () => {
       try {
-        const perf = JSON.parse(fs.readFileSync(path.join(PERSISTENT_DATA_DIR, 'paid', 'meta-performance.json'), 'utf-8'));
+        const perf = await r2Get('bloomington', 'intelligence-db/paid/meta-performance.json') || {};
         return !perf._is_placeholder && perf.cpl > 60 && perf.total_spend > 50;
       } catch { return false; }
     },
@@ -2428,9 +2508,9 @@ const AGENTIC_RULES = [
     id: 'scale_signal',
     name: 'Scale Signal',
     description: 'Trigger paid-ads-analyzer if CPL < $30 for 3+ days',
-    check: () => {
+    check: async () => {
       try {
-        const perf = JSON.parse(fs.readFileSync(path.join(PERSISTENT_DATA_DIR, 'paid', 'meta-performance.json'), 'utf-8'));
+        const perf = await r2Get('bloomington', 'intelligence-db/paid/meta-performance.json') || {};
         return !perf._is_placeholder && perf.cpl_3day_avg < 30 && (perf.days_below_target || 0) >= 3;
       } catch { return false; }
     },
@@ -2442,9 +2522,9 @@ const AGENTIC_RULES = [
     id: 'retention_alert',
     name: 'Member Retention Alert',
     description: 'Trigger retention-early-warning if at-risk member count > 3',
-    check: () => {
+    check: async () => {
       try {
-        const retention = JSON.parse(fs.readFileSync(path.join(PERSISTENT_DATA_DIR, 'retention', 'dropout-alerts.json'), 'utf-8'));
+        const retention = await r2Get('bloomington', 'intelligence-db/retention/dropout-alerts.json') || {};
         return (retention.at_risk_count || 0) > 3;
       } catch { return false; }
     },
@@ -2458,20 +2538,18 @@ cron.schedule('0 * * * *', async () => {
   console.log('[rules] Checking agentic rules...');
   for (const rule of AGENTIC_RULES) {
     try {
-      const cooldownPath = path.join(PERSISTENT_DATA_DIR, 'rules', `${rule.id}.json`);
-      let lastFired = null;
-      try { lastFired = JSON.parse(fs.readFileSync(cooldownPath, 'utf-8')); } catch {}
+      const lastFired = await r2Get('bloomington', `intelligence-db/rules/${rule.id}.json`);
 
       if (lastFired) {
         const hoursSince = (Date.now() - new Date(lastFired.fired_at).getTime()) / 3600000;
         if (hoursSince < rule.cooldown_hours) continue;
       }
 
-      if (rule.check()) {
+      if (await rule.check()) {
         console.log(`[rules] Triggered: ${rule.name}`);
         await triggerManusTask(rule.action, 'rules-engine');
         const record = { id: rule.id, title: rule.name, message: rule.notification, fired_at: new Date().toISOString(), action_taken: rule.action };
-        await atomicWriteJSON(cooldownPath, record);
+        await r2Put('bloomington', `intelligence-db/rules/${rule.id}.json`, record);
       }
     } catch (err) {
       console.error(`[rules] Error checking ${rule.id}:`, err.message);
