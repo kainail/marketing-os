@@ -2,7 +2,7 @@
 # AHRI reads this file before every generation. Keep it current.
 
 ## Sessions Complete
-Sessions 0–20 | Version: v2.0 | Last updated: 2026-05-01
+Sessions 0–21 | Version: v2.0 | Last updated: 2026-05-01
 
 ## Active Offer
 The No-Risk Comeback — 30 Days Coached, $1 to Start
@@ -65,7 +65,7 @@ LTV Correction: COMPLETE ✅
   MEMBER_LTV now env-var overridable (add MEMBER_LTV=2000 to Railway OPS Dashboard)
   Marketing-portal was already using $2,000
 
-Goal 6 — R2 Migration: CODE COMPLETE ✅ — awaiting deployment verification
+Goal 6 — R2 Migration: FULLY COMPLETE ✅ (verified Session 21 — 2026-05-01)
   Step 1 ✅ @aws-sdk/client-s3 installed in both projects
   Step 2 ✅ lib/r2.js created in both projects (7 functions: r2Get/r2Put/r2List/r2Delete/r2GetShared/r2PutShared/r2Exists)
   Step 3 ✅ GET /api/admin/r2-test endpoint added to both servers
@@ -83,10 +83,10 @@ Goal 6 — R2 Migration: CODE COMPLETE ✅ — awaiting deployment verification
     - After Jarvis run: r2Put(locationId, 'intelligence-db/jarvis/{timestamp}.json', report)
     - After script optimization: r2Put(locationId, 'intelligence-db/scripts/{timestamp}.json', result)
   Step 6 ✅ migrateVolumeToR2() function added — runs on startup, idempotent (checks migration-complete.json)
-  Step 7 — PENDING: deploy to Railway and run verification checks
-    Check 1: GET /api/admin/r2-test on both servers → { success: true }
-    Check 2: Trigger intelligence task, confirm file in Cloudflare R2 dashboard
-    Check 3: POST /api/vision/run, confirm vision file in R2 dashboard
+  Step 7 ✅ Deployed to Railway and all verification checks passed
+    Check 1 ✅ GET /api/admin/r2-test on both servers → { success: true }
+    Check 2 ✅ Intelligence task file confirmed in Cloudflare R2 dashboard
+    Check 3 ✅ Vision run file confirmed in bloomington/intelligence-db/vision/ in R2 dashboard
 
 Goal 7 — Three-Tier Portal: NOT STARTED
 Goal 8 — Handbook Export: NOT STARTED
@@ -102,18 +102,8 @@ Goal 8 — Handbook Export: NOT STARTED
 - Switch to OUTCOME_LEADS after 50+ pixel events
 - META_ACCESS_TOKEN renewal deadline: 2026-05-29
 
-## Deployment Needed Before Goal 6 Verification
-Push both projects to Railway:
-  git push origin main (gymsuiteai-dashboard)
-  git push origin main (marketing-os)
-Then verify:
-  GET gymsuiteai-dashboard-production.up.railway.app/api/admin/r2-test → { success: true }
-  GET marketing-os-production-2b85.up.railway.app/api/admin/r2-test → { success: true }
-
 ## Next Session Starts With
-1. Deploy Goal 6 code to Railway (git push)
-2. Run Step 7 verification checks (r2-test + R2 dashboard confirmation)
-3. Then begin Goal 7 — Three-Tier Portal
+1. Begin Goal 7 — Three-Tier Portal
 
 ## Skills Complete: 15 of 15
 offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync,
@@ -181,7 +171,8 @@ R2_BUCKET_NAME = gymsuiteai-storage
 R2_ENDPOINT = https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com
 
 ## Future Sessions
-- Session 21: Deploy Goal 6 → verify R2 checks → Goal 7 Three-Tier Portal
-- Session 22: Goal 8 Handbook Export
+- Session 21: Goal 6 deployed and fully verified ✅
+- Session 22: Goal 7 Three-Tier Portal
+- Session 23: Goal 8 Handbook Export
 - Session 23+: Second gym location live (Eaton) — after SOP complete and R2 verified
 - Session 24+: Vision + Syndra cross-brain data sharing (once both systems have meaningful data)
