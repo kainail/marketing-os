@@ -509,6 +509,17 @@ app.use((req, res, next) => {
   requireAuth(req, res, next);
 });
 
+// Location enforcement — admins pass through; owners must own the requested location
+function assertLocation(req, res) {
+  if (!req.user || req.user.role === 'admin') return true;
+  const loc = req.query.location || req.params.locationId || 'bloomington';
+  if (!req.user.locations.includes(loc)) {
+    res.status(403).json({ error: 'Location access denied' });
+    return false;
+  }
+  return true;
+}
+
 // Token validation endpoint — AHRI asks OPS Dashboard to validate, but can also self-validate
 app.get('/api/auth/validate', (req, res) => {
   const token = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
@@ -537,7 +548,8 @@ app.get('/api/status', (req, res) => {
 });
 
 app.get('/api/overview', (req, res) => {
-  const locationId = req.query.location || 'bloomington'; // future: scope intel files per location
+  const locationId = req.query.location || 'bloomington';
+  if (!assertLocation(req, res)) return;
   // Morning brief
   let morningBrief = { date: null, content: 'No brief yet.', filename: null };
   const briefFiles = safeReadDir(BRIEFS).filter(f => f.endsWith('.md')).sort().reverse();
@@ -720,7 +732,8 @@ function buildAlerts(retention, metaPerf, nurturePerf, reviewLog) {
 }
 
 app.get('/api/alerts', (req, res) => {
-  const locationId = req.query.location || 'bloomington'; // future: scope intel files per location
+  const locationId = req.query.location || 'bloomington';
+  if (!assertLocation(req, res)) return;
   const retention = safeReadJSON(path.join(INTEL, 'retention', 'dropout-alerts.json'));
   const metaPerf = safeReadJSON(path.join(INTEL, 'paid', 'meta-performance.json'));
   const nurturePerf = safeReadJSON(path.join(INTEL, 'nurture', 'sequence-performance.json'));
@@ -731,7 +744,8 @@ app.get('/api/alerts', (req, res) => {
 });
 
 app.get('/api/performance', (req, res) => {
-  const locationId = req.query.location || 'bloomington'; // future: scope intel files per location
+  const locationId = req.query.location || 'bloomington';
+  if (!assertLocation(req, res)) return;
   const metaPerf = safeReadJSON(path.join(INTEL, 'paid', 'meta-performance.json'));
   const googlePerf = safeReadJSON(path.join(INTEL, 'paid', 'google-performance.json'));
   const attrReport = safeReadJSON(path.join(INTEL, 'lead-journey', 'attribution-report.json'));
@@ -778,6 +792,7 @@ app.get('/api/performance', (req, res) => {
 
 app.get('/api/queue', (req, res) => {
   const locationFilter = req.query.location || null;
+  if (!assertLocation(req, res)) return;
   const files = safeReadDir(QUEUE).filter(f => f.endsWith('.md'));
   let assets = files.map(filename => {
     const content = safeRead(path.join(QUEUE, filename)) || '';
