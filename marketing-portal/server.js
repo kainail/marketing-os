@@ -494,6 +494,21 @@ app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, 'pub
 app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, 'public', 'reset-password.html')));
 app.get('/dashboard', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
+// ── Blanket API auth — public exceptions listed explicitly ─────────────────
+const AHRI_PUBLIC_API = [
+  '/api/auth/validate',
+  '/api/leads/submit',
+  '/api/manus/callback',
+  '/api/status',
+];
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next();
+  if (AHRI_PUBLIC_API.includes(req.path)) return next();
+  if (req.path.startsWith('/api/webhooks/')) return next();
+  if (req.path.startsWith('/api/ghl/')) return next();
+  requireAuth(req, res, next);
+});
+
 // Token validation endpoint — AHRI asks OPS Dashboard to validate, but can also self-validate
 app.get('/api/auth/validate', (req, res) => {
   const token = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
