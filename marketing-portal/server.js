@@ -7,9 +7,15 @@ const fs = require('fs');
 const crypto = require('crypto');
 const cron = require('node-cron');
 const { r2Get, r2Put, r2List, r2Delete, r2GetShared, r2PutShared, r2Exists } = require('./lib/r2');
+const { requireAuth, requireAdmin, requireLocation, loginLimiter } = require('./lib/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
+
+const ALLOWED_ORIGINS = [
+  'https://gymsuiteai-dashboard-production.up.railway.app',
+  'https://marketing-os-production-2b85.up.railway.app',
+];
 
 // --- Path constants ---
 // On Railway, __dirname = /app (the marketing-portal/ folder is the service root).
@@ -468,13 +474,39 @@ function getPlaceholderPerf() {
 }
 
 // --- Middleware ---
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- API ROUTES ---
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// Auth pages — always public
+app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')));
+app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, 'public', 'forgot-password.html')));
+app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, 'public', 'reset-password.html')));
+app.get('/dashboard', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+// Token validation endpoint — AHRI asks OPS Dashboard to validate, but can also self-validate
+app.get('/api/auth/validate', (req, res) => {
+  const token = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
+  if (!token) return res.status(401).json({ valid: false });
+  try {
+    const jwt = require('jsonwebtoken');
+    const user = jwt.verify(token, process.env.JWT_SECRET);
+    const { passwordHash, resetToken, resetTokenExpiry, ...safe } = user;
+    res.json({ valid: true, user: safe });
+  } catch {
+    res.status(401).json({ valid: false });
+  }
+});
 
 app.get('/api/status', (req, res) => {
   const locationId = req.query.location || 'bloomington';
@@ -486,7 +518,6 @@ app.get('/api/status', (req, res) => {
     gym_name: loc.gymName || 'GymSuite AI',
     location_id: loc.id,
     ops_url: process.env.OPS_URL || 'https://gymsuiteai-dashboard-production.up.railway.app',
-    neural_url: process.env.NEURAL_URL || 'https://gymsuiteai-neural-os-production.up.railway.app',
   });
 });
 
@@ -2217,7 +2248,7 @@ app.get('/api/attribution/report', async (req, res) => {
 });
 
 // GET /api/admin/r2-test — creates a test object, reads it back, deletes it
-app.get('/api/admin/r2-test', async (req, res) => {
+app.get('/api/admin/r2-test', requireAdmin, async (req, res) => {
   const testPath = 'r2-test.json';
   const testData = { test: true, ts: new Date().toISOString() };
   try {

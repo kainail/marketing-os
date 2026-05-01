@@ -30,10 +30,10 @@
     </select>
   </div>
   <div class="header-right">
-    <a id="ops-link" class="nav-toggle" href="#" target="_blank">OPS</a>
+    <a id="ops-link" class="nav-toggle" href="#" onclick="event.preventDefault(); switchToOPS();">GymSuite AI</a>
     <span class="nav-toggle active">MARKETING <span class="dot-badge"></span></span>
-    <a id="neural-link" class="nav-toggle" href="#" target="_blank">NEURAL</a>
     <button id="bell-btn" onclick="toggleNotifications()">🔔<span class="bell-badge" id="bell-badge">0</span></button>
+    <button id="logout-btn" onclick="doLogout()" style="background:none;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:5px 10px;color:rgba(232,234,240,0.4);cursor:pointer;font-size:11px;font-family:inherit;transition:color 0.15s,border-color 0.15s;">Sign out</button>
     <button id="ahri-toggle" onclick="toggleAhriPanel()">AHRI ›</button>
   </div>
 </header>
@@ -413,7 +413,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     state.gymName = status.gym_name;
     document.title = `AHRI — ${status.gym_name}`;
     document.getElementById('ops-link').href = status.ops_url;
-    document.getElementById('neural-link').href = status.neural_url;
     document.querySelector('.location-select').innerHTML = `<option>${status.gym_name}</option>`;
   }
   await loadOverview();
@@ -2035,6 +2034,62 @@ document.addEventListener('click', (e) => {
     document.getElementById('notif-dropdown').classList.remove('open');
   }
 });
+
+// ── Auth ──────────────────────────────────────────────────────────────────
+const OPS_URL = 'https://gymsuiteai-dashboard-production.up.railway.app';
+
+function parseJwt(token) {
+  try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; }
+}
+
+(function initAuth() {
+  // Handle incoming token from cross-service handoff
+  const params = new URLSearchParams(window.location.search);
+  const incoming = params.get('token');
+  if (incoming) {
+    localStorage.setItem('gymsuite_token', incoming);
+    params.delete('token');
+    window.history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+  }
+
+  const token = localStorage.getItem('gymsuite_token');
+  if (!token) { window.location.href = '/login'; return; }
+
+  const user = parseJwt(token);
+  if (!user) { localStorage.removeItem('gymsuite_token'); window.location.href = '/login'; return; }
+
+  // Show OPS toggle only if user has both permissions
+  const opsLink = document.getElementById('ops-link');
+  if (opsLink) {
+    if (user.permissions && user.permissions.hasOPS && user.permissions.hasAHRI) {
+      opsLink.style.display = '';
+    } else {
+      opsLink.style.display = 'none';
+    }
+  }
+
+  // Multi-tab logout
+  window.addEventListener('storage', e => {
+    if (e.key === 'gymsuite_token' && !e.newValue) window.location.href = '/login';
+  });
+})();
+
+function switchToOPS() {
+  const token = localStorage.getItem('gymsuite_token');
+  window.location.href = OPS_URL + '/dashboard?token=' + token;
+}
+
+async function doLogout() {
+  const token = localStorage.getItem('gymsuite_token');
+  try {
+    await fetch(OPS_URL + '/api/auth/logout', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+    });
+  } catch {}
+  localStorage.removeItem('gymsuite_token');
+  window.location.href = '/login';
+}
 </script>
 </body>
 </html>

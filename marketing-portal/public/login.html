@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AHRI — Sign In</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'Outfit', system-ui, sans-serif; background: #0a0a0a; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    body::before { content: ''; position: fixed; inset: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 28px 28px; pointer-events: none; }
+    .blob { position: fixed; border-radius: 50%; filter: blur(100px); opacity: 0.06; pointer-events: none; }
+    .blob-1 { width: 600px; height: 400px; background: #1a2fa0; top: -180px; left: -120px; }
+    .blob-2 { width: 400px; height: 350px; background: #7c3aed; bottom: -100px; right: -80px; }
+    .page { position: relative; z-index: 1; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .card { width: 100%; max-width: 420px; background: #111; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 44px 40px; }
+    .logo { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; }
+    .logo-dot { width: 28px; height: 28px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 8px; flex-shrink: 0; }
+    .logo-text { font-size: 18px; font-weight: 700; }
+    .logo-sub { font-size: 11px; color: rgba(232,234,240,0.4); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+    .subtitle { font-size: 14px; color: rgba(232,234,240,0.5); margin-bottom: 28px; }
+    label { display: block; font-size: 13px; color: rgba(232,234,240,0.6); margin-bottom: 6px; font-weight: 500; }
+    .field { margin-bottom: 18px; }
+    .input-wrap { position: relative; }
+    input[type=email], input[type=password], input[type=text] { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 16px; font-family: inherit; font-size: 15px; color: #e8eaf0; outline: none; transition: border-color 0.15s; }
+    input.has-toggle { padding-right: 44px; }
+    input:focus { border-color: rgba(99,102,241,0.6); }
+    .toggle-vis { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; color: rgba(232,234,240,0.35); font-size: 16px; line-height: 1; transition: color 0.15s; }
+    .toggle-vis:hover { color: rgba(232,234,240,0.7); }
+    .btn { width: 100%; background: #6366f1; border: none; border-radius: 10px; padding: 13px; font-family: inherit; font-size: 15px; font-weight: 600; color: #fff; cursor: pointer; transition: opacity 0.15s, background 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; }
+    .btn:hover:not(:disabled) { background: #4f46e5; }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-msg { margin-top: 14px; padding: 10px 14px; background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.25); border-radius: 8px; font-size: 13px; color: #fb7185; display: none; }
+    .error-msg.show { display: block; }
+    .forgot { display: block; text-align: center; margin-top: 20px; font-size: 13px; color: rgba(232,234,240,0.4); text-decoration: none; transition: color 0.15s; }
+    .forgot:hover { color: rgba(232,234,240,0.7); }
+  </style>
+</head>
+<body>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="page">
+    <div class="card">
+      <div class="logo">
+        <div class="logo-dot"></div>
+        <div>
+          <div class="logo-text">AHRI</div>
+          <div class="logo-sub">Marketing OS</div>
+        </div>
+      </div>
+      <h1>Sign in</h1>
+      <p class="subtitle">Access your marketing dashboard</p>
+      <form id="login-form" onsubmit="doLogin(event)">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" autocomplete="email" required placeholder="you@example.com"/>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <input type="password" id="password" class="has-toggle" autocomplete="current-password" required placeholder="••••••••"/>
+            <button type="button" class="toggle-vis" onclick="togglePw('password', this)">👁</button>
+          </div>
+        </div>
+        <button class="btn" id="submit-btn" type="submit">
+          <span id="btn-label">Sign In</span>
+        </button>
+        <div class="error-msg" id="error-msg"></div>
+      </form>
+      <a href="/forgot-password" class="forgot">Forgot your password?</a>
+    </div>
+  </div>
+  <script>
+    const OPS_URL = 'https://gymsuiteai-dashboard-production.up.railway.app';
+    const AHRI_URL = 'https://marketing-os-production-2b85.up.railway.app';
+
+    function togglePw(id, btn) {
+      const el = document.getElementById(id);
+      el.type = el.type === 'password' ? 'text' : 'password';
+      btn.textContent = el.type === 'password' ? '👁' : '🙈';
+    }
+
+    function setLoading(v) {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = v;
+      document.getElementById('btn-label').innerHTML = v ? '<div class="spinner"></div>' : 'Sign In';
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.add('show');
+    }
+
+    function parseJwt(t) {
+      try { return JSON.parse(atob(t.split('.')[1])); } catch { return null; }
+    }
+
+    // Handle incoming token handoff
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const t = params.get('token');
+      if (t) {
+        localStorage.setItem('gymsuite_token', t);
+        params.delete('token');
+        window.history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+        window.location.href = '/dashboard';
+      }
+    })();
+
+    async function doLogin(e) {
+      e.preventDefault();
+      document.getElementById('error-msg').classList.remove('show');
+      setLoading(true);
+      const email = document.getElementById('email').value.trim().toLowerCase();
+      const password = document.getElementById('password').value;
+      try {
+        // AHRI always defers to OPS Dashboard for token issuance
+        const res = await fetch(OPS_URL + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showError(data.error || 'Sign in failed'); return; }
+
+        const user = data.user;
+        if (!user.permissions || (!user.permissions.hasOPS && !user.permissions.hasAHRI)) {
+          showError('Your account has no active permissions. Contact your administrator.');
+          return;
+        }
+        if (!user.permissions.hasAHRI) {
+          showError('Your account does not have access to AHRI. Contact your administrator.');
+          return;
+        }
+
+        localStorage.setItem('gymsuite_token', data.token);
+        window.location.href = '/dashboard';
+      } catch {
+        showError('Connection error. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    }
+  </script>
+</body>
+</html>
