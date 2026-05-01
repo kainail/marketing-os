@@ -2216,11 +2216,6 @@ app.get('/api/attribution/report', async (req, res) => {
   });
 });
 
-// SPA fallback
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 // GET /api/admin/r2-test — creates a test object, reads it back, deletes it
 app.get('/api/admin/r2-test', async (req, res) => {
   const testPath = 'r2-test.json';
@@ -2234,6 +2229,11 @@ app.get('/api/admin/r2-test', async (req, res) => {
   } catch (err) {
     res.json({ success: false, error: err.message });
   }
+});
+
+// SPA fallback
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {
