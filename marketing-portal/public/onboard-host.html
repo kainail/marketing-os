@@ -56,7 +56,10 @@
     .btn-flag:hover:not(:disabled) { background: rgba(249,115,22,0.16); }
     .btn-hooks { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.25); color: #6ee7b7; }
     .btn-hooks:hover:not(:disabled) { background: rgba(34,197,94,0.16); }
+    .btn-reset { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.22); color: #fca5a5; }
+    .btn-reset:hover:not(:disabled) { background: rgba(239,68,68,0.16); }
     .coming-soon { font-size: 10px; color: rgba(232,234,240,0.25); letter-spacing: 0.5px; }
+    .controls-divider { border: none; border-top: 1px solid rgba(255,255,255,0.05); margin: 10px 0; }
 
     /* Manus status */
     .manus-task-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -173,6 +176,8 @@
         <button class="control-btn btn-skip" disabled>⏭ Skip question</button>
         <button class="control-btn btn-flag" disabled>⚑ Flag weak answer</button>
         <button class="control-btn btn-hooks" disabled>⚡ Generate hooks now</button>
+        <hr class="controls-divider"/>
+        <button class="control-btn btn-reset" id="reset-btn" onclick="resetInterview()">↺ Reset interview</button>
       </div>
 
       <div class="sidebar-section">
@@ -517,6 +522,36 @@
         btn.classList.add('copied');
         setTimeout(() => { btn.textContent = 'Copy owner URL'; btn.classList.remove('copied'); }, 2000);
       });
+    }
+
+    async function resetInterview() {
+      const gymName = session?.gymName || 'this session';
+      const confirmed = confirm(`Reset interview for ${gymName}?\n\nThis will:\n• Clear all captured answers\n• Delete the 4 KB files written so far\n• Reset Marcus's screen to "Hear what AHRI found"\n\nResearch data and preview hooks are kept.\n\nThis cannot be undone.`);
+      if (!confirmed) return;
+
+      const btn = document.getElementById('reset-btn');
+      btn.disabled = true;
+      btn.textContent = 'Resetting...';
+      addLog('Resetting interview progress...', 'warn');
+
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/reset-interview`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          addLog('Interview reset — status: research_complete', 'ok');
+          await loadSession();
+        } else {
+          addLog('Reset failed: ' + (data.error || 'unknown'), 'error');
+        }
+      } catch (err) {
+        addLog('Reset error: ' + err.message, 'error');
+      }
+
+      btn.disabled = false;
+      btn.textContent = '↺ Reset interview';
     }
 
     init();

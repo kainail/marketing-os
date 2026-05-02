@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const cron = require('node-cron');
-const { r2Get, r2Put, r2List, r2Delete, r2GetShared, r2PutShared, r2Exists } = require('./lib/r2');
+const { r2Get, r2Put, r2List, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists } = require('./lib/r2');
 const { requireAuth, requireAdmin, requireLocation, loginLimiter } = require('./lib/auth');
 
 const app = express();
@@ -2774,6 +2774,40 @@ app.patch('/api/onboarding/sessions/:sessionId/answers', async (req, res) => {
   session.last_answer_at = new Date().toISOString();
   await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
   res.json({ success: true });
+});
+
+// POST /api/onboarding/sessions/:sessionId/reset-interview — clear interview progress, keep research
+app.post('/api/onboarding/sessions/:sessionId/reset-interview', requireAdmin, async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  // Strip all interview fields — preserve identity, research references, and notes
+  ['answers', 'last_answer_at', 'completed_at'].forEach(f => delete session[f]);
+  for (let i = 1; i <= 8; i++) {
+    delete session[`section_${i}_complete`];
+    delete session[`section_${i}_at`];
+  }
+  session.status = 'research_complete';
+  session.reset_at = new Date().toISOString();
+  session.reset_by = req.user?.email || 'admin';
+
+  await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+
+  // Delete KB files and final hooks — these must be regenerated after the new interview
+  const toDelete = [
+    'knowledge-base/brain-state/current-state.md',
+    'knowledge-base/fitness/lifestyle-avatar.md',
+    'knowledge-base/fitness/objection-vault.md',
+    'knowledge-base/compliance-b2c.md',
+    'hooks.json',
+  ];
+  await Promise.all(toDelete.map(f => r2DeleteShared(`onboarding/sessions/${sessionId}/${f}`)));
+
+  console.log(`[onboarding] session ${sessionId} interview reset by ${session.reset_by}`);
+  res.json({ success: true, status: session.status, reset_at: session.reset_at });
 });
 
 // POST /api/onboarding/sessions/:sessionId/kb-section — generate + write canonical KB file to R2

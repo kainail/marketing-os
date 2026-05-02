@@ -115,6 +115,18 @@ async function r2Delete(locationId, filePath) {
 }
 
 /**
+ * Delete from shared/ prefix (cross-location assets).
+ */
+async function r2DeleteShared(filePath) {
+  const key = buildSharedKey(filePath);
+  try {
+    await getClient().send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+  } catch (err) {
+    console.error(`[R2] r2DeleteShared failed for key=${key}:`, err.message);
+  }
+}
+
+/**
  * Read from shared/ prefix (cross-location assets).
  */
 async function r2GetShared(filePath) {
@@ -163,4 +175,4 @@ async function r2Exists(locationId, filePath) {
   }
 }
 
-module.exports = { r2Get, r2Put, r2List, r2Delete, r2GetShared, r2PutShared, r2Exists };
+module.exports = { r2Get, r2Put, r2List, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists };
