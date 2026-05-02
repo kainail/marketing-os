@@ -46,9 +46,12 @@
     @keyframes wave-idle { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(0.55); } }
 
     /* ─── State area ─────────────────────────────────────────────── */
-    .state-area { flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; z-index: 1; }
+    .state-area { flex: 1; width: 100%; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; z-index: 1; }
     .state-pane { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
     .state-pane.hidden { display: none; }
+    /* speaking pane overrides — fills state-area, scroll area + pinned buttons */
+    #state-speaking { justify-content: flex-start; height: 100%; min-height: 0; }
+    .speaking-scroll-area { flex: 1; width: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
 
     /* ─── State 1: preparing ─────────────────────────────────────── */
     .preparing-label { font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 18px; }
@@ -73,7 +76,7 @@
     /* ─── State 3: speaking ──────────────────────────────────────── */
     .speaking-who { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 22px; display: flex; align-items: center; gap: 8px; justify-content: center; }
     .speaking-who-dot { width: 6px; height: 6px; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 8px rgba(124,58,237,0.6); animation: pip-pulse 1.2s ease-in-out infinite; }
-    .speaking-text { font-size: 28px; color: rgba(232,234,240,0.95); width: 100%; max-width: 600px; line-height: 1.6; font-weight: 400; text-align: center; background: none; border: none; border-radius: 0; padding: 0; }
+    .speaking-text { font-size: 28px; color: rgba(232,234,240,0.95); width: 100%; max-width: 600px; line-height: 1.6; font-weight: 400; text-align: center; background: none; border: none; border-radius: 0; padding: 0; overflow-wrap: break-word; word-break: break-word; white-space: normal; overflow-x: hidden; }
 
     /* ─── State 4: hook reveal ───────────────────────────────────── */
     .hook-counter { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 28px; min-height: 16px; }
@@ -86,7 +89,7 @@
 
     /* ─── Act label + continue / skip buttons ───────────────────── */
     .act-label { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.22); margin-bottom: 14px; min-height: 14px; }
-    .act-nav-row { display: none; align-items: center; justify-content: center; gap: 12px; margin-top: 32px; }
+    .act-nav-row { display: none; align-items: center; justify-content: center; gap: 12px; flex-shrink: 0; padding: 16px 0 8px; }
     .continue-btn { display: none; align-items: center; gap: 8px; background: #6366f1; border: none; border-radius: 10px; padding: 12px 28px; font-family: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; box-shadow: 0 0 24px rgba(99,102,241,0.25); transition: background 0.15s, opacity 0.35s, transform 0.35s; }
     .continue-btn:hover { background: #4f46e5; }
     .skip-act-btn { display: none; align-items: center; background: transparent; border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; padding: 11px 20px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.45); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
@@ -317,42 +320,44 @@
 
         <!-- State 3: speaking (narration in progress) -->
         <div class="state-pane hidden" id="state-speaking">
-          <div class="act-label" id="act-label"></div>
-          <div class="speaking-who"><span class="speaking-who-dot"></span>AHRI</div>
-          <p class="speaking-text" id="speaking-text"></p>
-          <!-- Path B intro: offer template tiles shown briefly before qb2 -->
-          <div class="intro-tiles-wrap hidden" id="intro-tiles-wrap">
-            <div class="intro-tiles-label">What's working in your market:</div>
-            <div id="intro-tiles-container"></div>
-          </div>
-          <!-- Path B offer edit fields — shown after synthesis speech -->
-          <div class="offer-edit-fields hidden" id="offer-edit-fields">
-            <div class="offer-edit-header">Review and edit your offer</div>
-            <div class="offer-edit-row">
-              <label class="offer-field-label">Trial duration</label>
-              <input type="text" class="offer-field-input" id="oef-duration" placeholder="e.g. 21 days" />
+          <div class="speaking-scroll-area" id="speaking-scroll-area">
+            <div class="act-label" id="act-label"></div>
+            <div class="speaking-who"><span class="speaking-who-dot"></span>AHRI</div>
+            <p class="speaking-text" id="speaking-text"></p>
+            <!-- Path B intro: offer template tiles shown briefly before qb2 -->
+            <div class="intro-tiles-wrap hidden" id="intro-tiles-wrap">
+              <div class="intro-tiles-label">What's working in your market:</div>
+              <div id="intro-tiles-container"></div>
             </div>
-            <div class="offer-edit-row">
-              <label class="offer-field-label">Entry price</label>
-              <input type="text" class="offer-field-input" id="oef-price" placeholder="e.g. $0 down" />
+            <!-- Path B offer edit fields — shown after synthesis speech -->
+            <div class="offer-edit-fields hidden" id="offer-edit-fields">
+              <div class="offer-edit-header">Review and edit your offer</div>
+              <div class="offer-edit-row">
+                <label class="offer-field-label">Trial duration</label>
+                <input type="text" class="offer-field-input" id="oef-duration" placeholder="e.g. 21 days" />
+              </div>
+              <div class="offer-edit-row">
+                <label class="offer-field-label">Entry price</label>
+                <input type="text" class="offer-field-input" id="oef-price" placeholder="e.g. $0 down" />
+              </div>
+              <div class="offer-edit-row">
+                <label class="offer-field-label">What's included</label>
+                <textarea class="offer-field-textarea" id="oef-inclusions" placeholder="e.g. 3 coached sessions per week, nutrition check-in..."></textarea>
+              </div>
+              <div class="offer-edit-row">
+                <label class="offer-field-label">Guarantee</label>
+                <textarea class="offer-field-textarea" id="oef-guarantee" placeholder="e.g. Love it or full refund, no questions asked..."></textarea>
+              </div>
+              <div class="offer-edit-row">
+                <label class="offer-field-label">Core differentiator</label>
+                <textarea class="offer-field-textarea" id="oef-differentiator" placeholder="e.g. Personal coaching you can't get at a big box gym..."></textarea>
+              </div>
             </div>
-            <div class="offer-edit-row">
-              <label class="offer-field-label">What's included</label>
-              <textarea class="offer-field-textarea" id="oef-inclusions" placeholder="e.g. 3 coached sessions per week, nutrition check-in..."></textarea>
+            <!-- Offer confirmation after Path B synthesis -->
+            <div class="offer-confirm-actions" id="offer-confirm-actions" style="display:none">
+              <button class="offer-confirm-btn" onclick="confirmOffer()">Sounds good →</button>
+              <button class="offer-adjust-btn" onclick="adjustOffer()">Let me adjust something</button>
             </div>
-            <div class="offer-edit-row">
-              <label class="offer-field-label">Guarantee</label>
-              <textarea class="offer-field-textarea" id="oef-guarantee" placeholder="e.g. Love it or full refund, no questions asked..."></textarea>
-            </div>
-            <div class="offer-edit-row">
-              <label class="offer-field-label">Core differentiator</label>
-              <textarea class="offer-field-textarea" id="oef-differentiator" placeholder="e.g. Personal coaching you can't get at a big box gym..."></textarea>
-            </div>
-          </div>
-          <!-- Offer confirmation after Path B synthesis -->
-          <div class="offer-confirm-actions" id="offer-confirm-actions" style="display:none">
-            <button class="offer-confirm-btn" onclick="confirmOffer()">Sounds good →</button>
-            <button class="offer-adjust-btn" onclick="adjustOffer()">Let me adjust something</button>
           </div>
           <div class="act-nav-row" id="act-nav-row">
             <button class="continue-btn" id="continue-btn" onclick="onContinueClick()">Continue →</button>
@@ -833,7 +838,11 @@
         span.textContent = (i > 0 ? ' ' : '') + word;
         span.style.cssText = 'opacity:0;transition:opacity 150ms ease;display:inline;';
         el.appendChild(span);
-        _wordRevealTimers.push(setTimeout(() => { span.style.opacity = '1'; }, i * intervalMs));
+        _wordRevealTimers.push(setTimeout(() => {
+          span.style.opacity = '1';
+          const sa = document.getElementById('speaking-scroll-area');
+          if (sa) sa.scrollTop = sa.scrollHeight;
+        }, i * intervalMs));
       });
     }
 
@@ -992,6 +1001,8 @@
           speakEl.innerHTML = '';
           speakEl.textContent = actFullText;
         }
+        const sa = document.getElementById('speaking-scroll-area');
+        if (sa) sa.scrollTop = 0;
         // Change label to signal second press will advance
         const sb = document.getElementById('skip-act-btn');
         if (sb) sb.textContent = 'Skip act →';
