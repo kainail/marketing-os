@@ -2761,6 +2761,77 @@ async function generateAnswerSuggestions(questionId, session, research) {
   }
 }
 
+// POST /api/onboarding/sessions/:sessionId/question-suggestions — always-on 3 tiles per question (no auth — UUID secured)
+app.post('/api/onboarding/sessions/:sessionId/question-suggestions', async (req, res) => {
+  const { sessionId } = req.params;
+  const { questionId, questionText, section } = req.body;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  if (!questionId || !questionText) return res.status(400).json({ error: 'questionId and questionText required' });
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
+  try {
+    const suggestions = await generateQuestionSuggestions(questionId, questionText, section, session, research);
+    res.json({ suggestions });
+  } catch (err) {
+    console.error('[onboarding] question-suggestions failed:', err.message);
+    res.json({ suggestions: [] });
+  }
+});
+
+/** Generate 3 market-specific suggestion tiles for a question using Claude Haiku. */
+async function generateQuestionSuggestions(questionId, questionText, section, session, research) {
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) return [];
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const gymName = session.gymName || 'this gym';
+    const city = session.city || 'their city';
+    const competitors = (research?.competitors || []).slice(0, 3)
+      .map(c => `${c.name} (${c.adCount} ads, focus: ${(c.adThemes || [])[0] || 'general'})`)
+      .join('; ') || 'no competitor data';
+    const primaryGap = (research?.marketGaps || [])[0] || '';
+    const reviewExcerpts = (research?.googleReviews || [])
+      .filter(r => r.text?.length > 20).slice(0, 2)
+      .map(r => `"${r.text.substring(0, 80)}"`).join(' | ') || '';
+
+    const prompt = `Generate exactly 3 specific answer options for a gym owner answering this interview question.
+
+GYM: ${gymName}, ${city}
+QUESTION (Section ${section}): ${questionText}
+PURPOSE: Extract ${Q_PURPOSE[questionId] || 'relevant context'}
+
+MARKET CONTEXT — use to make suggestions specific to this gym:
+- Competitors active now: ${competitors}
+- Market gap nobody is saying: ${primaryGap || 'not identified'}
+- Member review excerpts: ${reviewExcerpts || 'not available'}
+
+Rules:
+- Each option is 1-2 sentences max — no more
+- Sound like the owner is speaking naturally in first person
+- Be specific to this gym/city — never generic
+- Cover 3 different angles or approaches
+- "subtext" is a 3-5 word label describing the angle (e.g. "Price + guarantee focus")
+
+Respond ONLY with a JSON array, no other text:
+[{"text":"...","subtext":"..."},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`;
+
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.slice(0, 3);
+    return [];
+  } catch (err) {
+    console.error('[onboarding] generateQuestionSuggestions failed:', err.message);
+    return [];
+  }
+}
+
 // PATCH /api/onboarding/sessions/:sessionId/answers — persist answers to R2 (no auth — UUID secured)
 app.patch('/api/onboarding/sessions/:sessionId/answers', async (req, res) => {
   const { sessionId } = req.params;
