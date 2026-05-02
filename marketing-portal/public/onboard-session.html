@@ -347,7 +347,7 @@
             </div>
           </div>
           <!-- Offer confirmation after Path B synthesis -->
-          <div class="offer-confirm-actions hidden" id="offer-confirm-actions">
+          <div class="offer-confirm-actions" id="offer-confirm-actions" style="display:none">
             <button class="offer-confirm-btn" onclick="confirmOffer()">Sounds good →</button>
             <button class="offer-adjust-btn" onclick="adjustOffer()">Let me adjust something</button>
           </div>
@@ -1070,8 +1070,7 @@
     function showOfferConfirmButtons(visible) {
       const el = document.getElementById('offer-confirm-actions');
       if (!el) return;
-      if (visible) el.classList.remove('hidden');
-      else el.classList.add('hidden');
+      el.style.display = visible ? 'flex' : 'none';
     }
 
     // Act controls: single Continue → button only. Call at the start of every act.
