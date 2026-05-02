@@ -26,7 +26,7 @@
     .main { display: grid; grid-template-columns: 1fr 380px; height: calc(100vh - 56px); }
 
     /* ─── Left panel ─────────────────────────────────────────────── */
-    .left-panel { display: flex; flex-direction: column; align-items: center; padding: 36px 32px 28px; border-right: 1px solid rgba(255,255,255,0.05); position: relative; overflow: hidden; }
+    .left-panel { display: flex; flex-direction: column; align-items: center; padding: 36px 32px 28px; border-right: 1px solid rgba(255,255,255,0.05); position: relative; overflow: hidden; overflow-x: hidden; }
     .left-panel::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 20%, rgba(124,58,237,0.06) 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(99,102,241,0.04) 0%, transparent 50%); pointer-events: none; }
 
     /* ─── Waveform — always visible ──────────────────────────────── */
@@ -49,9 +49,10 @@
     .state-area { flex: 1; width: 100%; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; z-index: 1; }
     .state-pane { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
     .state-pane.hidden { display: none; }
-    /* speaking pane overrides — fills state-area, scroll area + pinned buttons */
-    #state-speaking { justify-content: flex-start; height: 100%; min-height: 0; }
-    .speaking-scroll-area { flex: 1; width: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
+    /* speaking pane — three-zone: header (shrink:0) / text (flex:1 scroll) / buttons (shrink:0) */
+    #state-speaking { justify-content: flex-start; flex: 1; min-height: 0; }
+    .speaking-header { flex-shrink: 0; width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 4px; }
+    .speaking-text-container { flex: 1; width: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
 
     /* ─── State 1: preparing ─────────────────────────────────────── */
     .preparing-label { font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 18px; }
@@ -320,9 +321,11 @@
 
         <!-- State 3: speaking (narration in progress) -->
         <div class="state-pane hidden" id="state-speaking">
-          <div class="speaking-scroll-area" id="speaking-scroll-area">
+          <div class="speaking-header">
             <div class="act-label" id="act-label"></div>
             <div class="speaking-who"><span class="speaking-who-dot"></span>AHRI</div>
+          </div>
+          <div class="speaking-text-container" id="speaking-text-container">
             <p class="speaking-text" id="speaking-text"></p>
             <!-- Path B intro: offer template tiles shown briefly before qb2 -->
             <div class="intro-tiles-wrap hidden" id="intro-tiles-wrap">
@@ -818,36 +821,63 @@
       if (el) el.textContent = text;
     }
 
-    // ─── Word-by-word speaking text reveal ───────────────────────────────────
-    let _wordRevealTimers = [];
+    // ─── rAF word reveal — driven by audio.currentTime, no timers ───────────
+    let _rafId = null;
+    let _rafWords = [];
+    let _rafTimestamps = [];
+    let _rafRevealedCount = 0;
+    let _rafAudio = null;
+    let _rafEl = null;
 
     function cancelWordReveal() {
-      _wordRevealTimers.forEach(t => clearTimeout(t));
-      _wordRevealTimers = [];
+      if (_rafId !== null) { cancelAnimationFrame(_rafId); _rafId = null; }
+      _rafWords = [];
+      _rafTimestamps = [];
+      _rafRevealedCount = 0;
+      _rafAudio = null;
+      _rafEl = null;
     }
 
-    function displaySpeakingText(text, intervalMs, el) {
+    function _rafRevealLoop() {
+      if (!_rafAudio || !_rafEl) return;
+      const t = _rafAudio.currentTime;
+      while (_rafRevealedCount < _rafWords.length && _rafTimestamps[_rafRevealedCount] <= t) {
+        const word = _rafWords[_rafRevealedCount];
+        const span = document.createElement('span');
+        span.textContent = (_rafRevealedCount > 0 ? ' ' : '') + word;
+        span.style.cssText = 'opacity:0;transition:opacity 120ms ease;display:inline;';
+        _rafEl.appendChild(span);
+        requestAnimationFrame(() => { span.style.opacity = '1'; });
+        if (_rafRevealedCount < 5) {
+          console.log('[Sync] Word revealed:', word, 'at', t.toFixed(3), 'target:', _rafTimestamps[_rafRevealedCount].toFixed(3));
+        }
+        _rafRevealedCount++;
+        const sc = document.getElementById('speaking-text-container');
+        if (sc) sc.scrollTop = sc.scrollHeight;
+      }
+      if (_rafRevealedCount < _rafWords.length) {
+        _rafId = requestAnimationFrame(_rafRevealLoop);
+      } else {
+        _rafId = null;
+      }
+    }
+
+    function startWordReveal(audio, words, timestamps, el) {
+      cancelWordReveal();
+      if (!el || !words.length) return;
+      el.innerHTML = '';
+      _rafWords = words;
+      _rafTimestamps = timestamps;
+      _rafRevealedCount = 0;
+      _rafAudio = audio;
+      _rafEl = el;
+      _rafId = requestAnimationFrame(_rafRevealLoop);
+    }
+
+    function showTextInstant(text, el) {
       cancelWordReveal();
       if (!el) el = document.getElementById('speaking-text');
-      if (!el) return;
-      const words = text.split(/\s+/).filter(w => w.length > 0);
-      if (!words.length) return;
-      el.innerHTML = '';
-      words.forEach((word, i) => {
-        const span = document.createElement('span');
-        span.textContent = (i > 0 ? ' ' : '') + word;
-        span.style.cssText = 'opacity:0;transition:opacity 150ms ease;display:inline;';
-        el.appendChild(span);
-        _wordRevealTimers.push(setTimeout(() => {
-          span.style.opacity = '1';
-          const sa = document.getElementById('speaking-scroll-area');
-          if (sa) sa.scrollTop = sa.scrollHeight;
-        }, i * intervalMs));
-      });
-    }
-
-    function setSpeakingText(text) {
-      displaySpeakingText(text, 80, document.getElementById('speaking-text'));
+      if (el) el.textContent = text;
     }
 
     // ─── Await continue (blocks until button click or skip-act command) ───────
@@ -982,6 +1012,7 @@
     // ─── Audio cancellation — called before any navigation that triggers new audio ─
     function stopAudio() {
       console.log('[stopAudio] cancelling audio');
+      cancelWordReveal();
       if (currentAudioResolve) { const r = currentAudioResolve; currentAudioResolve = null; r(); }
       if (currentAudio) { try { currentAudio.pause(); currentAudio.src = ''; } catch {} currentAudio = null; }
       audioPlaying = false;
@@ -993,16 +1024,12 @@
       if (!actTextRevealed) {
         // Mode 1: AHRI is speaking — stop audio, reveal full act text immediately
         stopAudio();
-        cancelWordReveal();
         actSkipActive = true;
         actTextRevealed = true;
         const speakEl = document.getElementById('speaking-text');
-        if (speakEl) {
-          speakEl.innerHTML = '';
-          speakEl.textContent = actFullText;
-        }
-        const sa = document.getElementById('speaking-scroll-area');
-        if (sa) sa.scrollTop = 0;
+        if (speakEl) showTextInstant(actFullText, speakEl);
+        const sc = document.getElementById('speaking-text-container');
+        if (sc) sc.scrollTop = 0;
         // Change label to signal second press will advance
         const sb = document.getElementById('skip-act-btn');
         if (sb) sb.textContent = 'Skip act →';
@@ -1036,19 +1063,28 @@
           currentAudio = audio;
           audioPlaying = true;
           console.log('[speak] audio element created, playing');
-          let wordInterval = 80;
+          let _preWords = [];
+          let _preTimestamps = [];
           await new Promise(resolve => {
             currentAudioResolve = resolve;
             audio.addEventListener('loadedmetadata', () => {
+              console.log('[speak] loadedmetadata fired, audio.duration:', audio.duration);
               if (isFinite(audio.duration) && audio.duration > 0) {
-                const wc = text.split(/\s+/).filter(w => w.length > 0).length || 1;
-                wordInterval = Math.round(audio.duration * 1000 / wc);
+                _preWords = text.split(/\s+/).filter(w => w.length > 0);
+                _preTimestamps = _preWords.map((_, i) => (i / _preWords.length) * audio.duration);
               }
             }, { once: true });
             audio.onplay = () => {
-              if (displayEl) displaySpeakingText(text, wordInterval, displayEl);
+              if (displayEl) {
+                if (_preWords.length > 0) {
+                  startWordReveal(audio, _preWords, _preTimestamps, displayEl);
+                } else {
+                  showTextInstant(text, displayEl);
+                }
+              }
             };
             audio.onended = () => {
+              cancelWordReveal();
               audioPlaying = false;
               currentAudio = null;
               currentAudioResolve = null;
@@ -1058,6 +1094,7 @@
             };
             audio.onerror = (e) => {
               console.warn('[speak] audio error:', e);
+              cancelWordReveal();
               audioPlaying = false;
               currentAudio = null;
               currentAudioResolve = null;
@@ -1066,7 +1103,7 @@
             };
             audio.play().catch(err => {
               console.warn('[speak] audio.play() failed:', err?.message);
-              if (displayEl) displaySpeakingText(text, 80, displayEl);
+              if (displayEl) showTextInstant(text, displayEl);
               audioPlaying = false;
               currentAudio = null;
               currentAudioResolve = null;
@@ -1074,17 +1111,17 @@
             });
           });
         } else if (res.status === 503) {
-          if (displayEl) displaySpeakingText(text, 80, displayEl);
+          if (displayEl) showTextInstant(text, displayEl);
           const sentences = (normalized.match(/[.!?]+/g) || []).length || 1;
           await sleep(Math.max(1400, sentences * 1600));
         } else {
           console.warn('[speak] TTS endpoint returned', res.status);
-          if (displayEl) displaySpeakingText(text, 80, displayEl);
+          if (displayEl) showTextInstant(text, displayEl);
           await sleep(1200);
         }
       } catch (err) {
         console.warn('[speak] fetch error:', err?.message);
-        if (displayEl) displaySpeakingText(text, 80, displayEl);
+        if (displayEl) showTextInstant(text, displayEl);
         await sleep(1200);
       }
       setWaveformActive(false);
