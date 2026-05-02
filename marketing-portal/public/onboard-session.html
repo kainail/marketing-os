@@ -1661,7 +1661,7 @@
       container.innerHTML = '';
       wrap.classList.remove('hidden');
       const label = wrap.querySelector('.suggestions-label');
-      if (label) label.textContent = 'Or choose an option based on your market:';
+      if (label) label.textContent = 'Tap a suggestion to fill your answer — edit or submit as is:';
       tiles.forEach((s, i) => {
         const card = document.createElement('div');
         card.className = 'suggestion-card';
@@ -1672,18 +1672,17 @@
       });
     }
 
-    async function selectTile(text, cardEl) {
-      // Highlight briefly so Marcus sees his choice was registered
+    function selectTile(text, cardEl) {
       document.querySelectorAll('.suggestion-card').forEach(c => c.classList.remove('selected'));
       cardEl.classList.add('selected');
       stopVoice();
       currentTranscript = text;
       document.getElementById('transcript-locked').textContent = text;
       document.getElementById('transcript-live').textContent = '';
-      document.getElementById('text-answer').value = text;
+      const ta = document.getElementById('text-answer');
+      ta.value = text;
+      ta.focus();
       document.getElementById('submit-btn').disabled = false;
-      await sleep(180); // brief visual confirm
-      submitAnswer();
     }
 
     function hideSuggestions() {
