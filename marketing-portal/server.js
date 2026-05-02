@@ -651,6 +651,9 @@ app.use((req, res, next) => {
   if (AHRI_PUBLIC_API.includes(req.path)) return next();
   if (req.path.startsWith('/api/webhooks/')) return next();
   if (req.path.startsWith('/api/ghl/')) return next();
+  // Onboarding session paths are UUID-secured — no login required for Marcus's screen.
+  // Admin-only sub-routes (/notes, /simulate-research, POST /research) carry requireAdmin individually.
+  if (req.path.startsWith('/api/onboarding/sessions/')) return next();
   requireAuth(req, res, next);
 });
 
