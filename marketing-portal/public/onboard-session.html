@@ -758,10 +758,11 @@
       card.className = 'hook-card';
       card.innerHTML = '';
 
-      // Intro speech — then 2s pause before hooks start
-      const introText = `Now let me show you what I can already write about ${gymName || 'your gym'}. From public information alone — before you have told me a single thing.`;
-      await speak(introText);
+      // Intro speech — two sentences, paced pause between them
+      await speak("Now let me show you something. Based entirely on public information — your Google reviews, your competitors' ads, and what nobody in your market is saying — I wrote these hooks for your gym. I have not asked you a single question yet.");
       await sleep(2000);
+      await speak("Here are three hooks ready to run right now.");
+      await sleep(1500);
 
       // Each hook: animate in, speak, 1.5s pause before next
       for (let i = 0; i < hooks.length; i++) {
@@ -1109,7 +1110,8 @@
 
     // ─── Called when user confirms mic (or skips) — begins the interview ──────
     async function proceedToInterview() {
-      cleanupMicTest();
+      await cleanupMicTest();
+      await sleep(300); // let OS fully release mic handle before Web Speech API takes it
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
       startInterviewPoll();
@@ -1190,12 +1192,13 @@
       if (msg) console.warn('[mic-test] error shown:', msg);
     }
 
-    function cleanupMicTest() {
-      console.log('[mic-test] cleanup');
+    async function cleanupMicTest() {
+      console.log('[mic-test] cleanup — releasing mic hardware');
       if (micTestAnimFrame) { cancelAnimationFrame(micTestAnimFrame); micTestAnimFrame = null; }
       if (micTestAnalyser) { try { micTestAnalyser.disconnect(); } catch {} micTestAnalyser = null; }
-      if (micTestAudioCtx) { try { micTestAudioCtx.close(); } catch {} micTestAudioCtx = null; }
+      // Stop tracks before closing context so OS releases the device handle
       if (micTestStream) { micTestStream.getTracks().forEach(t => { t.stop(); console.log('[mic-test] track stopped:', t.kind); }); micTestStream = null; }
+      if (micTestAudioCtx) { try { await micTestAudioCtx.close(); console.log('[mic-test] AudioContext closed'); } catch {} micTestAudioCtx = null; }
     }
 
     // ─── Ask a question ───────────────────────────────────────────────────────
@@ -1278,7 +1281,30 @@
       recognition.lang = 'en-US';
       recognition.maxAlternatives = 1;
 
+      recognition.onstart = () => {
+        console.log('[voice] recognition.onstart fired');
+        const live = document.getElementById('transcript-live');
+        if (live && !currentTranscript) live.textContent = 'Listening...';
+      };
+
+      recognition.onaudiostart = () => {
+        console.log('[voice] recognition.onaudiostart — mic audio stream received');
+      };
+
+      recognition.onsoundstart = () => {
+        console.log('[voice] recognition.onsoundstart — sound detected');
+        const live = document.getElementById('transcript-live');
+        if (live && !currentTranscript) live.textContent = 'Heard something...';
+      };
+
+      recognition.onspeechstart = () => {
+        console.log('[voice] recognition.onspeechstart — classifying as speech');
+        const live = document.getElementById('transcript-live');
+        if (live && !currentTranscript) live.textContent = 'Processing...';
+      };
+
       recognition.onresult = (e) => {
+        console.log('[voice] recognition.onresult — results:', e.results.length, 'resultIndex:', e.resultIndex);
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
           if (e.results[i].isFinal) {
@@ -1294,12 +1320,20 @@
       };
 
       recognition.onerror = (e) => {
+        console.warn('[voice] recognition.onerror:', e.error, e.message || '');
+        const live = document.getElementById('transcript-live');
         if (e.error === 'not-allowed') {
           stopVoice();
-          const live = document.getElementById('transcript-live');
           if (live) live.textContent = 'Microphone access denied — please use the text input below.';
+        } else if (e.error === 'audio-capture') {
+          console.warn('[voice] audio-capture — mic may be held by another process');
+          if (live) live.textContent = 'Mic busy — try reloading or use the text input.';
+        } else if (e.error === 'no-speech') {
+          console.log('[voice] no-speech — onend will restart');
+          if (live && !currentTranscript) live.textContent = 'Listening...';
+        } else {
+          console.warn('[voice] unhandled recognition error, onend will restart');
         }
-        // no-speech / audio-capture / network: onend will handle restart
       };
 
       // Single-shot auto-restart — replaces continuous:true
