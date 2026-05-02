@@ -162,7 +162,10 @@
     .transcript-area.listening { border-color: rgba(124,58,237,0.35); background: rgba(124,58,237,0.04); }
     .transcript-live { font-size: 14px; color: rgba(232,234,240,0.35); font-style: italic; line-height: 1.55; min-height: 20px; }
     .transcript-locked { font-size: 15px; color: rgba(232,234,240,0.85); line-height: 1.6; }
-    .iv-controls { display: flex; gap: 10px; width: 100%; max-width: 500px; margin-bottom: 11px; }
+    .iv-controls { display: flex; gap: 10px; width: 100%; max-width: 500px; margin-bottom: 11px; align-items: center; }
+    .iv-back-btn { background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 11px 13px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.45); cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+    .iv-back-btn:hover:not(:disabled) { border-color: rgba(255,255,255,0.22); color: rgba(232,234,240,0.75); }
+    .iv-back-btn:disabled { opacity: 0.22; cursor: not-allowed; }
     .voice-btn { display: flex; align-items: center; gap: 7px; background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.22); border-radius: 10px; padding: 11px 16px; font-family: inherit; font-size: 14px; font-weight: 600; color: #a78bfa; cursor: pointer; transition: all 0.15s; flex-shrink: 0; white-space: nowrap; }
     .voice-btn:hover { background: rgba(124,58,237,0.18); }
     .voice-btn.listening { background: rgba(124,58,237,0.18); border-color: rgba(124,58,237,0.5); animation: voice-pulse 1.5s ease-in-out infinite; }
@@ -269,6 +272,7 @@
             <div class="transcript-locked" id="transcript-locked"></div>
           </div>
           <div class="iv-controls">
+            <button class="iv-back-btn" id="prev-btn" onclick="goToPrevQuestion()" disabled title="Go back to previous question">←</button>
             <button class="voice-btn" id="voice-btn" onclick="toggleVoice()">🎙&nbsp;Start speaking</button>
             <button class="iv-submit" id="submit-btn" onclick="submitAnswer()" disabled>Submit answer</button>
           </div>
@@ -816,6 +820,10 @@
     // Track last section per fileKey for retry
     const lastSectionForFile = {};
 
+    // Nav command polling (host panel → Marcus's screen)
+    let interviewPollTimer = null;
+    let lastNavCommandAt   = null;
+
     // Section transition speeches
     const SECTION_INTRO = {
       2: "Good. Now let's talk about who you're built for.",
@@ -865,6 +873,7 @@
       QUESTIONS.slice(0, resumeIdx).forEach(q => interviewState.completedSections.add(q.section));
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
+      startInterviewPoll();
       if (resumeIdx > 0) await speak(`Welcome back. We're on question ${resumeIdx + 1}. Ready to continue?`);
       await askQuestion(resumeIdx);
     }
@@ -875,6 +884,7 @@
       await requestMicPermission();
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
+      startInterviewPoll();
       await speak("Now I want to learn from you. I'm going to ask you nineteen questions. The better your answers, the sharper everything gets. Watch the panel on the right — you'll see your marketing system being built as we talk. Let's start.");
       await sleep(500);
       await askQuestion(0);
@@ -899,6 +909,7 @@
       document.getElementById('iv-q-label').textContent = `Question ${qIdx + 1} of ${QUESTIONS.length}`;
       document.getElementById('iv-question').textContent = buildQuestionText(q);
 
+      updateBackButton();
       resetAnswerArea();
       await speak(buildQuestionText(q));
       startVoice();
@@ -1140,6 +1151,59 @@
       });
     }
 
+    // ─── Back navigation ──────────────────────────────────────────────────────
+    function updateBackButton() {
+      const btn = document.getElementById('prev-btn');
+      if (btn) btn.disabled = interviewState.currentQIndex === 0;
+    }
+
+    async function goToPrevQuestion() {
+      const prevIdx = interviewState.currentQIndex - 1;
+      if (prevIdx < 0) return;
+
+      stopVoice();
+      interviewState.submitting = false;
+      interviewState.probeCount = 0;
+      hideSuggestions();
+
+      const prevQ = QUESTIONS[prevIdx];
+      const prevAnswer = interviewState.answers[prevQ.id] || '';
+
+      // askQuestion re-reads the question via ElevenLabs and resets the input area
+      await askQuestion(prevIdx);
+
+      // After speak completes, pre-populate with the existing answer so Marcus can
+      // hear it in context and edit rather than starting blank
+      if (prevAnswer) {
+        currentTranscript = prevAnswer;
+        document.getElementById('transcript-live').textContent  = '';
+        document.getElementById('transcript-locked').textContent = prevAnswer;
+        document.getElementById('text-answer').value            = prevAnswer;
+        document.getElementById('submit-btn').disabled          = false;
+      }
+    }
+
+    // ─── Host-panel nav command poll (2s) ────────────────────────────────────
+    function startInterviewPoll() {
+      if (interviewPollTimer) return;
+      interviewPollTimer = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/onboarding/sessions/${sessionId}`);
+          if (!res.ok) return;
+          const data = await res.json();
+          const cmd = data.nav_command;
+          if (cmd?.action === 'prev' && cmd.requested_at !== lastNavCommandAt) {
+            lastNavCommandAt = cmd.requested_at;
+            await goToPrevQuestion();
+          }
+        } catch {}
+      }, 2000);
+    }
+
+    function stopInterviewPoll() {
+      if (interviewPollTimer) { clearInterval(interviewPollTimer); interviewPollTimer = null; }
+    }
+
     // ─── Write KB section and update right panel ──────────────────────────────
     async function writeSectionKB(section) {
       const fileKey = SECTION_WRITES[section];
@@ -1265,6 +1329,7 @@
     // ─── Finish interview ─────────────────────────────────────────────────────
     async function finishInterview() {
       stopVoice();
+      stopInterviewPoll();
       updateStatusPip('active', 'Generating your system');
       showState('state-speaking');
       document.getElementById('speaking-text').textContent = 'Generating your final hooks and offer brief...';

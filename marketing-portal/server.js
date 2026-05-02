@@ -2810,6 +2810,23 @@ app.post('/api/onboarding/sessions/:sessionId/reset-interview', requireAdmin, as
   res.json({ success: true, status: session.status, reset_at: session.reset_at });
 });
 
+// POST /api/onboarding/sessions/:sessionId/nav-command — host triggers navigation on Marcus's screen
+app.post('/api/onboarding/sessions/:sessionId/nav-command', requireAdmin, async (req, res) => {
+  const { sessionId } = req.params;
+  const { action } = req.body;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  if (action !== 'prev') return res.status(400).json({ error: 'Invalid action' });
+
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  session.nav_command = { action, requested_at: new Date().toISOString() };
+  await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+
+  console.log(`[onboarding] nav-command=${action} set by ${req.user?.email} for session ${sessionId}`);
+  res.json({ success: true, action });
+});
+
 // POST /api/onboarding/sessions/:sessionId/kb-section — generate + write canonical KB file to R2
 app.post('/api/onboarding/sessions/:sessionId/kb-section', async (req, res) => {
   const { sessionId } = req.params;

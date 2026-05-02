@@ -58,6 +58,8 @@
     .btn-hooks:hover:not(:disabled) { background: rgba(34,197,94,0.16); }
     .btn-reset { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.22); color: #fca5a5; }
     .btn-reset:hover:not(:disabled) { background: rgba(239,68,68,0.16); }
+    .btn-prev { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12); color: rgba(232,234,240,0.65); }
+    .btn-prev:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: #e8eaf0; }
     .coming-soon { font-size: 10px; color: rgba(232,234,240,0.25); letter-spacing: 0.5px; }
     .controls-divider { border: none; border-top: 1px solid rgba(255,255,255,0.05); margin: 10px 0; }
 
@@ -177,6 +179,7 @@
         <button class="control-btn btn-flag" disabled>⚑ Flag weak answer</button>
         <button class="control-btn btn-hooks" disabled>⚡ Generate hooks now</button>
         <hr class="controls-divider"/>
+        <button class="control-btn btn-prev" id="prev-q-btn" onclick="prevQuestionHost()">← Previous question</button>
         <button class="control-btn btn-reset" id="reset-btn" onclick="resetInterview()">↺ Reset interview</button>
       </div>
 
@@ -522,6 +525,30 @@
         btn.classList.add('copied');
         setTimeout(() => { btn.textContent = 'Copy owner URL'; btn.classList.remove('copied'); }, 2000);
       });
+    }
+
+    async function prevQuestionHost() {
+      const btn = document.getElementById('prev-q-btn');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+      addLog('Sending "previous question" to Marcus\'s screen...', 'warn');
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/nav-command`, {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ action: 'prev' }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          addLog('Command sent — Marcus\'s screen will navigate back on next poll (≤2s)', 'ok');
+        } else {
+          addLog('Command failed: ' + (data.error || 'unknown'), 'error');
+        }
+      } catch (err) {
+        addLog('Command error: ' + err.message, 'error');
+      }
+      btn.disabled = false;
+      btn.textContent = '← Previous question';
     }
 
     async function resetInterview() {
