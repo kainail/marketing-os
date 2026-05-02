@@ -469,9 +469,10 @@ async function triggerProspectResearch(sessionId, session) {
     return { task_id: fallbackId, fallback: true };
   }
   try {
-    const webhookUrl = process.env.PORTAL_WEBHOOK_URL
-      ? `${process.env.PORTAL_WEBHOOK_URL}/api/manus/callback`
-      : null;
+    // Use the same WEBHOOK_URL constant used by all other Manus tasks — combines
+    // WEBHOOK_URL, PORTAL_WEBHOOK_URL, and RAILWAY_PUBLIC_DOMAIN fallbacks.
+    const webhookUrl = WEBHOOK_URL ? `${WEBHOOK_URL}/api/manus/callback` : null;
+    if (!webhookUrl) console.warn('[onboarding] triggerProspectResearch: no webhook URL — Manus will complete without calling back');
     const body = {
       message: { content: [{ type: 'text', text: taskContent }] },
       metadata: { source: 'ahri-onboarding', filename: 'prospect-research.md', task_type: 'prospect-research', session_id: sessionId },
@@ -2537,6 +2538,61 @@ app.patch('/api/onboarding/sessions/:sessionId/notes', requireAdmin, async (req,
   session.notes_updated_at = new Date().toISOString();
   await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
   res.json({ success: true });
+});
+
+// GET /api/onboarding/admin/debug/:sessionId — inspect all R2 state for a session (admin only)
+app.get('/api/onboarding/admin/debug/:sessionId', requireAdmin, async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const [session, research, hooks] = await Promise.all([
+    r2GetShared(`onboarding/sessions/${sessionId}/session.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/preview-hooks.json`),
+  ]);
+  const runs = await loadTaskRuns();
+  const taskRunEntry = session?.research_task_id ? runs[session.research_task_id] : null;
+  const webhookConfigured = !!WEBHOOK_URL;
+  res.json({
+    session: session || null,
+    research: { exists: !!research, keys: research ? Object.keys(research) : [], competitorCount: (research?.competitors || []).length, reviewCount: (research?.googleReviews || []).length, gapCount: (research?.marketGaps || []).length },
+    hooks: { exists: !!hooks, count: hooks?.hooks?.length || 0 },
+    taskRun: taskRunEntry || null,
+    server: { webhookConfigured, webhookUrl: WEBHOOK_URL || null },
+  });
+});
+
+// POST /api/onboarding/sessions/:sessionId/simulate-research — inject mock research + force research_complete (admin only)
+// Use when Manus completed without a callback, or to test the full reveal flow.
+app.post('/api/onboarding/sessions/:sessionId/simulate-research', requireAdmin, async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  const mockResearch = req.body.research || {
+    gymName: session.gymName,
+    city: session.city,
+    googleReviews: [
+      { text: 'The coaches actually learn your name and remember what you told them last week. That\'s rare.', rating: 5, date: '2024-01-15' },
+      { text: 'I\'ve tried four gyms in the last two years. This is the first one I\'ve stayed at longer than 6 weeks.', rating: 5, date: '2024-02-03' },
+    ],
+    googleRating: 4.8,
+    googleReviewCount: 47,
+    competitors: [
+      { name: 'Planet Fitness', adCount: 12, adThemes: ['low price', 'no commitment'], offerType: '$10/month deal' },
+      { name: 'CrossFit Central', adCount: 8, adThemes: ['intensity', 'community challenge'], offerType: 'free trial class' },
+    ],
+    marketGaps: [
+      'consistency coaching for people who\'ve already quit three other gyms',
+      'real accountability without the boot camp pressure',
+    ],
+    websiteCopy: session.websiteUrl ? `Homepage copy for ${session.gymName}` : '',
+    existingOfferLanguage: '',
+    franchiseType: session.franchiseType,
+  };
+  const fakeRunRecord = { session_id: sessionId, task_type: 'prospect-research', location_id: 'bloomington', simulated: true };
+  await handleProspectResearchOutput('simulated', mockResearch, fakeRunRecord);
+  const updated = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  res.json({ success: true, status: updated?.status, preview_hooks_count: updated?.preview_hooks_count || 0, message: 'Session advanced to research_complete with mock data' });
 });
 
 // GET /api/onboarding/sessions/:sessionId/preview-hooks — serve generated hooks (no auth — secured by UUID)
