@@ -264,7 +264,8 @@
       }
       await loadSession();
       startStepCycle();
-      if (!researchData) startPolling();
+      // Only poll if session isn't already past the research stage
+      if (!session || session.status === 'created' || session.status === 'researching') startPolling();
     }
 
     async function loadSession() {
@@ -276,6 +277,7 @@
         document.title = `AHRI — ${session.gymName}`;
         if (session.status === 'research_complete') {
           await loadAndRevealResearch();
+          return; // don't start polling — we already know the answer
         }
       } catch {}
     }
@@ -319,7 +321,12 @@
     }
 
     // ─── Load research and reveal cards ──────────────────────────────────────
+    // Transition to reveal-ready based on session status alone — research cards
+    // populate if available but their absence never blocks the state transition.
     async function loadAndRevealResearch() {
+      // Always advance the UI — don't gate on research data existing
+      updateStatusPip('active', 'Research complete');
+      showState('state-reveal-ready');
       try {
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/research`);
         if (!res.ok) return;
@@ -327,8 +334,6 @@
         if (!data.research) return;
         researchData = data.research;
         await populateResearchCards(researchData);
-        updateStatusPip('active', 'Research complete');
-        showState('state-reveal-ready');
       } catch {}
     }
 
