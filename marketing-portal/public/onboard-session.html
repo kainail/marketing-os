@@ -821,7 +821,7 @@
       _wordRevealTimers = [];
     }
 
-    function displaySpeakingText(text, el) {
+    function displaySpeakingText(text, intervalMs, el) {
       cancelWordReveal();
       if (!el) el = document.getElementById('speaking-text');
       if (!el) return;
@@ -833,12 +833,12 @@
         span.textContent = (i > 0 ? ' ' : '') + word;
         span.style.cssText = 'opacity:0;transition:opacity 150ms ease;display:inline;';
         el.appendChild(span);
-        _wordRevealTimers.push(setTimeout(() => { span.style.opacity = '1'; }, i * 80));
+        _wordRevealTimers.push(setTimeout(() => { span.style.opacity = '1'; }, i * intervalMs));
       });
     }
 
     function setSpeakingText(text) {
-      displaySpeakingText(text, document.getElementById('speaking-text'));
+      displaySpeakingText(text, 80, document.getElementById('speaking-text'));
     }
 
     // ─── Await continue (blocks until button click or skip-act command) ───────
@@ -1025,10 +1025,17 @@
           currentAudio = audio;
           audioPlaying = true;
           console.log('[speak] audio element created, playing');
+          let wordInterval = 80;
           await new Promise(resolve => {
             currentAudioResolve = resolve;
+            audio.addEventListener('loadedmetadata', () => {
+              if (isFinite(audio.duration) && audio.duration > 0) {
+                const wc = text.split(/\s+/).filter(w => w.length > 0).length || 1;
+                wordInterval = Math.round(audio.duration * 1000 / wc);
+              }
+            }, { once: true });
             audio.onplay = () => {
-              if (displayEl) displaySpeakingText(text, displayEl);
+              if (displayEl) displaySpeakingText(text, wordInterval, displayEl);
             };
             audio.onended = () => {
               audioPlaying = false;
@@ -1048,7 +1055,7 @@
             };
             audio.play().catch(err => {
               console.warn('[speak] audio.play() failed:', err?.message);
-              if (displayEl) displaySpeakingText(text, displayEl);
+              if (displayEl) displaySpeakingText(text, 80, displayEl);
               audioPlaying = false;
               currentAudio = null;
               currentAudioResolve = null;
@@ -1056,17 +1063,17 @@
             });
           });
         } else if (res.status === 503) {
-          if (displayEl) displaySpeakingText(text, displayEl);
+          if (displayEl) displaySpeakingText(text, 80, displayEl);
           const sentences = (normalized.match(/[.!?]+/g) || []).length || 1;
           await sleep(Math.max(1400, sentences * 1600));
         } else {
           console.warn('[speak] TTS endpoint returned', res.status);
-          if (displayEl) displaySpeakingText(text, displayEl);
+          if (displayEl) displaySpeakingText(text, 80, displayEl);
           await sleep(1200);
         }
       } catch (err) {
         console.warn('[speak] fetch error:', err?.message);
-        if (displayEl) displaySpeakingText(text, displayEl);
+        if (displayEl) displaySpeakingText(text, 80, displayEl);
         await sleep(1200);
       }
       setWaveformActive(false);
