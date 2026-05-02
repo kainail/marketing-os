@@ -1764,9 +1764,6 @@
     }
 
     function onTextInput(val) {
-      // Textarea is the primary input path — keep transcript-locked in sync so
-      // submitAnswer() reads the same value regardless of input method used.
-      document.getElementById('transcript-locked').textContent = val;
       document.getElementById('submit-btn').disabled = !val.trim();
     }
 
