@@ -7,6 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    .hidden { display: none !important; }
     html, body { height: 100%; background: #0D0F14; color: #e8eaf0; font-family: 'Outfit', system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
 
     /* ─── Top bar ─────────────────────────────────────────────────── */
@@ -72,7 +73,7 @@
     /* ─── State 3: speaking ──────────────────────────────────────── */
     .speaking-who { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 22px; display: flex; align-items: center; gap: 8px; justify-content: center; }
     .speaking-who-dot { width: 6px; height: 6px; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 8px rgba(124,58,237,0.6); animation: pip-pulse 1.2s ease-in-out infinite; }
-    .speaking-text { font-size: 17px; color: rgba(232,234,240,0.72); max-width: 460px; line-height: 1.78; font-weight: 400; }
+    .speaking-text { font-size: 28px; color: rgba(232,234,240,0.95); max-width: 70%; line-height: 1.6; font-weight: 400; text-align: center; }
 
     /* ─── State 4: hook reveal ───────────────────────────────────── */
     .hook-counter { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 28px; min-height: 16px; }
@@ -146,6 +147,24 @@
     .review-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); }
     .review-stars { font-size: 11px; color: #fbbf24; margin-bottom: 4px; letter-spacing: 1px; }
     .review-excerpt { font-size: 12px; color: rgba(232,234,240,0.53); font-style: italic; line-height: 1.5; }
+    .review-clamped { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .review-read-more { background: none; border: none; color: rgba(232,234,240,0.35); font-size: 11px; cursor: pointer; padding: 4px 0 0; font-family: inherit; display: block; }
+    .review-read-more:hover { color: rgba(232,234,240,0.6); }
+
+    /* ─── Hook reveal speaking text ─────────────────────────────── */
+    .hook-speaking-text { font-size: 28px; color: rgba(232,234,240,0.95); max-width: 70%; text-align: center; line-height: 1.6; font-weight: 400; margin-bottom: 28px; transition: opacity 0.45s ease; }
+
+    /* ─── Voice state indicator ──────────────────────────────────── */
+    .voice-state-indicator { display: flex; align-items: center; gap: 9px; font-size: 12px; color: rgba(232,234,240,0.38); margin-bottom: 6px; }
+    .voice-state-dots { display: flex; gap: 3px; }
+    .voice-state-dots span { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: rgba(124,58,237,0.45); animation: dot-pulse 1.4s ease-in-out infinite; }
+    .voice-state-dots span:nth-child(2) { animation-delay: 0.22s; }
+    .voice-state-dots span:nth-child(3) { animation-delay: 0.44s; }
+    .voice-state-indicator.hearing .voice-state-dots span { background: #7c3aed; }
+    .voice-state-indicator.hearing { color: rgba(232,234,240,0.65); }
+    @keyframes dot-pulse { 0%, 60%, 100% { transform: scale(0.6); opacity: 0.4; } 30% { transform: scale(1); opacity: 1; } }
+    .done-speaking-btn { background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.22); border-radius: 8px; padding: 9px 18px; font-family: inherit; font-size: 13px; color: rgba(232,234,240,0.6); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+    .done-speaking-btn:hover { background: rgba(124,58,237,0.2); border-color: rgba(124,58,237,0.38); color: rgba(232,234,240,0.85); }
     .gap-featured { background: rgba(234,179,8,0.07); border: 1px solid rgba(234,179,8,0.17); }
     .gap-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(234,179,8,0.55); margin-bottom: 5px; }
     .gap-text { font-size: 13px; color: #fde047; font-weight: 500; line-height: 1.4; }
@@ -221,10 +240,21 @@
     /* ─── Path B offer intro tiles (shown in speaking pane) ─────────── */
     .intro-tiles-wrap { width: 100%; max-width: 460px; margin-top: 18px; }
     .intro-tiles-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.25); margin-bottom: 10px; }
-    .intro-tile { background: rgba(124,58,237,0.06); border: 1px solid rgba(124,58,237,0.14); border-radius: 10px; padding: 12px 15px; margin-bottom: 8px; opacity: 0; transform: translateY(6px); transition: opacity 0.3s ease, transform 0.3s ease; }
+    .intro-tile { background: rgba(124,58,237,0.06); border: 1px solid rgba(124,58,237,0.14); border-radius: 10px; padding: 12px 15px; margin-bottom: 8px; opacity: 0; transform: translateY(6px); transition: opacity 0.3s ease, transform 0.3s ease, background 0.15s, border-color 0.15s; cursor: pointer; }
     .intro-tile.intro-tile-visible { opacity: 1; transform: translateY(0); }
+    .intro-tile:hover { background: rgba(124,58,237,0.12); border-color: rgba(124,58,237,0.28); }
+    .intro-tile.intro-tile-selected { background: rgba(124,58,237,0.18); border-color: rgba(124,58,237,0.5); }
     .intro-tile-text { font-size: 13px; font-weight: 600; color: rgba(232,234,240,0.78); line-height: 1.4; }
     .intro-tile-sub { font-size: 11px; color: rgba(232,234,240,0.33); margin-top: 4px; }
+
+    /* ─── Path B offer edit fields ───────────────────────────────── */
+    .offer-edit-fields { width: 100%; max-width: 480px; text-align: left; margin-top: 10px; }
+    .offer-edit-header { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 16px; }
+    .offer-edit-row { margin-bottom: 12px; }
+    .offer-field-label { display: block; font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: rgba(232,234,240,0.35); margin-bottom: 5px; }
+    .offer-field-input, .offer-field-textarea { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 9px 12px; font-family: inherit; font-size: 14px; color: #e8eaf0; outline: none; transition: border-color 0.15s, background 0.15s; }
+    .offer-field-input:focus, .offer-field-textarea:focus { border-color: rgba(124,58,237,0.4); background: rgba(124,58,237,0.04); }
+    .offer-field-textarea { resize: vertical; min-height: 58px; line-height: 1.5; }
 
     /* ─── Offer confirm actions ──────────────────────────────────────── */
     .offer-confirm-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 24px; width: 100%; max-width: 380px; }
@@ -292,6 +322,30 @@
             <div class="intro-tiles-label">What's working in your market:</div>
             <div id="intro-tiles-container"></div>
           </div>
+          <!-- Path B offer edit fields — shown after synthesis speech -->
+          <div class="offer-edit-fields hidden" id="offer-edit-fields">
+            <div class="offer-edit-header">Review and edit your offer</div>
+            <div class="offer-edit-row">
+              <label class="offer-field-label">Trial duration</label>
+              <input type="text" class="offer-field-input" id="oef-duration" placeholder="e.g. 21 days" />
+            </div>
+            <div class="offer-edit-row">
+              <label class="offer-field-label">Entry price</label>
+              <input type="text" class="offer-field-input" id="oef-price" placeholder="e.g. $0 down" />
+            </div>
+            <div class="offer-edit-row">
+              <label class="offer-field-label">What's included</label>
+              <textarea class="offer-field-textarea" id="oef-inclusions" placeholder="e.g. 3 coached sessions per week, nutrition check-in..."></textarea>
+            </div>
+            <div class="offer-edit-row">
+              <label class="offer-field-label">Guarantee</label>
+              <textarea class="offer-field-textarea" id="oef-guarantee" placeholder="e.g. Love it or full refund, no questions asked..."></textarea>
+            </div>
+            <div class="offer-edit-row">
+              <label class="offer-field-label">Core differentiator</label>
+              <textarea class="offer-field-textarea" id="oef-differentiator" placeholder="e.g. Personal coaching you can't get at a big box gym..."></textarea>
+            </div>
+          </div>
           <!-- Offer confirmation after Path B synthesis -->
           <div class="offer-confirm-actions hidden" id="offer-confirm-actions">
             <button class="offer-confirm-btn" onclick="confirmOffer()">Sounds good →</button>
@@ -303,6 +357,7 @@
         <!-- State 4: hook reveal -->
         <div class="state-pane hidden" id="state-hook-reveal">
           <div class="hook-counter" id="hook-counter"></div>
+          <div class="hook-speaking-text" id="hook-speaking-text"></div>
           <div class="hook-card-wrap">
             <div class="hook-card" id="hook-card"></div>
           </div>
@@ -344,12 +399,17 @@
           <div class="iv-q-label" id="iv-q-label">Question 1 of 19</div>
           <p class="iv-question" id="iv-question">—</p>
           <div class="transcript-area" id="transcript-area">
+            <div class="voice-state-indicator hidden" id="voice-state-indicator">
+              <div class="voice-state-dots"><span></span><span></span><span></span></div>
+              <span id="voice-state-text">Waiting for your voice...</span>
+            </div>
             <div class="transcript-live" id="transcript-live">Press the microphone to start speaking...</div>
             <div class="transcript-locked" id="transcript-locked"></div>
           </div>
           <div class="iv-controls">
             <button class="iv-back-btn" id="prev-btn" onclick="goToPrevQuestion()" disabled title="Go back to previous question">←</button>
             <button class="voice-btn" id="voice-btn" onclick="toggleVoice()">🎙&nbsp;Start speaking</button>
+            <button class="done-speaking-btn hidden" id="done-speaking-btn" onclick="lockTranscript()">Done speaking</button>
             <button class="iv-submit" id="submit-btn" onclick="submitAnswer()" disabled>Submit answer</button>
           </div>
           <div class="text-fallback">
@@ -587,8 +647,9 @@
         reviews.forEach(rv => {
           const card = document.createElement('div');
           card.className = 'review-card';
-          const excerpt = rv.text.length > 88 ? rv.text.substring(0, 88) + '…' : rv.text;
-          card.innerHTML = `<div class="review-stars">${'★'.repeat(Math.min(5, rv.rating || 5))}</div><div class="review-excerpt">"${esc(excerpt)}"</div>`;
+          const isLong = rv.text.length > 120;
+          const readMoreBtn = isLong ? `<button class="review-read-more" onclick="this.previousElementSibling.classList.remove('review-clamped');this.remove()">Read more</button>` : '';
+          card.innerHTML = `<div class="review-stars">${'★'.repeat(Math.min(5, rv.rating || 5))}</div><div class="review-excerpt${isLong ? ' review-clamped' : ''}">"${esc(rv.text)}"</div>${readMoreBtn}`;
           area.appendChild(card);
           const d = delay;
           setTimeout(() => card.classList.add('revealed'), d);
@@ -645,8 +706,10 @@
       btn.disabled = true;
       btn.textContent = 'Preparing...';
 
-      startInterviewPoll(); // enable skip-act from host panel during briefing
+      startInterviewPoll();
       showState('state-speaking');
+      showOfferConfirmButtons(false);
+      const speakEl = document.getElementById('speaking-text');
 
       const r = researchData || {};
       const s = session || {};
@@ -661,14 +724,11 @@
       const act1intro = comps.length > 0
         ? `Before we talk about your gym, let me show you what I already found. I looked at ${comps.length} competitor${comps.length !== 1 ? 's' : ''} in ${city} running ads right now.`
         : `Before we talk about your gym, let me show you what I already found.`;
-      setSpeakingText(act1intro);
-      await speak(act1intro);
+      await speak(act1intro, speakEl);
 
       for (const c of activeComps.slice(0, 3)) {
         const adStr = c.adCount === 1 ? '1 ad running' : `${c.adCount} ads running`;
-        const compLine = `${c.name}. ${adStr}.`;
-        setSpeakingText(compLine);
-        await speak(compLine);
+        await speak(`${c.name}. ${adStr}.`, speakEl);
         await sleep(200);
       }
 
@@ -681,8 +741,7 @@
       const act2text = allThemes.length > 0
         ? `Here is what they are all advertising. ${allThemes.join('. ')}.`
         : `Here is what they are all advertising. The usual — weight loss, free trials, and low prices.`;
-      setSpeakingText(act2text);
-      await speak(act2text);
+      await speak(act2text, speakEl);
       await sleep(3000);
       await awaitContinue();
 
@@ -691,26 +750,21 @@
       const gapText = gaps.length > 0
         ? `Here is what nobody is saying. ${gaps[0]}`
         : `Here is what nobody in ${city} is saying. That is where we are going to play.`;
-      setSpeakingText(gapText);
-      await speak(gapText);
+      await speak(gapText, speakEl);
       await sleep(3000);
       await awaitContinue();
 
       // ── Act 4: Your members ─────────────────────────────────────────────────
       setActLabel('Act 4 of 4 — Your Members');
-      setSpeakingText('Your members are already telling the story.');
-      await speak('Your members are already telling the story.');
-      await sleep(300);
+      await speak('Here are some of your reviews. Your members are already telling the story.', speakEl);
+      await sleep(1000);
 
       for (const rv of reviews.slice(0, 2)) {
-        const excerpt = rv.text.length > 85 ? rv.text.substring(0, 85) + '...' : rv.text;
-        setSpeakingText(`"${excerpt}"`);
-        await speak(`"${excerpt}"`);
+        await speak(`"${rv.text}"`, speakEl);
         await sleep(400);
       }
 
-      setSpeakingText('This is the language we are going to use.');
-      await speak('This is the language we are going to use.');
+      await speak('This is the language we are going to use.', speakEl);
       await sleep(3000);
       await awaitContinue();
 
@@ -727,7 +781,6 @@
         }
       } catch {}
 
-      // No hooks — go straight to interview
       briefingStarted = false;
       await startInterview();
     }
@@ -738,9 +791,35 @@
       if (el) el.textContent = text;
     }
 
+    // ─── Word-by-word speaking text reveal ───────────────────────────────────
+    let _wordRevealTimers = [];
+
+    function cancelWordReveal() {
+      _wordRevealTimers.forEach(t => clearTimeout(t));
+      _wordRevealTimers = [];
+    }
+
+    function displaySpeakingText(text, audioDurationMs, el) {
+      cancelWordReveal();
+      if (!el) el = document.getElementById('speaking-text');
+      if (!el) return;
+      const words = text.split(/\s+/).filter(w => w.length > 0);
+      if (!words.length) return;
+      const interval = (audioDurationMs && audioDurationMs > 0)
+        ? audioDurationMs / words.length
+        : 500;
+      el.innerHTML = '';
+      words.forEach((word, i) => {
+        const span = document.createElement('span');
+        span.textContent = (i > 0 ? ' ' : '') + word;
+        span.style.cssText = 'opacity:0;transition:opacity 150ms ease;display:inline;';
+        el.appendChild(span);
+        _wordRevealTimers.push(setTimeout(() => { span.style.opacity = '1'; }, i * interval));
+      });
+    }
+
     function setSpeakingText(text) {
-      const el = document.getElementById('speaking-text');
-      if (el) el.textContent = text;
+      displaySpeakingText(text, null, document.getElementById('speaking-text'));
     }
 
     // ─── Await continue (blocks until button click or skip-act nav command) ───
@@ -761,6 +840,7 @@
     }
 
     function onContinueClick() {
+      stopAudio();
       const btn = document.getElementById('continue-btn');
       if (btn) {
         btn.style.opacity = '0';
@@ -777,19 +857,24 @@
       const counter = document.getElementById('hook-counter');
       const letsTalkBtn = document.getElementById('lets-talk-btn');
 
-      // Reset button state from any prior run
       if (letsTalkBtn) letsTalkBtn.style.display = 'none';
       counter.textContent = '';
       card.className = 'hook-card';
       card.innerHTML = '';
 
-      // Intro speech — two sentences, paced pause between them
-      await speak("Now let me show you something. Based entirely on public information — your Google reviews, your competitors' ads, and what nobody in your market is saying — I wrote these hooks for your gym. I have not asked you a single question yet.");
+      const hookSpeakEl = document.getElementById('hook-speaking-text');
+      if (hookSpeakEl) { hookSpeakEl.style.opacity = '1'; hookSpeakEl.innerHTML = ''; }
+
+      const intro1 = "Now let me show you something. Based entirely on public information — your Google reviews, your competitors' ads, and what nobody in your market is saying — I wrote these hooks for your gym. I have not asked you a single question yet.";
+      await speak(intro1, hookSpeakEl);
       await sleep(2000);
-      await speak("Here are three hooks ready to run right now.");
+      const intro2 = "Here are three hooks ready to run right now.";
+      await speak(intro2, hookSpeakEl);
       await sleep(1500);
 
-      // Each hook: animate in, speak, 1.5s pause before next
+      if (hookSpeakEl) hookSpeakEl.style.opacity = '0';
+      cancelWordReveal();
+
       for (let i = 0; i < hooks.length; i++) {
         const h = hooks[i];
         counter.textContent = `Hook ${i + 1} of ${hooks.length}`;
@@ -802,17 +887,16 @@
         await sleep(1500);
       }
 
-      // After last hook: 3s pause, then outro speech, then 2s pause
       counter.textContent = '';
       card.classList.remove('visible');
       await sleep(3000);
 
-      card.innerHTML = `<div class="hook-intro-text">That is what I build from public data alone. Imagine what I write once we talk.</div>`;
+      const outroText = 'That is what I build from public data alone. Imagine what I can build when we talk.';
+      card.innerHTML = `<div class="hook-intro-text" id="hook-outro-text"></div>`;
       card.classList.add('visible');
-      await speak('That is what I build from public data alone. Imagine what I write once we talk.');
+      await speak(outroText, document.getElementById('hook-outro-text'));
       await sleep(2000);
 
-      // Show "Let's talk" button
       if (letsTalkBtn) {
         letsTalkBtn.style.display = 'inline-flex';
         letsTalkBtn.style.opacity = '0';
@@ -825,6 +909,7 @@
     }
 
     async function onLetsTalkClick() {
+      stopAudio();
       const btn = document.getElementById('lets-talk-btn');
       if (btn) {
         btn.style.opacity = '0';
@@ -874,10 +959,11 @@
     }
 
     // ─── TTS — calls server proxy, streams ElevenLabs audio ─────────────────
-    async function speak(text) {
+    async function speak(text, displayEl) {
       const normalized = normalizeTTS(text);
       console.log('[speak] →', normalized.substring(0, 70));
       setWaveformActive(true);
+      if (displayEl) { cancelWordReveal(); displayEl.innerHTML = ''; }
       try {
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/tts`, {
           method: 'POST',
@@ -893,6 +979,16 @@
           console.log('[speak] audio element created, playing');
           await new Promise(resolve => {
             currentAudioResolve = resolve;
+            let displayStarted = false;
+            const startDisplay = () => {
+              if (!displayStarted && displayEl) {
+                displayStarted = true;
+                const ms = (isFinite(audio.duration) && audio.duration > 0)
+                  ? Math.round(audio.duration * 1000) : null;
+                displaySpeakingText(text, ms, displayEl);
+              }
+            };
+            audio.addEventListener('loadedmetadata', startDisplay, { once: true });
             audio.onended = () => {
               audioPlaying = false;
               currentAudio = null;
@@ -909,8 +1005,11 @@
               URL.revokeObjectURL(url);
               resolve();
             };
-            audio.play().catch(err => {
+            audio.play().then(() => {
+              setTimeout(startDisplay, 50);
+            }).catch(err => {
               console.warn('[speak] audio.play() failed:', err?.message);
+              if (displayEl && !displayStarted) { displayStarted = true; displaySpeakingText(text, null, displayEl); }
               audioPlaying = false;
               currentAudio = null;
               currentAudioResolve = null;
@@ -918,15 +1017,17 @@
             });
           });
         } else if (res.status === 503) {
-          // Voice not configured — simulate reading pace
+          if (displayEl) displaySpeakingText(text, null, displayEl);
           const sentences = (normalized.match(/[.!?]+/g) || []).length || 1;
           await sleep(Math.max(1400, sentences * 1600));
         } else {
           console.warn('[speak] TTS endpoint returned', res.status);
+          if (displayEl) displaySpeakingText(text, null, displayEl);
           await sleep(1200);
         }
       } catch (err) {
         console.warn('[speak] fetch error:', err?.message);
+        if (displayEl) displaySpeakingText(text, null, displayEl);
         await sleep(1200);
       }
       setWaveformActive(false);
@@ -962,10 +1063,19 @@
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
+    function showOfferConfirmButtons(visible) {
+      const el = document.getElementById('offer-confirm-actions');
+      if (!el) return;
+      if (visible) el.classList.remove('hidden');
+      else el.classList.add('hidden');
+    }
+
     function showState(id) {
+      cancelWordReveal();
       ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-mic-test', 'state-interview', 'state-complete']
         .forEach(s => document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
+      showOfferConfirmButtons(false);
     }
 
     function setWaveformActive(active) {
@@ -1175,7 +1285,7 @@
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
       startInterviewPoll();
-      if (resumeIdx > 0) await speak(`Welcome back. We're on question ${resumeIdx + 1}. Ready to continue?`);
+      if (resumeIdx > 0) await speak(`Welcome back. We're on question ${resumeIdx + 1}. Ready to continue?`, document.getElementById('iv-question'));
       await askQuestion(resumeIdx);
     }
 
@@ -1188,12 +1298,13 @@
 
     // ─── Called when user confirms mic (or skips) — begins the interview ──────
     async function proceedToInterview() {
+      stopAudio();
       await cleanupMicTest();
-      await sleep(300); // let OS fully release mic handle before Web Speech API takes it
+      await sleep(300);
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
       startInterviewPoll();
-      await speak("Now I want to learn from you. The better your answers, the sharper your marketing system gets. Watch the panel on the right — you will see it being built as we talk. Let's start.");
+      await speak("Now I want to learn from you. The better your answers, the sharper your marketing system gets. Watch the panel on the right — you will see it being built as we talk. Let's start.", document.getElementById('iv-question'));
       await sleep(500);
       await askQuestion(0);
     }
@@ -1297,16 +1408,28 @@
 
       document.getElementById('iv-section-tag').textContent = q.sectionName;
       document.getElementById('iv-q-label').textContent = `Question ${validQuestionNumber(qIdx)}`;
-      document.getElementById('iv-question').textContent = buildQuestionText(q);
+      document.getElementById('iv-question').textContent = '';
 
       updateBackButton();
       resetAnswerArea();
+
+      // Pre-populate answer if an intro tile was selected
+      const preFill = (interviewState.preFill || {})[q.id];
+      if (preFill) {
+        const ta = document.getElementById('text-answer');
+        const locked = document.getElementById('transcript-locked');
+        if (ta) ta.value = preFill;
+        if (locked) locked.textContent = preFill;
+        document.getElementById('submit-btn').disabled = false;
+        delete interviewState.preFill[q.id];
+      }
 
       // Kick off tile generation in parallel with the question speech
       prefetchTiles(q);
       console.log('[askQuestion] idx', qIdx, 'nav', thisNav, 'id:', q.id);
 
-      await speak(buildQuestionText(q));
+      const qText = buildQuestionText(q);
+      await speak(qText, document.getElementById('iv-question'));
 
       if (navVersion !== thisNav) { console.log('[askQuestion] stale nav, aborting post-speak'); return; }
 
@@ -1361,8 +1484,7 @@
 
       recognition.onstart = () => {
         console.log('[voice] recognition.onstart fired');
-        const live = document.getElementById('transcript-live');
-        if (live && !currentTranscript) live.textContent = 'Listening...';
+        setVoiceIndicator('waiting');
       };
 
       recognition.onaudiostart = () => {
@@ -1371,14 +1493,12 @@
 
       recognition.onsoundstart = () => {
         console.log('[voice] recognition.onsoundstart — sound detected');
-        const live = document.getElementById('transcript-live');
-        if (live && !currentTranscript) live.textContent = 'Heard something...';
+        setVoiceIndicator('hearing');
       };
 
       recognition.onspeechstart = () => {
         console.log('[voice] recognition.onspeechstart — classifying as speech');
-        const live = document.getElementById('transcript-live');
-        if (live && !currentTranscript) live.textContent = 'Processing...';
+        setVoiceIndicator('hearing');
       };
 
       recognition.onresult = (e) => {
@@ -1392,9 +1512,10 @@
           }
         }
         const liveEl = document.getElementById('transcript-live');
-        if (liveEl) liveEl.textContent = [currentTranscript, interim].filter(Boolean).join(' ') || 'Listening...';
+        if (liveEl) liveEl.textContent = [currentTranscript, interim].filter(Boolean).join(' ') || '';
+        if (interim || currentTranscript) setVoiceIndicator('hearing');
         clearTimeout(voiceLockTimer);
-        if (currentTranscript) voiceLockTimer = setTimeout(lockTranscript, 2200);
+        if (currentTranscript) voiceLockTimer = setTimeout(lockTranscript, 4000);
       };
 
       recognition.onerror = (e) => {
@@ -1404,25 +1525,26 @@
           stopVoice();
           if (live) live.textContent = 'Microphone access denied — please use the text input below.';
         } else if (e.error === 'audio-capture') {
-          console.warn('[voice] audio-capture — mic may be held by another process');
-          if (live) live.textContent = 'Mic busy — try reloading or use the text input.';
+          console.warn('[voice] audio-capture — retrying');
+          if (live) live.textContent = 'Let me try that again...';
+          setTimeout(() => { if (voiceActive && !audioPlaying) doStartRecognition(); }, 600);
         } else if (e.error === 'no-speech') {
-          console.log('[voice] no-speech — onend will restart');
-          if (live && !currentTranscript) live.textContent = 'Listening...';
+          console.log('[voice] no-speech — restarting');
+          setVoiceIndicator('waiting');
+        } else if (e.error === 'network') {
+          console.warn('[voice] network error — retrying');
+          if (live) live.textContent = 'Let me try that again...';
+          setTimeout(() => { if (voiceActive && !audioPlaying) doStartRecognition(); }, 800);
         } else {
-          console.warn('[voice] unhandled recognition error, onend will restart');
+          console.warn('[voice] unhandled error:', e.error, '— restarting');
+          setTimeout(() => { if (voiceActive && !audioPlaying) doStartRecognition(); }, 300);
         }
       };
 
-      // Single-shot auto-restart — replaces continuous:true
+      // Single-shot auto-restart — always recreates the instance for reliability
       recognition.onend = () => {
         if (voiceActive && !audioPlaying) {
-          try {
-            recognition.start();
-          } catch {
-            // State error: recreate on next tick
-            setTimeout(() => { if (voiceActive && !audioPlaying) doStartRecognition(); }, 80);
-          }
+          setTimeout(() => { if (voiceActive && !audioPlaying) doStartRecognition(); }, 80);
         }
       };
 
@@ -1449,11 +1571,13 @@
       const area = document.getElementById('transcript-area');
       if (area) area.classList.add('listening');
       const live = document.getElementById('transcript-live');
-      if (live) live.textContent = 'Listening...';
+      if (live) live.textContent = '';
       const locked = document.getElementById('transcript-locked');
       if (locked) locked.textContent = '';
       const submitBtn = document.getElementById('submit-btn');
       if (submitBtn) submitBtn.disabled = true;
+      document.getElementById('done-speaking-btn')?.classList.remove('hidden');
+      setVoiceIndicator('waiting');
 
       // Dim suggestion tiles while voice is active
       document.getElementById('suggestions-wrap')?.classList.add('voice-active');
@@ -1470,6 +1594,23 @@
       }
     }
 
+    function setVoiceIndicator(state) {
+      const ind = document.getElementById('voice-state-indicator');
+      const txt = document.getElementById('voice-state-text');
+      if (!ind) return;
+      if (state === 'off') {
+        ind.classList.add('hidden');
+        ind.classList.remove('hearing');
+      } else if (state === 'waiting') {
+        ind.classList.remove('hidden', 'hearing');
+        if (txt) txt.textContent = 'Waiting for your voice...';
+      } else if (state === 'hearing') {
+        ind.classList.remove('hidden');
+        ind.classList.add('hearing');
+        if (txt) txt.textContent = 'Hearing you...';
+      }
+    }
+
     function stopVoice() {
       voiceActive = false;
       pendingVoiceStart = false;
@@ -1479,6 +1620,8 @@
       if (btn) { btn.classList.remove('listening'); btn.textContent = '🎙 Start speaking'; }
       const area = document.getElementById('transcript-area');
       if (area) area.classList.remove('listening');
+      document.getElementById('done-speaking-btn')?.classList.add('hidden');
+      setVoiceIndicator('off');
       // Un-dim suggestion tiles when voice stops
       document.getElementById('suggestions-wrap')?.classList.remove('voice-active');
     }
@@ -1526,6 +1669,7 @@
       const transcript = (document.getElementById('transcript-locked').textContent || document.getElementById('text-answer').value || '').trim();
       if (!transcript) return;
 
+      stopAudio();
       interviewState.submitting = true;
       stopVoice();
       const btn = document.getElementById('submit-btn');
@@ -1560,11 +1704,17 @@
           interviewState.submitting = false;
           btn.textContent = 'Submit answer';
           resetAnswerArea();
-          await speak(evalData.probeQuestion || q.probe);
+          await speak(evalData.probeQuestion || q.probe, document.getElementById('iv-question'));
           if (navVersion !== submitNav) return;
           startVoice();
         } else {
           interviewState.submitting = false;
+          resetAnswerArea();
+          if (evalData.acknowledgment) {
+            await speak(evalData.acknowledgment, document.getElementById('iv-question'));
+            if (navVersion !== submitNav) return;
+            await sleep(300);
+          }
           await advanceInterview();
         }
       } catch {
@@ -1597,7 +1747,7 @@
         await writeSectionKB(q.section);
         interviewState.completedSections.add(q.section);
         if (SECTION_INTRO[nextSection]) {
-          await speak(SECTION_INTRO[nextSection]);
+          await speak(SECTION_INTRO[nextSection], document.getElementById('iv-question'));
           await sleep(400);
         }
       }
@@ -1828,9 +1978,8 @@
       showState('state-speaking');
       setActLabel('Section 1 — Building Your Offer');
       const introText = "No problem at all — this is actually one of the most valuable things we will do today. I am going to help you build an offer right now using what I already know about your market. Based on what I found, here is what is working for gyms in similar markets.";
-      setSpeakingText(introText);
       const templatesPromise = fetchOfferTemplateTiles();
-      await speak(introText);
+      await speak(introText, document.getElementById('speaking-text'));
       try {
         const templates = await templatesPromise;
         if (templates.length > 0) {
@@ -1838,15 +1987,24 @@
           const container = document.getElementById('intro-tiles-container');
           if (wrap && container) {
             container.innerHTML = '';
+            let introTileResolveLocal = null;
             templates.forEach((t, i) => {
               const card = document.createElement('div');
               card.className = 'intro-tile';
               card.innerHTML = `<div class="intro-tile-text">${esc(t.text)}</div>${t.subtext ? `<div class="intro-tile-sub">${esc(t.subtext)}</div>` : ''}`;
+              card.addEventListener('click', () => {
+                container.querySelectorAll('.intro-tile').forEach(c => c.classList.remove('intro-tile-selected'));
+                card.classList.add('intro-tile-selected');
+                if (!interviewState.preFill) interviewState.preFill = {};
+                interviewState.preFill['qb2'] = t.text;
+                if (introTileResolveLocal) { introTileResolveLocal(); introTileResolveLocal = null; }
+              });
               container.appendChild(card);
               setTimeout(() => card.classList.add('intro-tile-visible'), 60 + i * 130);
             });
             wrap.classList.remove('hidden');
-            await sleep(4500);
+            await new Promise(r => { introTileResolveLocal = r; setTimeout(r, 4500); });
+            introTileResolveLocal = null;
             wrap.classList.add('hidden');
           }
         }
@@ -1872,33 +2030,55 @@
       showState('state-speaking');
       setActLabel('Your Offer — Review');
 
+      const a = interviewState.answers;
       let summary = buildLocalOfferSummary();
       try {
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/synthesize-offer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ answers: interviewState.answers }),
+          body: JSON.stringify({ answers: a }),
         });
         if (res.ok) { const d = await res.json(); if (d.summary) summary = d.summary; }
       } catch {}
 
-      setSpeakingText(summary);
-      await speak(summary);
-      await sleep(800);
+      await speak(summary, document.getElementById('speaking-text'));
+      await sleep(600);
 
-      const confirmActions = document.getElementById('offer-confirm-actions');
-      if (confirmActions) confirmActions.classList.remove('hidden');
+      cancelWordReveal();
+      const speakEl = document.getElementById('speaking-text');
+      if (speakEl) speakEl.innerHTML = '';
+
+      document.getElementById('oef-duration').value = a.qb2 || '';
+      document.getElementById('oef-price').value = a.qb3 || '';
+      document.getElementById('oef-inclusions').value = a.qb4 || '';
+      document.getElementById('oef-guarantee').value = a.qb5 || '';
+      document.getElementById('oef-differentiator').value = a.qb6 || '';
+      document.getElementById('offer-edit-fields').classList.remove('hidden');
+      showOfferConfirmButtons(true);
 
       return new Promise(resolve => { offerConfirmResolve = resolve; });
     }
 
     function confirmOffer() {
-      document.getElementById('offer-confirm-actions')?.classList.add('hidden');
+      stopAudio();
+      const val = id => document.getElementById(id)?.value.trim() || '';
+      const dur = val('oef-duration'), price = val('oef-price'),
+            inc = val('oef-inclusions'), guar = val('oef-guarantee'), diff = val('oef-differentiator');
+      if (dur)   interviewState.answers.qb2 = dur;
+      if (price) interviewState.answers.qb3 = price;
+      if (inc)   interviewState.answers.qb4 = inc;
+      if (guar)  interviewState.answers.qb5 = guar;
+      if (diff)  interviewState.answers.qb6 = diff;
+      saveAnswers().catch(() => {});
+      showOfferConfirmButtons(false);
+      document.getElementById('offer-edit-fields')?.classList.add('hidden');
       if (offerConfirmResolve) { const r = offerConfirmResolve; offerConfirmResolve = null; r(true); }
     }
 
     async function adjustOffer() {
-      document.getElementById('offer-confirm-actions')?.classList.add('hidden');
+      stopAudio();
+      showOfferConfirmButtons(false);
+      document.getElementById('offer-edit-fields')?.classList.add('hidden');
       if (offerConfirmResolve) { const r = offerConfirmResolve; offerConfirmResolve = null; r(false); }
       const qb2Idx = QUESTIONS.findIndex(q => q.id === 'qb2');
       if (qb2Idx >= 0) {
@@ -1927,8 +2107,7 @@
       stopInterviewPoll();
       updateStatusPip('active', 'Generating your system');
       showState('state-speaking');
-      document.getElementById('speaking-text').textContent = 'Generating your final hooks and offer brief...';
-      await speak("Your marketing system is configured. Every question answered. I am generating your final hooks now — based on everything you have told me.");
+      await speak("Your marketing system is configured. Every question answered. I am generating your final hooks now — based on everything you have told me.", document.getElementById('speaking-text'));
       await sleep(400);
       await triggerCompletion();
     }
@@ -1953,7 +2132,10 @@
       showState('state-hook-reveal');
       document.getElementById('hook-counter').textContent = '';
 
-      await speak("Remember the first three hooks I generated from public data alone? Here's what I build now that I know your story.");
+      const hookSpeakEl = document.getElementById('hook-speaking-text');
+      if (hookSpeakEl) { hookSpeakEl.style.opacity = '1'; hookSpeakEl.innerHTML = ''; }
+      await speak("Remember the first three hooks I generated from public data alone? Here's what I build now that I know your story.", hookSpeakEl);
+      if (hookSpeakEl) hookSpeakEl.style.opacity = '0';
       await sleep(600);
 
       for (let i = 0; i < hooks.length; i++) {
@@ -1975,7 +2157,9 @@
         await sleep(350);
       }
 
-      await speak("These are ready to run. Your first campaign brief is being prepared now.");
+      const finalSpeakEl = document.getElementById('hook-speaking-text');
+      if (finalSpeakEl) { finalSpeakEl.style.opacity = '1'; finalSpeakEl.innerHTML = ''; }
+      await speak("These are ready to run. Your first campaign brief is being prepared now.", finalSpeakEl);
       await sleep(500);
       await showSessionComplete(hooks);
     }

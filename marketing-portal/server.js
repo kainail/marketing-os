@@ -2709,36 +2709,51 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
   }
 
   // Questions where any >5 word answer is sufficient — no Claude eval needed
-  // Path A/B tile selections are always sufficient; qb6 is open-ended but accept any answer
   const acceptAnything = ['qa3','qa4','qa5','qb2','qb3','qb4','qb5','qb6','q9','q10','q11','q12','q13','q14','q15','q16','q17','q18','q19'];
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
   if (acceptAnything.includes(questionId) || words.length >= 20) {
-    return res.json({ sufficient: true });
+    let acknowledgment = null;
+    if (apiKey) {
+      try {
+        const Anthropic = require('@anthropic-ai/sdk');
+        const client = new Anthropic({ apiKey });
+        const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
+        acknowledgment = await generateAcknowledgment(questionId, transcript, session, research, client);
+      } catch {}
+    }
+    return res.json({ sufficient: true, acknowledgment });
   }
 
   // Claude evaluates vague but non-empty answers
-  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
   if (!apiKey) return res.json({ sufficient: true });
 
   try {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
-    const msg = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 150,
-      messages: [{
-        role: 'user',
-        content: `Evaluate if this gym owner's answer is sufficient for our purpose.
+    const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
+    const [evalMsg, ackText] = await Promise.all([
+      client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 150,
+        messages: [{
+          role: 'user',
+          content: `Evaluate if this gym owner's answer is sufficient for our purpose.
 
 Purpose: Extract ${Q_PURPOSE[questionId] || 'relevant context'}
 Answer: "${transcript}"
 
 Is this answer specific enough to extract the required data, or does it need a follow-up?
 Respond JSON only: {"sufficient": boolean, "probeQuestion": "one follow-up question or null"}`
-      }]
-    });
-    const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+        }]
+      }),
+      generateAcknowledgment(questionId, transcript, session, research, client).catch(() => null),
+    ]);
+    const raw = evalMsg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
     const result = JSON.parse(raw);
-    return res.json({ sufficient: !!result.sufficient, probeQuestion: result.probeQuestion || null });
+    if (result.sufficient) {
+      return res.json({ sufficient: true, acknowledgment: ackText, probeQuestion: null });
+    }
+    return res.json({ sufficient: false, probeQuestion: result.probeQuestion || null });
   } catch {
     return res.json({ sufficient: true });
   }
@@ -2779,6 +2794,33 @@ async function generateAnswerSuggestions(questionId, session, research) {
     console.error('[onboarding] generateAnswerSuggestions failed:', err.message);
     return [];
   }
+}
+
+/** Generate a brief conversational acknowledgment after a sufficient answer. Uses Claude Haiku. */
+async function generateAcknowledgment(questionId, transcript, session, research, client) {
+  const gymName = session.gymName || 'your gym';
+  const city = session.city || 'your city';
+  const gap = (research?.marketGaps || [])[0] || '';
+
+  const prompt = `You are AHRI, a focused marketing AI interviewing the owner of ${gymName} in ${city}.
+They just answered a question about: ${Q_PURPOSE[questionId] || 'their gym'}.
+Their answer: "${transcript.substring(0, 180)}"
+${gap ? `Market gap context: ${gap}` : ''}
+
+Write ONE brief acknowledgment (1 sentence, 15-25 words) that:
+- Reflects what they just said with a specific, grounded insight
+- Sounds conversational, not robotic
+- Never starts with "Great!" "Awesome!" "Perfect!" "Excellent!" or similar hollow affirmations
+- Naturally bridges to continuing the conversation
+
+Output only the acknowledgment sentence. Nothing else.`;
+
+  const msg = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 60,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  return msg.content[0].text.trim().replace(/^["']|["']$/g, '');
 }
 
 // POST /api/onboarding/sessions/:sessionId/question-suggestions — always-on 3 tiles per question (no auth — UUID secured)
