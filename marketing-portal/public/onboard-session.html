@@ -2096,8 +2096,10 @@
 
     async function runPathBIntro() {
       showState('state-speaking');
+      renderActControls();
       setActLabel('Section 1 — Building Your Offer');
       const introText = "No problem at all — this is actually one of the most valuable things we will do today. I am going to help you build an offer right now using what I already know about your market. Based on what I found, here is what is working for gyms in similar markets.";
+      actFullText = introText;
       const templatesPromise = fetchOfferTemplateTiles();
       await speak(introText, document.getElementById('speaking-text'));
       try {
@@ -2107,7 +2109,6 @@
           const container = document.getElementById('intro-tiles-container');
           if (wrap && container) {
             container.innerHTML = '';
-            let introTileResolveLocal = null;
             templates.forEach((t, i) => {
               const card = document.createElement('div');
               card.className = 'intro-tile';
@@ -2117,18 +2118,18 @@
                 card.classList.add('intro-tile-selected');
                 if (!interviewState.preFill) interviewState.preFill = {};
                 interviewState.preFill['qb2'] = t.text;
-                if (introTileResolveLocal) { introTileResolveLocal(); introTileResolveLocal = null; }
               });
               container.appendChild(card);
               setTimeout(() => card.classList.add('intro-tile-visible'), 60 + i * 130);
             });
             wrap.classList.remove('hidden');
-            await new Promise(r => { introTileResolveLocal = r; setTimeout(r, 4500); });
-            introTileResolveLocal = null;
-            wrap.classList.add('hidden');
           }
         }
       } catch {}
+      // Tiles stay visible — owner reads, optionally clicks one, then clicks Continue
+      await awaitContinue();
+      const wrap = document.getElementById('intro-tiles-wrap');
+      if (wrap) wrap.classList.add('hidden');
     }
 
     async function fetchOfferTemplateTiles() {
