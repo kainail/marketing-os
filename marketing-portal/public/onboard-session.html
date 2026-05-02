@@ -73,7 +73,7 @@
     /* ─── State 3: speaking ──────────────────────────────────────── */
     .speaking-who { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 22px; display: flex; align-items: center; gap: 8px; justify-content: center; }
     .speaking-who-dot { width: 6px; height: 6px; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 8px rgba(124,58,237,0.6); animation: pip-pulse 1.2s ease-in-out infinite; }
-    .speaking-text { font-size: 28px; color: rgba(232,234,240,0.95); max-width: 70%; line-height: 1.6; font-weight: 400; text-align: center; background: none; border: none; border-radius: 0; padding: 0; }
+    .speaking-text { font-size: 28px; color: rgba(232,234,240,0.95); width: 100%; max-width: 600px; line-height: 1.6; font-weight: 400; text-align: center; background: none; border: none; border-radius: 0; padding: 0; }
 
     /* ─── State 4: hook reveal ───────────────────────────────────── */
     .hook-counter { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 28px; min-height: 16px; }
@@ -518,6 +518,9 @@
     let briefingStarted = false;
     let continueResolve = null;
     let actSkipActive = false;
+    let actAdvanceNow = false;
+    let actTextRevealed = false;
+    let actFullText = '';
 
     // Audio cancellation
     let currentAudio = null;
@@ -731,6 +734,10 @@
       const act1intro = comps.length > 0
         ? `Before we talk about your gym, let me show you what I already found. I looked at ${comps.length} competitor${comps.length !== 1 ? 's' : ''} in ${city} running ads right now.`
         : `Before we talk about your gym, let me show you what I already found.`;
+      actFullText = [act1intro, ...activeComps.slice(0, 3).map(c => {
+        const adStr = c.adCount === 1 ? '1 ad running' : `${c.adCount} ads running`;
+        return `${c.name}. ${adStr}.`;
+      })].join(' ');
       await speak(act1intro, speakEl);
 
       for (const c of activeComps.slice(0, 3)) {
@@ -749,6 +756,7 @@
       const act2text = allThemes.length > 0
         ? `Here is what they are all advertising. ${allThemes.join('. ')}.`
         : `Here is what they are all advertising. The usual — weight loss, free trials, and low prices.`;
+      actFullText = act2text;
       await speak(act2text, speakEl);
       await sleep(3000);
       await awaitContinue();
@@ -759,6 +767,7 @@
       const gapText = gaps.length > 0
         ? `Here is what nobody is saying. ${gaps[0]}`
         : `Here is what nobody in ${city} is saying. That is where we are going to play.`;
+      actFullText = gapText;
       await speak(gapText, speakEl);
       await sleep(3000);
       await awaitContinue();
@@ -766,6 +775,9 @@
       // ── Act 4: Your members ─────────────────────────────────────────────────
       renderActControls();
       setActLabel('Act 4 of 4 — Your Members');
+      actFullText = ['Here are some of your reviews. Your members are already telling the story.',
+        ...reviews.slice(0, 2).map(rv => `"${rv.text}"`),
+        'This is the language we are going to use.'].join(' ');
       await speak('Here are some of your reviews. Your members are already telling the story.', speakEl);
       await sleep(1000);
 
@@ -809,33 +821,30 @@
       _wordRevealTimers = [];
     }
 
-    function displaySpeakingText(text, audioDurationMs, el) {
+    function displaySpeakingText(text, el) {
       cancelWordReveal();
       if (!el) el = document.getElementById('speaking-text');
       if (!el) return;
       const words = text.split(/\s+/).filter(w => w.length > 0);
       if (!words.length) return;
-      const interval = (audioDurationMs && audioDurationMs > 0)
-        ? audioDurationMs / words.length
-        : 500;
       el.innerHTML = '';
       words.forEach((word, i) => {
         const span = document.createElement('span');
-        span.textContent = (i > 0 ? ' ' : '') + word;
+        span.textContent = (i > 0 ? ' ' : '') + word;
         span.style.cssText = 'opacity:0;transition:opacity 150ms ease;display:inline;';
         el.appendChild(span);
-        _wordRevealTimers.push(setTimeout(() => { span.style.opacity = '1'; }, i * interval));
+        _wordRevealTimers.push(setTimeout(() => { span.style.opacity = '1'; }, i * 80));
       });
     }
 
     function setSpeakingText(text) {
-      displaySpeakingText(text, null, document.getElementById('speaking-text'));
+      displaySpeakingText(text, document.getElementById('speaking-text'));
     }
 
     // ─── Await continue (blocks until button click or skip-act command) ───────
     function awaitContinue() {
       return new Promise(resolve => {
-        if (actSkipActive) { resolve(); return; }
+        if (actAdvanceNow) { resolve(); return; }
         continueResolve = resolve;
         const btn = document.getElementById('continue-btn');
         if (btn) {
@@ -970,14 +979,30 @@
       pendingVoiceStart = false;
     }
 
-    // ─── Skip current briefing act ───────────────────────────────────────────
+    // ─── Skip current briefing act (two-mode) ────────────────────────────────
     function skipAct() {
-      stopAudio();
-      cancelWordReveal();
-      const speakEl = document.getElementById('speaking-text');
-      if (speakEl) speakEl.innerHTML = '';
-      actSkipActive = true;
-      if (continueResolve) { const r = continueResolve; continueResolve = null; r(); }
+      if (!actTextRevealed) {
+        // Mode 1: AHRI is speaking — stop audio, reveal full act text immediately
+        stopAudio();
+        cancelWordReveal();
+        actSkipActive = true;
+        actTextRevealed = true;
+        const speakEl = document.getElementById('speaking-text');
+        if (speakEl) {
+          speakEl.innerHTML = '';
+          speakEl.textContent = actFullText;
+        }
+        // Change label to signal second press will advance
+        const sb = document.getElementById('skip-act-btn');
+        if (sb) sb.textContent = 'Skip act →';
+        // speak/sleep chain fast-forwards; awaitContinue will show Continue button
+        // Do NOT resolve continueResolve here — let owner read then choose
+      } else {
+        // Mode 2: full text already shown — advance immediately
+        stopAudio();
+        actAdvanceNow = true;
+        if (continueResolve) { const r = continueResolve; continueResolve = null; r(); }
+      }
     }
 
     // ─── TTS — calls server proxy, streams ElevenLabs audio ─────────────────
@@ -1002,16 +1027,9 @@
           console.log('[speak] audio element created, playing');
           await new Promise(resolve => {
             currentAudioResolve = resolve;
-            let displayStarted = false;
-            const startDisplay = () => {
-              if (!displayStarted && displayEl) {
-                displayStarted = true;
-                const ms = (isFinite(audio.duration) && audio.duration > 0)
-                  ? Math.round(audio.duration * 1000) : null;
-                displaySpeakingText(text, ms, displayEl);
-              }
+            audio.onplay = () => {
+              if (displayEl) displaySpeakingText(text, displayEl);
             };
-            audio.addEventListener('loadedmetadata', startDisplay, { once: true });
             audio.onended = () => {
               audioPlaying = false;
               currentAudio = null;
@@ -1028,11 +1046,9 @@
               URL.revokeObjectURL(url);
               resolve();
             };
-            audio.play().then(() => {
-              setTimeout(startDisplay, 50);
-            }).catch(err => {
+            audio.play().catch(err => {
               console.warn('[speak] audio.play() failed:', err?.message);
-              if (displayEl && !displayStarted) { displayStarted = true; displaySpeakingText(text, null, displayEl); }
+              if (displayEl) displaySpeakingText(text, displayEl);
               audioPlaying = false;
               currentAudio = null;
               currentAudioResolve = null;
@@ -1040,17 +1056,17 @@
             });
           });
         } else if (res.status === 503) {
-          if (displayEl) displaySpeakingText(text, null, displayEl);
+          if (displayEl) displaySpeakingText(text, displayEl);
           const sentences = (normalized.match(/[.!?]+/g) || []).length || 1;
           await sleep(Math.max(1400, sentences * 1600));
         } else {
           console.warn('[speak] TTS endpoint returned', res.status);
-          if (displayEl) displaySpeakingText(text, null, displayEl);
+          if (displayEl) displaySpeakingText(text, displayEl);
           await sleep(1200);
         }
       } catch (err) {
         console.warn('[speak] fetch error:', err?.message);
-        if (displayEl) displaySpeakingText(text, null, displayEl);
+        if (displayEl) displaySpeakingText(text, displayEl);
         await sleep(1200);
       }
       setWaveformActive(false);
@@ -1095,13 +1111,16 @@
     // Act controls: Continue + Skip row. Call at the start of every act.
     function renderActControls() {
       actSkipActive = false;
+      actAdvanceNow = false;
+      actTextRevealed = false;
+      actFullText = '';
       showOfferConfirmButtons(false);
       const row = document.getElementById('act-nav-row');
       if (row) row.style.display = 'flex';
       const cb = document.getElementById('continue-btn');
       if (cb) cb.style.display = 'none';
       const sb = document.getElementById('skip-act-btn');
-      if (sb) sb.style.display = 'inline-flex';
+      if (sb) { sb.style.display = 'inline-flex'; sb.textContent = 'Skip'; }
     }
 
     // Offer confirm controls: two-button state for Path B synthesis only.
@@ -1113,6 +1132,8 @@
 
     function showState(id) {
       actSkipActive = false;
+      actAdvanceNow = false;
+      actTextRevealed = false;
       cancelWordReveal();
       ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-mic-test', 'state-interview', 'state-complete']
         .forEach(s => document.getElementById(s).classList.add('hidden'));
