@@ -539,6 +539,15 @@
     const tilePromises = {};
     let _currentSugTiles = [];
 
+    // Hardcoded fallback tiles — shown when API returns nothing for these questions
+    const HARDCODED_TILES = {
+      'qb2': [
+        { text: '14 days — lower commitment, easier for hesitant prospects to say yes' },
+        { text: '21 days — enough time to build a habit without feeling overwhelming' },
+        { text: '30 days — the standard for coached programs, maximizes the chance of real results' },
+      ],
+    };
+
     // Mic test
     let micTestStream = null;
     let micTestAudioCtx = null;
@@ -1557,11 +1566,12 @@
 
       startVoice();
 
-      // Show tiles — usually already resolved since Haiku is fast
+      // Show tiles — API result or hardcoded fallback
       try {
-        const tiles = await tilePromises[q.id];
+        const apiTiles = await tilePromises[q.id];
         if (navVersion !== thisNav) return;
-        if (tiles?.length > 0) showSuggestionTiles(tiles);
+        const tiles = (apiTiles?.length > 0) ? apiTiles : (HARDCODED_TILES[q.id] || []);
+        if (tiles.length > 0) showSuggestionTiles(tiles);
       } catch {}
 
       // Pre-fetch next valid question's tiles while the owner is answering
@@ -2158,6 +2168,13 @@
       await introPromise;
       await sleep(350); // brief pause for visual confirmation before advancing
       wrap.classList.add('hidden');
+
+      // Transition speech — reframes what happens next before qb2 begins
+      await speak(
+        "Great — now that we have a template to work from, let me help you customize it for your specific gym and market. I will ask you a few quick questions and we will shape this into an offer that is uniquely yours.",
+        document.getElementById('speaking-text')
+      );
+      await sleep(1500);
     }
 
     async function fetchOfferTemplateTiles() {
