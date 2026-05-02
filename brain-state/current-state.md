@@ -2,7 +2,7 @@
 # AHRI reads this file before every generation. Keep it current.
 
 ## Sessions Complete
-Sessions 0–21 | Version: v2.0 | Last updated: 2026-05-01
+Sessions 0–23 | Version: v2.0 | Last updated: 2026-05-01
 
 ## Active Offer
 The No-Risk Comeback — 30 Days Coached, $1 to Start
@@ -88,11 +88,30 @@ Goal 6 — R2 Migration: FULLY COMPLETE ✅ (verified Session 21 — 2026-05-01)
     Check 2 ✅ Intelligence task file confirmed in Cloudflare R2 dashboard
     Check 3 ✅ Vision run file confirmed in bloomington/intelligence-db/vision/ in R2 dashboard
 
-Goal 7 — Three-Tier Portal: NOT STARTED
-Goal 8 — Handbook Export: NOT STARTED
+Goal 7 — Three-Tier Portal: FULLY COMPLETE ✅ (verified Session 22 — 2026-05-01)
+  JWT issued by OPS Dashboard only, validated by both services
+  User database at shared/users/users.json in R2 (60s in-memory cache with stale fallback)
+  Two roles: admin (all locations) and owner (scoped to assigned locations)
+  Dashboard toggle visible only when user has both hasOPS + hasAHRI
+  Login pages on both OPS Dashboard and AHRI Marketing OS
+  AHRI always defers to OPS Dashboard for token issuance
+  Neural OS references fully removed from all services
+  Default admin seeded from ADMIN_EMAIL + ADMIN_DEFAULT_PASSWORD env vars on startup
+  Password reset via Resend (onboarding@resend.dev) — confirmed working
+  All 6 checks passed:
+    Check 1 ✅ Admin login works, token issued, dashboard loads
+    Check 2 ✅ AHRI login gate (hasAHRI permission check) enforced
+    Check 3 ✅ Dashboard toggle appears with both permissions, absent with one
+    Check 4 ✅ User management UI — admin can create/edit/delete users
+    Check 5 ✅ Password reset email delivered via Resend
+    Check 6 ✅ Owner scoping — 403 on admin routes, locations array enforced in token
+
+Goal 8 — Handbook Export: FULLY COMPLETE ✅ (2026-05-01)
+  Part A ✅ All 5 fixes applied (Phase 6, Phase 7, Appendix C, Appendix D, Appendix E)
+  Part B ✅ 4 new chapters written (Two Dashboards, AI Team, 16 Tasks, Weekly Routine)
+  Part C ✅ PDF exported → C:\Users\kaial\gymsuite-onboarding-playbook.pdf (1.3MB, Version 1.0)
 
 ## Pending Manual Fixes
-- Add MEMBER_LTV=2000 to Railway → OPS Dashboard service → Variables
 - "that's Adam" → "that's Jessica" in GHL SMS
 - CLARITY_PROJECT_ID not set in landing server Railway service
 - Call recording webhook not configured in GHL:
@@ -103,7 +122,8 @@ Goal 8 — Handbook Export: NOT STARTED
 - META_ACCESS_TOKEN renewal deadline: 2026-05-29
 
 ## Next Session Starts With
-1. Begin Goal 7 — Three-Tier Portal
+1. Onboard Eaton OH — use gymsuite-onboarding-playbook.pdf as the guide
+2. Manual: Delete Neural OS Railway service in Railway dashboard (no longer needed)
 
 ## Skills Complete: 15 of 15
 offer-machine, hook-writer, ad-copy, landing-page, email-sequence, nurture-sync,
@@ -172,7 +192,7 @@ R2_ENDPOINT = https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com
 
 ## Future Sessions
 - Session 21: Goal 6 deployed and fully verified ✅
-- Session 22: Goal 7 Three-Tier Portal
-- Session 23: Goal 8 Handbook Export
-- Session 23+: Second gym location live (Eaton) — after SOP complete and R2 verified
+- Session 22: Goal 7 Three-Tier Portal ✅ Complete
+- Session 23: Goal 8 Handbook Export ✅ Complete
+- Session 24+: Second gym location live (Eaton) — playbook ready
 - Session 24+: Vision + Syndra cross-brain data sharing (once both systems have meaningful data)
