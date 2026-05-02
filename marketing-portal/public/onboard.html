@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AHRI — New Onboarding Session</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'Outfit', system-ui, sans-serif; background: #0a0a0a; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    body::before { content: ''; position: fixed; inset: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 28px 28px; pointer-events: none; }
+    .blob { position: fixed; border-radius: 50%; filter: blur(100px); opacity: 0.05; pointer-events: none; }
+    .blob-1 { width: 500px; height: 350px; background: #1a2fa0; top: -150px; left: -100px; }
+    .blob-2 { width: 380px; height: 300px; background: #7c3aed; bottom: -80px; right: -60px; }
+    .page { position: relative; z-index: 1; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 40px 24px; }
+    .container { width: 100%; max-width: 580px; }
+    .header { display: flex; align-items: center; gap: 10px; margin-bottom: 36px; }
+    .logo-dot { width: 28px; height: 28px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 8px; flex-shrink: 0; }
+    .logo-text { font-size: 18px; font-weight: 700; }
+    .logo-sub { font-size: 11px; color: rgba(232,234,240,0.4); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
+    .back-link { margin-left: auto; font-size: 13px; color: rgba(232,234,240,0.4); text-decoration: none; display: flex; align-items: center; gap: 6px; transition: color 0.15s; }
+    .back-link:hover { color: rgba(232,234,240,0.7); }
+    h1 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+    .subtitle { font-size: 14px; color: rgba(232,234,240,0.5); margin-bottom: 32px; line-height: 1.5; }
+    .card { background: #111; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 32px; margin-bottom: 16px; }
+    .section-label { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.35); margin-bottom: 18px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .row.triple { grid-template-columns: 2fr 1fr 1fr; }
+    .field { margin-bottom: 16px; }
+    .field:last-child { margin-bottom: 0; }
+    label { display: block; font-size: 13px; color: rgba(232,234,240,0.6); margin-bottom: 6px; font-weight: 500; }
+    input[type=text], input[type=email], input[type=url], select { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 11px 14px; font-family: inherit; font-size: 15px; color: #e8eaf0; outline: none; transition: border-color 0.15s; }
+    input:focus, select:focus { border-color: rgba(99,102,241,0.6); }
+    select option { background: #1a1a2e; color: #e8eaf0; }
+    .btn { width: 100%; background: #6366f1; border: none; border-radius: 10px; padding: 14px; font-family: inherit; font-size: 15px; font-weight: 600; color: #fff; cursor: pointer; transition: opacity 0.15s, background 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; }
+    .btn:hover:not(:disabled) { background: #4f46e5; }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-msg { margin-top: 14px; padding: 10px 14px; background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.25); border-radius: 8px; font-size: 13px; color: #fb7185; display: none; }
+    .error-msg.show { display: block; }
+    .success-panel { display: none; }
+    .success-panel.show { display: block; }
+    .url-row { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+    .url-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 16px; }
+    .url-label { font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(232,234,240,0.35); margin-bottom: 8px; }
+    .url-value { font-family: 'Courier New', monospace; font-size: 13px; color: #a5b4fc; word-break: break-all; margin-bottom: 10px; }
+    .copy-btn { background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); color: #a5b4fc; border-radius: 6px; padding: 6px 12px; font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+    .copy-btn:hover { background: rgba(99,102,241,0.25); }
+    .copy-btn.copied { color: #6ee7b7; border-color: rgba(110,231,183,0.3); background: rgba(110,231,183,0.1); }
+    .open-btn { background: #6366f1; border: none; color: #fff; border-radius: 6px; padding: 6px 12px; font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer; margin-left: 8px; transition: background 0.15s; }
+    .open-btn:hover { background: #4f46e5; }
+    .manus-status { margin-top: 12px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.green { background: #22c55e; }
+    .status-dot.yellow { background: #eab308; animation: pulse 1.5s ease-in-out infinite; }
+    .status-dot.red { background: #ef4444; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 20px 0; }
+    .new-session-btn { background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 16px; font-family: inherit; font-size: 13px; color: rgba(232,234,240,0.6); cursor: pointer; transition: all 0.15s; margin-top: 4px; }
+    .new-session-btn:hover { border-color: rgba(255,255,255,0.2); color: #e8eaf0; }
+    .success-header { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .success-sub { font-size: 14px; color: rgba(232,234,240,0.5); }
+    .gym-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.2); border-radius: 6px; padding: 4px 10px; font-size: 13px; color: #a5b4fc; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="page">
+    <div class="container">
+      <div class="header">
+        <div class="logo-dot"></div>
+        <div>
+          <div class="logo-text">AHRI</div>
+          <div class="logo-sub">Onboarding</div>
+        </div>
+        <a href="/dashboard" class="back-link">← Dashboard</a>
+      </div>
+
+      <h1>New Onboarding Session</h1>
+      <p class="subtitle">Enter the gym details. AHRI will immediately begin prospect research so you open the call with intelligence the owner doesn't expect.</p>
+
+      <div id="form-panel">
+        <div class="card">
+          <div class="section-label">Gym</div>
+          <div class="field">
+            <label for="gymName">Gym Name</label>
+            <input type="text" id="gymName" placeholder="Anytime Fitness Bloomington" required/>
+          </div>
+          <div class="row triple">
+            <div class="field">
+              <label for="city">City</label>
+              <input type="text" id="city" placeholder="Bloomington" required/>
+            </div>
+            <div class="field">
+              <label for="state">State</label>
+              <input type="text" id="state" placeholder="IL" maxlength="2" required/>
+            </div>
+            <div class="field">
+              <label for="zip">Zip</label>
+              <input type="text" id="zip" placeholder="61701"/>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="franchiseType">Type</label>
+              <select id="franchiseType">
+                <option value="franchise">Franchise</option>
+                <option value="independent">Independent</option>
+                <option value="boutique">Boutique</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="websiteUrl">Website (optional)</label>
+              <input type="url" id="websiteUrl" placeholder="https://..."/>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-label">Owner</div>
+          <div class="row">
+            <div class="field">
+              <label for="ownerName">Owner Name</label>
+              <input type="text" id="ownerName" placeholder="Marcus Johnson" required/>
+            </div>
+            <div class="field">
+              <label for="ownerEmail">Owner Email</label>
+              <input type="email" id="ownerEmail" placeholder="marcus@..."/>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn" id="create-btn" onclick="createSession()">
+          <span id="btn-label">Create Session & Start Research</span>
+        </button>
+        <div class="error-msg" id="error-msg"></div>
+      </div>
+
+      <div id="success-panel" class="card success-panel">
+        <div class="gym-badge" id="success-gym-badge">◉ &nbsp;<span id="success-gym-name"></span></div>
+        <div class="success-header">Session created</div>
+        <p class="success-sub" style="margin-bottom:0">AHRI is running prospect research now. Share the owner URL when you're ready to start the call.</p>
+        <hr class="divider"/>
+        <div class="url-row" id="url-row"></div>
+        <div class="manus-status" id="manus-status"></div>
+        <hr class="divider"/>
+        <button class="new-session-btn" onclick="resetForm()">+ Create another session</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Client-side admin guard ───────────────────────────────────────────────
+    (function() {
+      function parseJwt(t) {
+        try {
+          // base64url → base64: replace URL-safe chars and restore padding
+          const b64 = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+          const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+          return JSON.parse(atob(padded));
+        } catch { return null; }
+      }
+      const token = localStorage.getItem('gymsuite_token');
+      if (!token) { window.location.href = '/login'; return; }
+      const user = parseJwt(token);
+      if (!user) { localStorage.removeItem('gymsuite_token'); window.location.href = '/login'; return; }
+      if (user.role !== 'admin') {
+        console.warn('[AHRI] onboard guard: role is', JSON.stringify(user.role), '— expected "admin". Redirecting.');
+        window.location.href = '/dashboard';
+        return;
+      }
+      window.addEventListener('storage', e => { if (e.key === 'gymsuite_token' && !e.newValue) window.location.href = '/login'; });
+    })();
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function authHeaders() {
+      const t = localStorage.getItem('gymsuite_token');
+      return t ? { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+    }
+
+    let currentSessionId = null;
+    let pollInterval = null;
+
+    async function createSession() {
+      const gymName = document.getElementById('gymName').value.trim();
+      const ownerName = document.getElementById('ownerName').value.trim();
+      const ownerEmail = document.getElementById('ownerEmail').value.trim();
+      const city = document.getElementById('city').value.trim();
+      const state = document.getElementById('state').value.trim().toUpperCase();
+      const zip = document.getElementById('zip').value.trim();
+      const franchiseType = document.getElementById('franchiseType').value;
+      const websiteUrl = document.getElementById('websiteUrl').value.trim();
+
+      const errorEl = document.getElementById('error-msg');
+      errorEl.classList.remove('show');
+
+      if (!gymName || !ownerName || !city || !state) {
+        errorEl.textContent = 'Gym name, owner name, city, and state are required.';
+        errorEl.classList.add('show');
+        return;
+      }
+
+      const btn = document.getElementById('create-btn');
+      const label = document.getElementById('btn-label');
+      btn.disabled = true;
+      label.innerHTML = '<div class="spinner"></div> Creating session...';
+
+      try {
+        const res = await fetch('/api/onboarding/sessions', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ gymName, ownerName, ownerEmail, city, state, zip, franchiseType, websiteUrl }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Failed to create session');
+        showSuccess(data);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('show');
+        btn.disabled = false;
+        label.textContent = 'Create Session & Start Research';
+      }
+    }
+
+    function showSuccess(data) {
+      currentSessionId = data.sessionId;
+      document.getElementById('form-panel').style.display = 'none';
+      const panel = document.getElementById('success-panel');
+      panel.classList.add('show');
+
+      document.getElementById('success-gym-name').textContent = data.session.gymName;
+      const origin = window.location.origin;
+      const shareUrl = origin + data.session.shareUrl;
+      const hostUrl = origin + data.session.hostUrl;
+
+      document.getElementById('url-row').innerHTML = `
+        <div class="url-card">
+          <div class="url-label">Owner View — share this URL (screen share)</div>
+          <div class="url-value" id="share-url">${shareUrl}</div>
+          <button class="copy-btn" onclick="copyUrl('share-url', this)">Copy URL</button>
+          <button class="open-btn" onclick="window.open('${shareUrl}', '_blank')">Open</button>
+        </div>
+        <div class="url-card">
+          <div class="url-label">Host Panel — your view (keep this tab separate)</div>
+          <div class="url-value" id="host-url">${hostUrl}</div>
+          <button class="copy-btn" onclick="copyUrl('host-url', this)">Copy URL</button>
+          <button class="open-btn" onclick="window.open('${hostUrl}', '_blank')">Open</button>
+        </div>
+      `;
+
+      updateManusStatus(data.manus);
+      if (data.manus.triggered) startPolling();
+    }
+
+    function updateManusStatus(manus) {
+      const el = document.getElementById('manus-status');
+      if (!manus) return;
+      if (manus.triggered && !manus.fallback) {
+        el.innerHTML = '<div class="status-dot yellow"></div> Manus research running... (task: ' + manus.task_id + ')';
+      } else if (manus.fallback) {
+        el.innerHTML = '<div class="status-dot yellow"></div> Research queued (Manus API not configured — will run when key is set)';
+      } else {
+        el.innerHTML = '<div class="status-dot red"></div> Research could not start: ' + (manus.error || 'unknown error');
+      }
+    }
+
+    function startPolling() {
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/onboarding/sessions/${currentSessionId}`, { headers: authHeaders() });
+          if (!res.ok) return;
+          const session = await res.json();
+          const el = document.getElementById('manus-status');
+          if (session.status === 'research_complete') {
+            el.innerHTML = '<div class="status-dot green"></div> Research complete — ready to open the host panel';
+            clearInterval(pollInterval);
+          } else if (session.status === 'researching') {
+            el.innerHTML = '<div class="status-dot yellow"></div> Manus research in progress...';
+          }
+        } catch {}
+      }, 4000);
+    }
+
+    function copyUrl(elementId, btn) {
+      const text = document.getElementById(elementId).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy URL'; btn.classList.remove('copied'); }, 2000);
+      });
+    }
+
+    function resetForm() {
+      if (pollInterval) clearInterval(pollInterval);
+      currentSessionId = null;
+      document.getElementById('success-panel').classList.remove('show');
+      document.getElementById('form-panel').style.display = 'block';
+      document.getElementById('create-btn').disabled = false;
+      document.getElementById('btn-label').textContent = 'Create Session & Start Research';
+    }
+  </script>
+</body>
+</html>

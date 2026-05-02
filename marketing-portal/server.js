@@ -276,6 +276,7 @@ const KNOWN_TASK_FILES = [
   'monthly-report.md',
   'content-posting.md',
   'paid-ads-setup.md',
+  'prospect-research.md',
 ];
 
 const TASK_TYPE_MAP = {
@@ -295,6 +296,7 @@ const TASK_TYPE_MAP = {
   'monthly-report.md': 'monthly-report',
   'content-posting.md': 'content-posting',
   'paid-ads-setup.md': 'paid-ads-setup',
+  'prospect-research.md': 'prospect-research',
 };
 
 const TASK_OUTPUT_PATHS = {
@@ -318,6 +320,7 @@ const TASK_OUTPUT_PATHS = {
   'monthly-report': [], // written by Manus directly to outputs/anytime-fitness/monthly-reports/
   'content-posting': [], // posting log written by Manus directly
   'paid-ads-setup': [{ key: null, path: path.join(PERSISTENT_DATA_DIR, 'paid', 'account-verification.json') }],
+  'prospect-research': [], // handled dynamically by handleProspectResearchOutput
 };
 
 const TASK_RUNS_R2_PATH = 'intelligence-db/queue/task-runs.json';
@@ -355,6 +358,90 @@ async function updateTaskRun(taskId, updates) {
 
 function getTaskType(filename) {
   return TASK_TYPE_MAP[filename] || filename.replace('.md', '');
+}
+
+/** Write prospect-research output to session-scoped R2 key and update session status. */
+async function handleProspectResearchOutput(task_id, taskData, runRecord) {
+  if (!runRecord || !runRecord.session_id) return;
+  const sessionId = runRecord.session_id;
+  try {
+    await r2PutShared(`onboarding/sessions/${sessionId}/prospect-research.json`, taskData);
+    console.log(`[manus/callback] prospect-research → shared R2: onboarding/sessions/${sessionId}/prospect-research.json`);
+    const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+    if (session) {
+      session.status = 'research_complete';
+      session.research_completed_at = new Date().toISOString();
+      await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+    }
+  } catch (err) {
+    console.error('[manus/callback] handleProspectResearchOutput failed:', err.message);
+  }
+}
+
+/** Trigger Manus prospect-research task for a new onboarding session. */
+async function triggerProspectResearch(sessionId, session) {
+  const taskTemplatePath = MANUS_TASKS_PATH ? path.join(MANUS_TASKS_PATH, 'prospect-research.md') : null;
+  const taskTemplate = taskTemplatePath ? safeRead(taskTemplatePath) : null;
+  if (!taskTemplate) {
+    console.warn('[onboarding] prospect-research.md not found in:', MANUS_TASKS_PATH);
+    return { task_id: null, error: 'Task file not found' };
+  }
+  const taskContent = [
+    `SESSION_ID: ${sessionId}`,
+    `GYM_NAME: ${session.gymName}`,
+    `CITY: ${session.city}`,
+    `STATE: ${session.state}`,
+    `ZIP: ${session.zip || ''}`,
+    `FRANCHISE_TYPE: ${session.franchiseType}`,
+    `WEBSITE_URL: ${session.websiteUrl || 'not provided'}`,
+    '',
+    '---',
+    '',
+    taskTemplate,
+  ].join('\n');
+
+  if (!MANUS_API_KEY) {
+    const fallbackId = `local-${Date.now()}`;
+    await saveTaskRun(fallbackId, {
+      task_type: 'prospect-research',
+      task_filename: 'prospect-research.md',
+      session_id: sessionId,
+      started_at: new Date().toISOString(),
+      status: 'fallback',
+    });
+    return { task_id: fallbackId, fallback: true };
+  }
+  try {
+    const webhookUrl = process.env.PORTAL_WEBHOOK_URL
+      ? `${process.env.PORTAL_WEBHOOK_URL}/api/manus/callback`
+      : null;
+    const body = {
+      message: { content: [{ type: 'text', text: taskContent }] },
+      metadata: { source: 'ahri-onboarding', filename: 'prospect-research.md', task_type: 'prospect-research', session_id: sessionId },
+      ...(webhookUrl ? { webhook_url: webhookUrl } : {}),
+    };
+    const response = await fetch(`${MANUS_API_BASE}/task.create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-manus-api-key': MANUS_API_KEY },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(`Manus API ${response.status}`);
+    const data = await response.json();
+    const task_id = data.task_id || data.id || `manus-${Date.now()}`;
+    await saveTaskRun(task_id, {
+      task_type: 'prospect-research',
+      task_filename: 'prospect-research.md',
+      session_id: sessionId,
+      started_at: new Date().toISOString(),
+      status: 'running',
+      task_url: data.task_url || null,
+    });
+    console.log(`[onboarding] Manus prospect-research triggered: task_id=${task_id} session=${sessionId}`);
+    return { task_id, task_url: data.task_url || null };
+  } catch (err) {
+    console.error('[onboarding] triggerProspectResearch failed:', err.message);
+    return { task_id: null, error: err.message };
+  }
 }
 
 function stripMarkdownFences(text) {
@@ -1362,6 +1449,8 @@ app.post('/api/manus/callback', (req, res) => {
           }
         }
 
+        if (task_type === 'prospect-research') await handleProspectResearchOutput(task_id, taskData, runRecord);
+
         logToSession('manus_callback', `Callback: ${task_type} task_id=${task_id} status=completed`);
         return;
       }
@@ -1408,6 +1497,8 @@ app.post('/api/manus/callback', (req, res) => {
           console.error(`[manus/callback] write failed for ${output.path}:`, writeErr.message);
         }
       }
+
+      if (task_type === 'prospect-research') await handleProspectResearchOutput(task_id, data, legacyRecord);
 
       logToSession('manus_callback', `Callback: ${task_type} task_id=${task_id} status=${status}`);
     } catch (err) {
@@ -2292,6 +2383,105 @@ app.get('/api/admin/r2-test', requireAdmin, async (req, res) => {
   }
 });
 
+// ── Onboarding page routes ────────────────────────────────────────────────────
+// Auth is enforced client-side in each HTML page (same pattern as /dashboard).
+// The JWT lives in localStorage — direct browser navigation never sends Authorization headers,
+// so server-side requireAdmin on res.sendFile always fails and redirects to /login.
+app.get('/onboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'onboard.html')));
+app.get('/onboard/session/:sessionId', (req, res) => res.sendFile(path.join(__dirname, 'public', 'onboard-session.html')));
+app.get('/onboard/host/:sessionId', (req, res) => res.sendFile(path.join(__dirname, 'public', 'onboard-host.html')));
+app.get('/onboard/solo/:token', (req, res) => res.sendFile(path.join(__dirname, 'public', 'onboard-solo.html')));
+
+// ── Onboarding API ─────────────────────────────────────────────────────────────
+
+// POST /api/onboarding/sessions — create a new onboarding session
+app.post('/api/onboarding/sessions', requireAdmin, async (req, res) => {
+  const { gymName, ownerName, ownerEmail, city, state, zip, franchiseType, websiteUrl } = req.body;
+  if (!gymName || !ownerName || !city || !state) {
+    return res.status(400).json({ error: 'gymName, ownerName, city, and state are required' });
+  }
+  const sessionId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const session = {
+    sessionId,
+    gymName,
+    ownerName,
+    ownerEmail: ownerEmail || '',
+    city,
+    state,
+    zip: zip || '',
+    franchiseType: franchiseType || 'independent',
+    websiteUrl: websiteUrl || '',
+    status: 'created',
+    created_at: now,
+    created_by: req.user.email,
+    shareUrl: `/onboard/session/${sessionId}`,
+    hostUrl: `/onboard/host/${sessionId}`,
+    research_task_id: null,
+    host_notes: '',
+  };
+  await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+  const manusResult = await triggerProspectResearch(sessionId, session);
+  if (manusResult.task_id) {
+    session.status = 'researching';
+    session.research_task_id = manusResult.task_id;
+    await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+  }
+  res.json({
+    success: true,
+    sessionId,
+    session,
+    manus: { triggered: !!manusResult.task_id, task_id: manusResult.task_id || null, fallback: !!manusResult.fallback, error: manusResult.error || null },
+  });
+});
+
+// GET /api/onboarding/sessions/:sessionId — get session state (no auth — secured by UUID)
+app.get('/api/onboarding/sessions/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  res.json(session);
+});
+
+// GET /api/onboarding/sessions/:sessionId/research — get research results + status
+app.get('/api/onboarding/sessions/:sessionId/research', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const [session, research] = await Promise.all([
+    r2GetShared(`onboarding/sessions/${sessionId}/session.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`),
+  ]);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  res.json({ status: session.status, research_task_id: session.research_task_id, research_completed_at: session.research_completed_at || null, research: research || null });
+});
+
+// POST /api/onboarding/sessions/:sessionId/research — re-trigger Manus research (admin)
+app.post('/api/onboarding/sessions/:sessionId/research', requireAdmin, async (req, res) => {
+  const { sessionId } = req.params;
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  const manusResult = await triggerProspectResearch(sessionId, session);
+  if (manusResult.task_id) {
+    session.status = 'researching';
+    session.research_task_id = manusResult.task_id;
+    await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+  }
+  res.json({ success: true, triggered: !!manusResult.task_id, task_id: manusResult.task_id || null, error: manusResult.error || null });
+});
+
+// PATCH /api/onboarding/sessions/:sessionId/notes — save host notes (admin)
+app.patch('/api/onboarding/sessions/:sessionId/notes', requireAdmin, async (req, res) => {
+  const { sessionId } = req.params;
+  const { notes } = req.body;
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  session.host_notes = notes || '';
+  session.notes_updated_at = new Date().toISOString();
+  await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+  res.json({ success: true });
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -2301,6 +2491,17 @@ app.listen(PORT, () => {
   console.log(`AHRI Marketing Command Center running on port ${PORT}`);
   console.log(`  Gym: ${locationConfig.getLocation('bloomington').gymName || 'GymSuite AI'}`);
   console.log(`  Reading from: ${ROOT}`);
+
+  // DEBUG: dump all registered routes — remove after confirming /onboard is present
+  try {
+    const routes = app._router.stack
+      .filter(r => r.route)
+      .map(r => Object.keys(r.route.methods)[0].toUpperCase() + ' ' + r.route.path);
+    console.log('[DEBUG] Registered routes (' + routes.length + '):');
+    routes.forEach(r => console.log('  ' + r));
+  } catch (e) {
+    console.log('[DEBUG] Route dump failed:', e.message);
+  }
 });
 
 async function seedIntelligenceIfEmpty() {

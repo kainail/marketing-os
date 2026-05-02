@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AHRI — Host Panel</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0f1117; color: #e8eaf0; font-family: 'Outfit', system-ui, sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+
+    /* ─── Top bar ─────────────────────────────────────────────────── */
+    .topbar { height: 52px; display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,0.08); gap: 16px; flex-shrink: 0; }
+    .ahri-mark { display: flex; align-items: center; gap: 7px; }
+    .ahri-dot { width: 7px; height: 7px; border-radius: 50%; background: #7c3aed; }
+    .ahri-label { font-size: 13px; font-weight: 700; color: rgba(232,234,240,0.8); }
+    .host-badge { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.25); color: #a5b4fc; border-radius: 4px; padding: 2px 7px; }
+    .gym-name { font-size: 15px; font-weight: 700; flex: 1; }
+    .session-id-label { font-family: 'Space Mono', monospace; font-size: 10px; color: rgba(232,234,240,0.3); margin-left: auto; }
+    .status-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; }
+    .status-pip { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .status-pip.created { background: rgba(255,255,255,0.3); }
+    .status-pip.researching { background: #7c3aed; animation: pulse 1.5s infinite; }
+    .status-pip.research_complete { background: #22c55e; }
+    .status-pip.fallback { background: #eab308; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .back-link { font-size: 12px; color: rgba(232,234,240,0.35); text-decoration: none; margin-left: 12px; }
+    .back-link:hover { color: rgba(232,234,240,0.6); }
+
+    /* ─── Body layout ─────────────────────────────────────────────── */
+    .body { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 52px); }
+
+    /* ─── Left sidebar ────────────────────────────────────────────── */
+    .sidebar { border-right: 1px solid rgba(255,255,255,0.07); display: flex; flex-direction: column; overflow-y: auto; }
+    .sidebar-section { border-bottom: 1px solid rgba(255,255,255,0.06); padding: 16px; }
+    .sidebar-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.3); margin-bottom: 10px; }
+    .info-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .info-key { font-size: 12px; color: rgba(232,234,240,0.4); }
+    .info-val { font-size: 12px; font-weight: 500; text-align: right; max-width: 180px; word-break: break-all; }
+    .info-val.mono { font-family: 'Space Mono', monospace; font-size: 10px; color: rgba(232,234,240,0.6); }
+    .url-small { font-size: 10px; font-family: 'Space Mono', monospace; color: #a5b4fc; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.15); border-radius: 4px; padding: 4px 8px; word-break: break-all; margin-bottom: 6px; display: block; }
+    .copy-small { background: transparent; border: 1px solid rgba(255,255,255,0.1); color: rgba(232,234,240,0.5); border-radius: 4px; padding: 3px 8px; font-family: inherit; font-size: 11px; cursor: pointer; transition: all 0.15s; }
+    .copy-small:hover { border-color: rgba(255,255,255,0.25); color: #e8eaf0; }
+    .copy-small.copied { color: #6ee7b7; border-color: rgba(110,231,183,0.3); }
+
+    /* Controls */
+    .control-btn { width: 100%; padding: 9px 12px; border-radius: 7px; font-family: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; border: 1px solid; }
+    .control-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-pause { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
+    .btn-pause:hover:not(:disabled) { background: rgba(239,68,68,0.18); }
+    .btn-probe { background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.25); color: #a5b4fc; }
+    .btn-probe:hover:not(:disabled) { background: rgba(99,102,241,0.18); }
+    .btn-skip { background: rgba(234,179,8,0.1); border-color: rgba(234,179,8,0.25); color: #fde047; }
+    .btn-skip:hover:not(:disabled) { background: rgba(234,179,8,0.16); }
+    .btn-flag { background: rgba(249,115,22,0.1); border-color: rgba(249,115,22,0.25); color: #fdba74; }
+    .btn-flag:hover:not(:disabled) { background: rgba(249,115,22,0.16); }
+    .btn-hooks { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.25); color: #6ee7b7; }
+    .btn-hooks:hover:not(:disabled) { background: rgba(34,197,94,0.16); }
+    .coming-soon { font-size: 10px; color: rgba(232,234,240,0.25); letter-spacing: 0.5px; }
+
+    /* Manus status */
+    .manus-task-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .manus-url { font-size: 11px; color: #a5b4fc; text-decoration: none; }
+    .manus-url:hover { text-decoration: underline; }
+    .retrigger-btn { background: transparent; border: 1px solid rgba(255,255,255,0.12); color: rgba(232,234,240,0.5); border-radius: 5px; padding: 4px 10px; font-family: inherit; font-size: 11px; cursor: pointer; width: 100%; margin-top: 6px; transition: all 0.15s; }
+    .retrigger-btn:hover { border-color: rgba(124,58,237,0.4); color: #a78bfa; }
+
+    /* Notes */
+    .notes-area { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 10px; font-family: 'Space Mono', monospace; font-size: 12px; color: rgba(232,234,240,0.75); resize: none; outline: none; transition: border-color 0.15s; }
+    .notes-area:focus { border-color: rgba(99,102,241,0.5); }
+    .notes-save { margin-top: 6px; width: 100%; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: rgba(232,234,240,0.5); border-radius: 6px; padding: 6px; font-family: inherit; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+    .notes-save:hover { border-color: rgba(99,102,241,0.4); color: #a5b4fc; }
+    .notes-save.saved { color: #6ee7b7; border-color: rgba(110,231,183,0.3); }
+
+    /* ─── Right panel — research + log ───────────────────────────── */
+    .right-panel { display: flex; flex-direction: column; overflow: hidden; }
+    .tab-bar { display: flex; border-bottom: 1px solid rgba(255,255,255,0.07); padding: 0 16px; gap: 4px; flex-shrink: 0; }
+    .tab { font-size: 13px; font-weight: 500; padding: 14px 14px 12px; cursor: pointer; color: rgba(232,234,240,0.4); border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+    .tab.active { color: #e8eaf0; border-bottom-color: #7c3aed; }
+    .tab-content { flex: 1; overflow-y: auto; padding: 20px; display: none; }
+    .tab-content.active { display: block; }
+
+    /* Research display */
+    .research-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .research-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 16px; }
+    .rc-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(232,234,240,0.3); margin-bottom: 10px; }
+    .rc-value { font-size: 13px; color: rgba(232,234,240,0.75); line-height: 1.5; }
+    .rc-big { font-size: 28px; font-weight: 800; color: #e8eaf0; }
+    .competitor-row { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .competitor-row:last-child { border-bottom: none; }
+    .comp-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+    .comp-meta { font-size: 12px; color: rgba(232,234,240,0.4); }
+    .theme-chip { display: inline-block; background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.2); border-radius: 4px; padding: 2px 7px; font-size: 11px; color: #a5b4fc; margin: 2px 2px 0 0; }
+    .gap-item { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; color: rgba(232,234,240,0.7); line-height: 1.4; display: flex; gap: 10px; }
+    .gap-item::before { content: '→'; color: #fde047; flex-shrink: 0; }
+    .gap-item:last-child { border-bottom: none; }
+    .review-item { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+    .review-item:last-child { border-bottom: none; }
+    .review-stars { font-size: 12px; color: #fde047; margin-bottom: 3px; }
+    .review-text { font-size: 12px; color: rgba(232,234,240,0.65); line-height: 1.4; font-style: italic; }
+    .research-waiting { text-align: center; padding: 48px 24px; color: rgba(232,234,240,0.35); }
+    .research-waiting .spinner { width: 20px; height: 20px; border: 2px solid rgba(124,58,237,0.2); border-top-color: #7c3aed; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Raw JSON */
+    .raw-json { font-family: 'Space Mono', monospace; font-size: 11px; color: rgba(232,234,240,0.6); white-space: pre-wrap; word-break: break-all; line-height: 1.6; }
+    .json-key { color: #a5b4fc; }
+
+    /* Log */
+    .log-entry { font-family: 'Space Mono', monospace; font-size: 11px; color: rgba(232,234,240,0.5); padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; gap: 12px; }
+    .log-time { color: rgba(232,234,240,0.25); flex-shrink: 0; }
+    .log-msg { color: rgba(232,234,240,0.65); }
+    .log-msg.warn { color: #fde047; }
+    .log-msg.error { color: #fca5a5; }
+    .log-msg.ok { color: #6ee7b7; }
+    .empty-log { font-size: 12px; color: rgba(232,234,240,0.3); text-align: center; padding: 32px; font-family: 'Space Mono', monospace; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="ahri-mark">
+      <div class="ahri-dot"></div>
+      <span class="ahri-label">AHRI</span>
+    </div>
+    <div class="host-badge">Host Panel</div>
+    <div class="gym-name" id="gym-name">Loading...</div>
+    <span class="session-id-label" id="session-id-label"></span>
+    <div class="status-badge">
+      <div class="status-pip created" id="status-pip"></div>
+      <span id="status-text">Loading...</span>
+    </div>
+    <a href="/onboard" class="back-link">← Sessions</a>
+  </div>
+
+  <div class="body">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Session Info</div>
+        <div class="info-row"><span class="info-key">Gym</span><span class="info-val" id="s-gym"></span></div>
+        <div class="info-row"><span class="info-key">Owner</span><span class="info-val" id="s-owner"></span></div>
+        <div class="info-row"><span class="info-key">Email</span><span class="info-val" id="s-email"></span></div>
+        <div class="info-row"><span class="info-key">City</span><span class="info-val" id="s-city"></span></div>
+        <div class="info-row"><span class="info-key">Type</span><span class="info-val" id="s-type"></span></div>
+        <div class="info-row"><span class="info-key">Created</span><span class="info-val mono" id="s-created"></span></div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Share URLs</div>
+        <div style="font-size:10px;color:rgba(232,234,240,0.3);margin-bottom:4px;">Owner view (screen share)</div>
+        <span class="url-small" id="share-url-display"></span>
+        <button class="copy-small" onclick="copyShareUrl(this)">Copy owner URL</button>
+        <div style="font-size:10px;color:rgba(232,234,240,0.3);margin-bottom:4px;margin-top:10px;">Host panel (your tab)</div>
+        <span class="url-small" id="host-url-display"></span>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Manus Research</div>
+        <div class="manus-task-row">
+          <div class="status-pip created" id="manus-pip"></div>
+          <span id="manus-status-text" style="font-size:12px;color:rgba(232,234,240,0.5);">No task yet</span>
+        </div>
+        <div id="manus-task-link-row" style="display:none; margin-bottom:6px;">
+          <a class="manus-url" id="manus-task-url" href="#" target="_blank">View Manus task →</a>
+        </div>
+        <button class="retrigger-btn" id="retrigger-btn" onclick="retriggerResearch()">↻ Re-run research</button>
+      </div>
+
+      <div class="sidebar-section" style="flex:1;">
+        <div class="sidebar-label">Session Controls <span class="coming-soon">(Phase 2)</span></div>
+        <button class="control-btn btn-pause" disabled>⏸ Pause AHRI</button>
+        <button class="control-btn btn-probe" disabled>⬇ Probe deeper</button>
+        <button class="control-btn btn-skip" disabled>⏭ Skip question</button>
+        <button class="control-btn btn-flag" disabled>⚑ Flag weak answer</button>
+        <button class="control-btn btn-hooks" disabled>⚡ Generate hooks now</button>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">Session Notes</div>
+        <textarea class="notes-area" id="notes-area" rows="5" placeholder="Notes from this call..."></textarea>
+        <button class="notes-save" id="notes-save-btn" onclick="saveNotes()">Save notes</button>
+      </div>
+    </div>
+
+    <!-- Right: tabs -->
+    <div class="right-panel">
+      <div class="tab-bar">
+        <div class="tab active" onclick="switchTab('research', this)">Research</div>
+        <div class="tab" onclick="switchTab('gaps', this)">Market Gaps</div>
+        <div class="tab" onclick="switchTab('reviews', this)">Reviews</div>
+        <div class="tab" onclick="switchTab('raw', this)">Raw JSON</div>
+        <div class="tab" onclick="switchTab('log', this)">Log</div>
+      </div>
+
+      <div class="tab-content active" id="tab-research">
+        <div id="research-loading" class="research-waiting">
+          <div class="spinner"></div>
+          Waiting for research to complete...
+        </div>
+        <div id="research-data" style="display:none">
+          <div class="research-grid" id="research-grid"></div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-gaps">
+        <div id="gaps-loading" class="research-waiting">
+          <div class="spinner"></div>
+          Waiting for market gap analysis...
+        </div>
+        <div id="gaps-data" style="display:none">
+          <div id="gaps-list"></div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-reviews">
+        <div id="reviews-loading" class="research-waiting">
+          <div class="spinner"></div>
+          Waiting for Google review data...
+        </div>
+        <div id="reviews-data" style="display:none">
+          <div id="reviews-list"></div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-raw">
+        <pre class="raw-json" id="raw-json">Waiting for research data...</pre>
+      </div>
+
+      <div class="tab-content" id="tab-log">
+        <div id="log-entries"><div class="empty-log">No events logged yet.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Client-side admin guard ───────────────────────────────────────────────
+    (function() {
+      function parseJwt(t) {
+        try {
+          const b64 = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+          const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+          return JSON.parse(atob(padded));
+        } catch { return null; }
+      }
+      const token = localStorage.getItem('gymsuite_token');
+      if (!token) { window.location.href = '/login'; return; }
+      const user = parseJwt(token);
+      if (!user) { localStorage.removeItem('gymsuite_token'); window.location.href = '/login'; return; }
+      if (user.role !== 'admin') {
+        console.warn('[AHRI] host guard: role is', JSON.stringify(user.role), '— expected "admin". Redirecting.');
+        window.location.href = '/dashboard';
+        return;
+      }
+      window.addEventListener('storage', e => { if (e.key === 'gymsuite_token' && !e.newValue) window.location.href = '/login'; });
+    })();
+    // ─────────────────────────────────────────────────────────────────────────
+
+    function authHeaders(extra) {
+      const t = localStorage.getItem('gymsuite_token');
+      return Object.assign(t ? { 'Authorization': 'Bearer ' + t } : {}, extra || {});
+    }
+
+    const sessionId = location.pathname.split('/').pop();
+    let session = null;
+    let research = null;
+    let pollTimer = null;
+    const log = [];
+
+    function addLog(msg, type = '') {
+      const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+      log.unshift({ time, msg, type });
+      renderLog();
+    }
+
+    function renderLog() {
+      const el = document.getElementById('log-entries');
+      if (log.length === 0) { el.innerHTML = '<div class="empty-log">No events logged yet.</div>'; return; }
+      el.innerHTML = log.slice(0, 50).map(e =>
+        `<div class="log-entry"><span class="log-time">${e.time}</span><span class="log-msg ${e.type}">${e.msg}</span></div>`
+      ).join('');
+    }
+
+    function switchTab(id, el) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('tab-' + id).classList.add('active');
+    }
+
+    async function init() {
+      if (!sessionId || sessionId.length < 10) {
+        document.getElementById('gym-name').textContent = 'Invalid session';
+        return;
+      }
+      addLog('Host panel loaded', 'ok');
+      await loadSession();
+      startPolling();
+    }
+
+    async function loadSession() {
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}`, { headers: authHeaders() });
+        if (!res.ok) { addLog('Failed to load session: ' + res.status, 'error'); return; }
+        session = await res.json();
+        renderSession(session);
+        addLog('Session loaded: ' + session.status);
+        if (session.status === 'research_complete') {
+          await loadResearch();
+        }
+      } catch (err) {
+        addLog('Session load error: ' + err.message, 'error');
+      }
+    }
+
+    function renderSession(s) {
+      document.getElementById('gym-name').textContent = s.gymName || '—';
+      document.title = `Host — ${s.gymName}`;
+      document.getElementById('session-id-label').textContent = s.sessionId.substring(0, 8) + '...';
+      document.getElementById('s-gym').textContent = s.gymName;
+      document.getElementById('s-owner').textContent = s.ownerName;
+      document.getElementById('s-email').textContent = s.ownerEmail || '—';
+      document.getElementById('s-city').textContent = `${s.city}, ${s.state} ${s.zip || ''}`.trim();
+      document.getElementById('s-type').textContent = s.franchiseType;
+      document.getElementById('s-created').textContent = new Date(s.created_at).toLocaleString();
+
+      const origin = window.location.origin;
+      const shareUrl = origin + s.shareUrl;
+      const hostUrl = origin + s.hostUrl;
+      document.getElementById('share-url-display').textContent = shareUrl;
+      document.getElementById('host-url-display').textContent = hostUrl;
+
+      updateStatusBadge(s.status);
+
+      const taskId = s.research_task_id;
+      if (taskId) {
+        const manusPip = document.getElementById('manus-pip');
+        const manusText = document.getElementById('manus-status-text');
+        if (s.status === 'research_complete') {
+          manusPip.className = 'status-pip research_complete';
+          manusText.textContent = 'Complete · ' + taskId.substring(0, 12) + '...';
+          manusText.style.color = '#6ee7b7';
+        } else {
+          manusPip.className = 'status-pip researching';
+          manusText.textContent = 'Running · ' + taskId.substring(0, 12) + '...';
+        }
+        if (!taskId.startsWith('local-')) {
+          const taskLinkRow = document.getElementById('manus-task-link-row');
+          taskLinkRow.style.display = 'block';
+          document.getElementById('manus-task-url').href = `https://manus.ai/task/${taskId}`;
+        }
+      }
+
+      if (s.host_notes) {
+        document.getElementById('notes-area').value = s.host_notes;
+      }
+    }
+
+    function updateStatusBadge(status) {
+      const pip = document.getElementById('status-pip');
+      const text = document.getElementById('status-text');
+      pip.className = 'status-pip ' + status;
+      const labels = {
+        created: 'Created',
+        researching: 'Research running',
+        research_complete: 'Research complete',
+        interview_started: 'Interview in progress',
+        interview_complete: 'Interview complete',
+        session_complete: 'Complete',
+        fallback: 'Fallback mode',
+      };
+      text.textContent = labels[status] || status;
+    }
+
+    async function loadResearch() {
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/research`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.research) return;
+        research = data.research;
+        addLog('Research data loaded', 'ok');
+        renderResearch(research);
+      } catch (err) {
+        addLog('Research load error: ' + err.message, 'error');
+      }
+    }
+
+    function renderResearch(r) {
+      // Research tab
+      document.getElementById('research-loading').style.display = 'none';
+      document.getElementById('research-data').style.display = 'block';
+      const grid = document.getElementById('research-grid');
+      grid.innerHTML = `
+        <div class="research-card">
+          <div class="rc-label">Google Rating</div>
+          <div class="rc-big">${r.googleRating || '—'}</div>
+          <div class="rc-value" style="margin-top:4px">${r.googleReviewCount || 0} reviews</div>
+        </div>
+        <div class="research-card">
+          <div class="rc-label">Competitors Found</div>
+          <div class="rc-big">${r.competitors ? r.competitors.length : 0}</div>
+          <div class="rc-value" style="margin-top:4px">active in market</div>
+        </div>
+        <div class="research-card" style="grid-column:1/-1">
+          <div class="rc-label">Competitors</div>
+          ${r.competitors && r.competitors.length > 0 ? r.competitors.map(c => `
+            <div class="competitor-row">
+              <div class="comp-name">${c.name}</div>
+              <div class="comp-meta">${c.adCount} active ads · ${c.offerType || '—'}</div>
+              ${c.adThemes && c.adThemes.length > 0 ? c.adThemes.map(t => `<span class="theme-chip">${t}</span>`).join('') : ''}
+            </div>
+          `).join('') : '<div style="font-size:13px;color:rgba(232,234,240,0.35)">No competitor data yet</div>'}
+        </div>
+      `;
+
+      // Gaps tab
+      document.getElementById('gaps-loading').style.display = 'none';
+      document.getElementById('gaps-data').style.display = 'block';
+      const gapsList = document.getElementById('gaps-list');
+      if (r.marketGaps && r.marketGaps.length > 0) {
+        gapsList.innerHTML = r.marketGaps.map(g => `<div class="gap-item">${g}</div>`).join('');
+      } else {
+        gapsList.innerHTML = '<div style="font-size:13px;color:rgba(232,234,240,0.35);padding:16px 0">No market gaps identified</div>';
+      }
+
+      // Reviews tab
+      document.getElementById('reviews-loading').style.display = 'none';
+      document.getElementById('reviews-data').style.display = 'block';
+      const reviewsList = document.getElementById('reviews-list');
+      if (r.googleReviews && r.googleReviews.length > 0) {
+        reviewsList.innerHTML = r.googleReviews.map(rv => `
+          <div class="review-item">
+            <div class="review-stars">${'★'.repeat(rv.rating || 5)}${'☆'.repeat(5 - (rv.rating || 5))}</div>
+            <div class="review-text">"${rv.text}"</div>
+            ${rv.date ? `<div style="font-size:11px;color:rgba(232,234,240,0.3);margin-top:4px">${rv.date}</div>` : ''}
+          </div>
+        `).join('');
+      } else {
+        reviewsList.innerHTML = '<div style="font-size:13px;color:rgba(232,234,240,0.35);padding:16px 0">No review data</div>';
+      }
+
+      // Raw JSON tab
+      document.getElementById('raw-json').textContent = JSON.stringify(r, null, 2);
+    }
+
+    function startPolling() {
+      pollTimer = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/onboarding/sessions/${sessionId}`, { headers: authHeaders() });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (session && data.status !== session.status) {
+            addLog(`Status changed: ${session.status} → ${data.status}`, 'ok');
+            session = data;
+            renderSession(data);
+          }
+          if (data.status === 'research_complete' && !research) {
+            await loadResearch();
+            clearInterval(pollTimer);
+          }
+        } catch {}
+      }, 4000);
+    }
+
+    async function retriggerResearch() {
+      if (!session) return;
+      const btn = document.getElementById('retrigger-btn');
+      btn.disabled = true;
+      btn.textContent = 'Triggering...';
+      addLog('Re-triggering Manus research...', 'warn');
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/research`, {
+          method: 'POST',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+        });
+        const data = await res.json();
+        if (data.triggered) {
+          addLog('Research re-triggered: task_id=' + data.task_id, 'ok');
+          await loadSession();
+        } else {
+          addLog('Re-trigger failed: ' + (data.error || 'unknown'), 'error');
+        }
+      } catch (err) {
+        addLog('Re-trigger error: ' + err.message, 'error');
+      }
+      btn.disabled = false;
+      btn.textContent = '↻ Re-run research';
+    }
+
+    async function saveNotes() {
+      const notes = document.getElementById('notes-area').value;
+      const btn = document.getElementById('notes-save-btn');
+      btn.textContent = 'Saving...';
+      btn.classList.remove('saved');
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/notes`, {
+          method: 'PATCH',
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ notes }),
+        });
+        if (res.ok) {
+          btn.textContent = 'Saved';
+          btn.classList.add('saved');
+          addLog('Notes saved', 'ok');
+          setTimeout(() => { btn.textContent = 'Save notes'; btn.classList.remove('saved'); }, 2000);
+        }
+      } catch (err) {
+        btn.textContent = 'Save notes';
+        addLog('Notes save failed: ' + err.message, 'error');
+      }
+    }
+
+    function copyShareUrl(btn) {
+      const url = document.getElementById('share-url-display').textContent;
+      navigator.clipboard.writeText(url).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy owner URL'; btn.classList.remove('copied'); }, 2000);
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

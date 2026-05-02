@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AHRI — Self-Guided Onboarding</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0D0F14; color: #e8eaf0; font-family: 'Outfit', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    body::before { content: ''; position: fixed; inset: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1px); background-size: 28px 28px; pointer-events: none; }
+    .blob { position: fixed; border-radius: 50%; filter: blur(120px); opacity: 0.07; pointer-events: none; }
+    .blob-1 { width: 600px; height: 500px; background: #1a2fa0; top: -200px; left: -150px; }
+    .blob-2 { width: 450px; height: 400px; background: #7c3aed; bottom: -100px; right: -100px; }
+    .page { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; text-align: center; }
+    .ahri-mark { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 48px; }
+    .ahri-dot { width: 10px; height: 10px; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 16px rgba(124,58,237,0.5); }
+    .ahri-label { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+    .icon { width: 80px; height: 80px; border-radius: 50%; background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.2); display: flex; align-items: center; justify-content: center; font-size: 32px; margin: 0 auto 32px; box-shadow: 0 0 60px rgba(124,58,237,0.1); }
+    .badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.2); border-radius: 20px; padding: 5px 14px; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: #fde047; margin-bottom: 24px; }
+    h1 { font-size: 40px; font-weight: 800; line-height: 1.1; margin-bottom: 16px; max-width: 520px; }
+    .sub { font-size: 16px; color: rgba(232,234,240,0.55); max-width: 440px; line-height: 1.65; margin-bottom: 40px; }
+    .features { display: flex; flex-direction: column; gap: 12px; max-width: 400px; width: 100%; margin: 0 auto 40px; }
+    .feature { display: flex; align-items: flex-start; gap: 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 14px 16px; text-align: left; }
+    .feature-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .feature-text { font-size: 14px; color: rgba(232,234,240,0.65); line-height: 1.4; }
+    .feature-text strong { color: rgba(232,234,240,0.9); display: block; margin-bottom: 2px; font-size: 14px; }
+    .notify-form { display: flex; gap: 8px; max-width: 380px; width: 100%; }
+    .notify-input { flex: 1; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 12px 16px; font-family: inherit; font-size: 15px; color: #e8eaf0; outline: none; transition: border-color 0.15s; }
+    .notify-input:focus { border-color: rgba(99,102,241,0.5); }
+    .notify-btn { background: #6366f1; border: none; border-radius: 10px; padding: 12px 20px; font-family: inherit; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; transition: background 0.15s; white-space: nowrap; }
+    .notify-btn:hover { background: #4f46e5; }
+    .notify-label { font-size: 13px; color: rgba(232,234,240,0.35); margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="page">
+    <div class="ahri-mark">
+      <div class="ahri-dot"></div>
+      <span class="ahri-label">AHRI</span>
+    </div>
+
+    <div class="icon">◉</div>
+    <div class="badge">Coming Soon</div>
+
+    <h1>Self-Guided Onboarding</h1>
+    <p class="sub">AHRI will conduct your full onboarding interview autonomously — no salesperson required. Configure your entire marketing system in under 35 minutes, on your own schedule.</p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">🔍</div>
+        <div class="feature-text">
+          <strong>Market research before you say a word</strong>
+          AHRI scans your competitors, reads your reviews, and identifies what nobody in your market is saying.
+        </div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">🎙</div>
+        <div class="feature-text">
+          <strong>Voice interview, your pace</strong>
+          19 questions. Speak your answers. AHRI listens and builds your knowledge base in real time.
+        </div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-text">
+          <strong>5 hooks ready before you close the tab</strong>
+          Your first campaign assets — generated from your actual story, not a template.
+        </div>
+      </div>
+    </div>
+
+    <div class="notify-form">
+      <input type="email" class="notify-input" placeholder="your@email.com" id="notify-email"/>
+      <button class="notify-btn" onclick="notifyMe()">Notify me</button>
+    </div>
+    <p class="notify-label">We'll let you know when solo mode is live.</p>
+  </div>
+
+  <script>
+    function notifyMe() {
+      const email = document.getElementById('notify-email').value;
+      if (!email) return;
+      alert('Got it! We\'ll reach out to ' + email + ' when solo mode launches.');
+    }
+  </script>
+</body>
+</html>
