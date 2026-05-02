@@ -161,17 +161,6 @@
     /* ─── Hook reveal speaking text ─────────────────────────────── */
     .hook-speaking-text { font-size: 28px; color: rgba(232,234,240,0.95); max-width: 70%; text-align: center; line-height: 1.6; font-weight: 400; margin-bottom: 28px; transition: opacity 0.45s ease; }
 
-    /* ─── Voice state indicator ──────────────────────────────────── */
-    .voice-state-indicator { display: flex; align-items: center; gap: 9px; font-size: 12px; color: rgba(232,234,240,0.38); margin-bottom: 6px; }
-    .voice-state-dots { display: flex; gap: 3px; }
-    .voice-state-dots span { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: rgba(124,58,237,0.45); animation: dot-pulse 1.4s ease-in-out infinite; }
-    .voice-state-dots span:nth-child(2) { animation-delay: 0.22s; }
-    .voice-state-dots span:nth-child(3) { animation-delay: 0.44s; }
-    .voice-state-indicator.hearing .voice-state-dots span { background: #7c3aed; }
-    .voice-state-indicator.hearing { color: rgba(232,234,240,0.65); }
-    @keyframes dot-pulse { 0%, 60%, 100% { transform: scale(0.6); opacity: 0.4; } 30% { transform: scale(1); opacity: 1; } }
-    .done-speaking-btn { background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.22); border-radius: 8px; padding: 9px 18px; font-family: inherit; font-size: 13px; color: rgba(232,234,240,0.6); cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
-    .done-speaking-btn:hover { background: rgba(124,58,237,0.2); border-color: rgba(124,58,237,0.38); color: rgba(232,234,240,0.85); }
     .gap-featured { background: rgba(234,179,8,0.07); border: 1px solid rgba(234,179,8,0.17); }
     .gap-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(234,179,8,0.55); margin-bottom: 5px; }
     .gap-text { font-size: 13px; color: #fde047; font-weight: 500; line-height: 1.4; }
@@ -193,25 +182,16 @@
     .iv-section-tag { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 5px; }
     .iv-q-label { font-size: 12px; color: rgba(232,234,240,0.28); margin-bottom: 14px; }
     .iv-question { font-size: 17px; font-weight: 600; line-height: 1.58; color: rgba(232,234,240,0.88); max-width: 490px; margin-bottom: 20px; }
-    .transcript-area { width: 100%; max-width: 500px; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 13px 15px; min-height: 64px; margin-bottom: 12px; transition: border-color 0.2s, background 0.2s; }
-    .transcript-area.listening { border-color: rgba(124,58,237,0.35); background: rgba(124,58,237,0.04); }
-    .transcript-live { font-size: 14px; color: rgba(232,234,240,0.35); font-style: italic; line-height: 1.55; min-height: 20px; }
-    .transcript-locked { font-size: 15px; color: rgba(232,234,240,0.85); line-height: 1.6; }
     .iv-controls { display: flex; gap: 10px; width: 100%; max-width: 500px; margin-bottom: 11px; align-items: center; }
     .iv-back-btn { background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 11px 13px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.45); cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
     .iv-back-btn:hover:not(:disabled) { border-color: rgba(255,255,255,0.22); color: rgba(232,234,240,0.75); }
     .iv-back-btn:disabled { opacity: 0.22; cursor: not-allowed; }
-    .voice-btn { display: flex; align-items: center; gap: 7px; background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.22); border-radius: 10px; padding: 11px 16px; font-family: inherit; font-size: 14px; font-weight: 600; color: #a78bfa; cursor: pointer; transition: all 0.15s; flex-shrink: 0; white-space: nowrap; }
-    .voice-btn:hover { background: rgba(124,58,237,0.18); }
-    .voice-btn.listening { background: rgba(124,58,237,0.18); border-color: rgba(124,58,237,0.5); animation: voice-pulse 1.5s ease-in-out infinite; }
-    @keyframes voice-pulse { 0%,100% { box-shadow: 0 0 0 rgba(124,58,237,0); } 50% { box-shadow: 0 0 14px rgba(124,58,237,0.35); } }
     .iv-submit { flex: 1; background: #6366f1; border: none; border-radius: 10px; padding: 11px 18px; font-family: inherit; font-size: 14px; font-weight: 700; color: #fff; cursor: pointer; transition: background 0.15s; }
     .iv-submit:hover:not(:disabled) { background: #4f46e5; }
     .iv-submit:disabled { opacity: 0.3; cursor: not-allowed; }
-    .text-fallback { width: 100%; max-width: 500px; }
-    .text-fallback textarea { width: 100%; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 13px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.72); resize: none; outline: none; line-height: 1.5; min-height: 52px; transition: border-color 0.15s; }
-    .text-fallback textarea:focus { border-color: rgba(99,102,241,0.35); }
-    .fallback-hint { font-size: 11px; color: rgba(232,234,240,0.2); margin-top: 5px; display: block; }
+    .answer-area { width: 100%; max-width: 500px; }
+    .answer-area textarea { width: 100%; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 13px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.72); resize: none; outline: none; line-height: 1.5; min-height: 52px; transition: border-color 0.15s; }
+    .answer-area textarea:focus { border-color: rgba(99,102,241,0.35); }
     #state-interview { justify-content: flex-start; padding: 6px 0 20px; overflow-y: auto; max-height: 100%; }
 
     /* ─── Suggestion cards ───────────────────────────────────────── */
@@ -223,27 +203,8 @@
     .suggestion-card.selected { border-color: rgba(99,102,241,0.55); background: rgba(99,102,241,0.14); }
     .sug-text { font-size: 14px; color: rgba(232,234,240,0.85); line-height: 1.45; }
     .sug-sub { font-size: 11px; color: rgba(232,234,240,0.38); margin-top: 3px; }
-    .suggestions-wrap.voice-active .suggestion-card { opacity: 0.35; transition: opacity 0.2s; }
 
     /* ─── Mic test state ─────────────────────────────────────────── */
-    .mic-test-label { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 18px; }
-    .mic-test-heading { font-size: 26px; font-weight: 800; line-height: 1.25; margin-bottom: 10px; }
-    .mic-test-sub { font-size: 15px; color: rgba(232,234,240,0.5); max-width: 400px; line-height: 1.65; margin-bottom: 24px; text-align: center; }
-    .mic-volume-wrap { margin-bottom: 20px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-    .mic-volume-bar { width: 220px; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
-    .mic-volume-fill { height: 100%; background: #7c3aed; border-radius: 4px; width: 0%; transition: width 0.06s; }
-    .mic-volume-fill.active { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.4); }
-    .mic-volume-label { font-size: 11px; color: rgba(232,234,240,0.3); letter-spacing: 0.5px; min-height: 14px; }
-    .mic-test-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 16px; }
-    .mic-test-btn { background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.25); border-radius: 10px; padding: 12px 28px; font-family: inherit; font-size: 15px; font-weight: 600; color: #a78bfa; cursor: pointer; transition: background 0.15s; }
-    .mic-test-btn:hover:not(:disabled) { background: rgba(124,58,237,0.18); }
-    .mic-test-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .mic-ready-btn { background: #6366f1; border: none; border-radius: 10px; padding: 12px 28px; font-family: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; transition: background 0.15s, box-shadow 0.15s; box-shadow: 0 0 32px rgba(99,102,241,0.3); }
-    .mic-ready-btn:hover { background: #4f46e5; }
-    .mic-error { font-size: 13px; color: #fca5a5; line-height: 1.55; max-width: 400px; text-align: center; padding: 10px 0; }
-    .skip-mic-btn { background: transparent; border: none; font-family: inherit; font-size: 13px; color: rgba(232,234,240,0.3); cursor: pointer; padding: 4px; margin-top: 4px; }
-    .skip-mic-btn:hover { color: rgba(232,234,240,0.55); }
-
     /* ─── Path B offer intro tiles (shown in speaking pane) ─────────── */
     .intro-tiles-wrap { width: 100%; max-width: 460px; margin-top: 18px; }
     .intro-tiles-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.25); margin-bottom: 10px; }
@@ -378,25 +339,6 @@
           <button class="continue-btn" id="lets-talk-btn" onclick="onLetsTalkClick()">Let's talk →</button>
         </div>
 
-        <!-- State: mic test (shown before first interview question) -->
-        <div class="state-pane hidden" id="state-mic-test">
-          <div class="mic-test-label">Before we start</div>
-          <div class="mic-test-heading">Let's check your microphone</div>
-          <p class="mic-test-sub">Speak a few words so AHRI can confirm it hears you.</p>
-          <div class="mic-volume-wrap" id="mic-volume-wrap">
-            <div class="mic-volume-bar">
-              <div class="mic-volume-fill" id="mic-volume-fill"></div>
-            </div>
-            <div class="mic-volume-label" id="mic-volume-label">—</div>
-          </div>
-          <div class="mic-error hidden" id="mic-error"></div>
-          <div class="mic-test-actions">
-            <button class="mic-test-btn" id="mic-test-btn" onclick="startMicTest()">🎙 Test my microphone</button>
-            <button class="mic-ready-btn hidden" id="mic-ready-btn" onclick="proceedToInterview()">Mic is working — start interview</button>
-          </div>
-          <button class="skip-mic-btn" onclick="proceedToInterview()">Use text input instead →</button>
-        </div>
-
         <!-- State 5: interview -->
         <div class="state-pane hidden" id="state-interview">
           <div class="section-progress">
@@ -412,23 +354,12 @@
           <div class="iv-section-tag" id="iv-section-tag">The Offer</div>
           <div class="iv-q-label" id="iv-q-label">Question 1 of 19</div>
           <p class="iv-question" id="iv-question">—</p>
-          <div class="transcript-area" id="transcript-area">
-            <div class="voice-state-indicator hidden" id="voice-state-indicator">
-              <div class="voice-state-dots"><span></span><span></span><span></span></div>
-              <span id="voice-state-text">Waiting for your voice...</span>
-            </div>
-            <div class="transcript-live" id="transcript-live">Press the microphone to start speaking...</div>
-            <div class="transcript-locked" id="transcript-locked"></div>
-          </div>
           <div class="iv-controls">
             <button class="iv-back-btn" id="prev-btn" onclick="goToPrevQuestion()" disabled title="Go back to previous question">←</button>
-            <button class="voice-btn" id="voice-btn" onclick="toggleVoice()">🎙&nbsp;Start speaking</button>
-            <button class="done-speaking-btn hidden" id="done-speaking-btn" onclick="lockTranscript()">Done speaking</button>
             <button class="iv-submit" id="submit-btn" onclick="submitAnswer()" disabled>Submit answer</button>
           </div>
-          <div class="text-fallback">
-            <textarea id="text-answer" placeholder="Or type your answer here..." rows="2" oninput="onTextInput(this.value)"></textarea>
-            <span class="fallback-hint">Text input always available</span>
+          <div class="answer-area">
+            <textarea id="text-answer" placeholder="Type your answer here..." rows="2" oninput="onTextInput(this.value)"></textarea>
           </div>
           <div class="suggestions-wrap hidden" id="suggestions-wrap">
             <div class="suggestions-label">Or choose an option based on your market:</div>
@@ -547,12 +478,6 @@
         { text: '30 days — the standard for coached programs, maximizes the chance of real results' },
       ],
     };
-
-    // Mic test
-    let micTestStream = null;
-    let micTestAudioCtx = null;
-    let micTestAnalyser = null;
-    let micTestAnimFrame = null;
 
     const preparingSteps = [
       { heading: 'AHRI is preparing<br/>your market intelligence', sub: 'Scanning competitor ads, reading your Google reviews, and identifying the gaps in your market that nobody else is filling.' },
@@ -1027,7 +952,6 @@
       if (currentAudioResolve) { const r = currentAudioResolve; currentAudioResolve = null; r(); }
       if (currentAudio) { try { currentAudio.pause(); currentAudio.src = ''; } catch {} currentAudio = null; }
       audioPlaying = false;
-      pendingVoiceStart = false;
     }
 
     // ─── Skip current briefing act (two-mode) ────────────────────────────────
@@ -1099,7 +1023,6 @@
               audioPlaying = false;
               currentAudio = null;
               currentAudioResolve = null;
-              if (pendingVoiceStart) { pendingVoiceStart = false; doStartRecognition(); }
               URL.revokeObjectURL(url);
               resolve();
             };
@@ -1201,7 +1124,7 @@
       actAdvanceNow = false;
       actTextRevealed = false;
       cancelWordReveal();
-      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-mic-test', 'state-interview', 'state-complete']
+      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-interview', 'state-complete']
         .forEach(s => document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
       showOfferConfirmButtons(false);
@@ -1420,105 +1343,15 @@
       await askQuestion(resumeIdx);
     }
 
-    // ─── Start interview — show mic test first ────────────────────────────────
+    // ─── Start interview ──────────────────────────────────────────────────────
     async function startInterview() {
-      showState('state-mic-test');
-      updateStatusPip('preparing', 'Checking microphone');
-      initMicTest();
-    }
-
-    // ─── Called when user confirms mic (or skips) — begins the interview ──────
-    async function proceedToInterview() {
       stopAudio();
-      await cleanupMicTest();
-      await sleep(300);
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
       startInterviewPoll();
       await speak("Now I want to learn from you. The better your answers, the sharper your marketing system gets. Watch the panel on the right — you will see it being built as we talk. Let's start.", document.getElementById('iv-question'));
       await sleep(500);
       await askQuestion(0);
-    }
-
-    // ─── Mic test helpers ─────────────────────────────────────────────────────
-    function initMicTest() {
-      const isSecure = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-      console.log('[mic-test] protocol:', window.location.protocol, 'hostname:', window.location.hostname, 'secure:', isSecure);
-      if (!isSecure) {
-        showMicTestError('Warning: Page is not loaded over HTTPS. Microphone input requires HTTPS in Edge and Chrome — voice may not work. Use the text input below as a fallback.');
-        console.warn('[mic-test] NOT HTTPS — getUserMedia and Web Speech API will fail in Edge');
-      }
-    }
-
-    async function startMicTest() {
-      const btn = document.getElementById('mic-test-btn');
-      const fillEl = document.getElementById('mic-volume-fill');
-      const labelEl = document.getElementById('mic-volume-label');
-      btn.disabled = true;
-      btn.textContent = 'Requesting access...';
-      showMicTestError('');
-      console.log('[mic-test] Calling navigator.mediaDevices.getUserMedia({ audio: true })');
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        console.warn('[mic-test] getUserMedia not available in this browser');
-        showMicTestError('Voice input is not available in this browser. Please use Chrome or Edge, or use the text input to answer questions.');
-        btn.disabled = false;
-        btn.textContent = '🎙 Test my microphone';
-        document.getElementById('mic-ready-btn')?.classList.remove('hidden');
-        return;
-      }
-      try {
-        micTestStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        console.log('[mic-test] getUserMedia success — tracks:', micTestStream.getTracks().length);
-        micTestAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const source = micTestAudioCtx.createMediaStreamSource(micTestStream);
-        micTestAnalyser = micTestAudioCtx.createAnalyser();
-        micTestAnalyser.fftSize = 256;
-        source.connect(micTestAnalyser);
-        const dataArr = new Uint8Array(micTestAnalyser.frequencyBinCount);
-        let soundDetected = false;
-        btn.textContent = 'Listening — speak now...';
-        console.log('[mic-test] analyser running');
-        (function animateMic() {
-          micTestAnimFrame = requestAnimationFrame(animateMic);
-          micTestAnalyser.getByteFrequencyData(dataArr);
-          const avg = dataArr.reduce((a, b) => a + b, 0) / dataArr.length;
-          const pct = Math.min(100, avg * 2.8);
-          if (fillEl) { fillEl.style.width = pct + '%'; fillEl.classList.toggle('active', pct > 12); }
-          if (labelEl) labelEl.textContent = pct > 30 ? 'Hearing you clearly' : pct > 10 ? 'Getting signal...' : 'Speak now...';
-          if (pct > 12 && !soundDetected) {
-            soundDetected = true;
-            console.log('[mic-test] sound detected, pct=', Math.round(pct));
-            document.getElementById('mic-ready-btn')?.classList.remove('hidden');
-          }
-        })();
-      } catch (err) {
-        console.error('[mic-test] getUserMedia failed:', err.name, err.message);
-        let msg = 'Microphone access is needed for voice answers. Please allow microphone access in your browser settings, or use the text input below.';
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') msg = 'Microphone access was denied. Allow microphone access in your browser settings, or use the text input below to answer questions.';
-        else if (err.name === 'NotFoundError') msg = 'No microphone was found. Connect a microphone, or use the text input below.';
-        showMicTestError(msg);
-        btn.disabled = false;
-        btn.textContent = '🎙 Test my microphone';
-        document.getElementById('mic-ready-btn')?.classList.remove('hidden');
-      }
-    }
-
-    function showMicTestError(msg) {
-      const el = document.getElementById('mic-error');
-      if (!el) return;
-      if (msg) { el.textContent = msg; el.classList.remove('hidden'); }
-      else { el.textContent = ''; el.classList.add('hidden'); }
-      if (msg) console.warn('[mic-test] error shown:', msg);
-    }
-
-    async function cleanupMicTest() {
-      console.log('[mic-test] cleanup — releasing mic hardware');
-      if (micTestAnimFrame) { cancelAnimationFrame(micTestAnimFrame); micTestAnimFrame = null; }
-      if (micTestAnalyser) { try { micTestAnalyser.disconnect(); } catch {} micTestAnalyser = null; }
-      // Stop tracks before closing context so OS releases the device handle
-      if (micTestStream) { micTestStream.getTracks().forEach(t => { t.stop(); console.log('[mic-test] track stopped:', t.kind); }); micTestStream = null; }
-      if (micTestAudioCtx) { try { await micTestAudioCtx.close(); console.log('[mic-test] AudioContext closed'); } catch {} micTestAudioCtx = null; }
     }
 
     // ─── Ask a question ───────────────────────────────────────────────────────
@@ -1548,9 +1381,7 @@
       const preFill = (interviewState.preFill || {})[q.id];
       if (preFill) {
         const ta = document.getElementById('text-answer');
-        const locked = document.getElementById('transcript-locked');
         if (ta) ta.value = preFill;
-        if (locked) locked.textContent = preFill;
         document.getElementById('submit-btn').disabled = false;
         delete interviewState.preFill[q.id];
       }
@@ -1563,8 +1394,6 @@
       await speak(qText, document.getElementById('iv-question'));
 
       if (navVersion !== thisNav) { console.log('[askQuestion] stale nav, aborting post-speak'); return; }
-
-      startVoice();
 
       // Show tiles — API result or hardcoded fallback
       try {
@@ -1579,213 +1408,15 @@
       if (nextValidQ) prefetchTiles(nextValidQ);
     }
 
-    // ─── Voice input ──────────────────────────────────────────────────────────
-    // Edge compatibility: continuous:false + single-shot restart + permission pre-request
-    let recognition = null;
-    let voiceActive = false;
-    let voiceLockTimer = null;
-    let currentTranscript = '';
     let audioPlaying = false;      // true while ElevenLabs audio is playing
-    let pendingVoiceStart = false; // queued startVoice() while audio was playing
-
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    /** Pre-request mic permission so Edge shows the dialog before the interview starts. */
-    async function requestMicPermission() {
-      if (!navigator.mediaDevices?.getUserMedia) return;
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(t => t.stop()); // grant permission then immediately release
-      } catch { /* denied or unavailable — voice falls back to text */ }
-    }
-
-    /**
-     * Create and start a single-shot recognition session.
-     * Called by startVoice() and by recognition.onend for auto-restart.
-     * Never called while audio is playing — Edge blocks it.
-     */
-    function doStartRecognition() {
-      if (!SR || !voiceActive || audioPlaying) return;
-      if (recognition) { try { recognition.stop(); } catch {} }
-
-      recognition = new SR();
-      recognition.continuous = false;   // Edge requires false for reliable results
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        console.log('[voice] recognition.onstart fired');
-        setVoiceIndicator('waiting');
-      };
-
-      recognition.onaudiostart = () => {
-        console.log('[voice] recognition.onaudiostart — mic audio stream received');
-      };
-
-      recognition.onsoundstart = () => {
-        console.log('[voice] recognition.onsoundstart — sound detected');
-        setVoiceIndicator('hearing');
-      };
-
-      recognition.onspeechstart = () => {
-        console.log('[voice] recognition.onspeechstart — classifying as speech');
-        setVoiceIndicator('hearing');
-      };
-
-      recognition.onresult = (e) => {
-        console.log('[voice] recognition.onresult — results:', e.results.length, 'resultIndex:', e.resultIndex);
-        let interim = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) {
-            currentTranscript += (currentTranscript ? ' ' : '') + e.results[i][0].transcript.trim();
-          } else {
-            interim = e.results[i][0].transcript;
-          }
-        }
-        const liveEl = document.getElementById('transcript-live');
-        if (liveEl) liveEl.textContent = [currentTranscript, interim].filter(Boolean).join(' ') || '';
-        if (interim || currentTranscript) setVoiceIndicator('hearing');
-        clearTimeout(voiceLockTimer);
-        if (currentTranscript) voiceLockTimer = setTimeout(lockTranscript, 4000);
-      };
-
-      recognition.onerror = (e) => {
-        console.warn('[voice] recognition.onerror:', e.error, e.message || '');
-        const live = document.getElementById('transcript-live');
-        if (e.error === 'not-allowed') {
-          stopVoice();
-          if (live) live.textContent = 'Microphone access denied — please use the text input below.';
-        } else if (e.error === 'audio-capture') {
-          console.warn('[voice] audio-capture — retrying');
-          if (live) live.textContent = 'Let me try that again...';
-          setTimeout(() => { if (voiceActive && !audioPlaying) doStartRecognition(); }, 600);
-        } else if (e.error === 'no-speech') {
-          console.log('[voice] no-speech — restarting');
-          setVoiceIndicator('waiting');
-        } else if (e.error === 'network') {
-          console.warn('[voice] network error — retrying');
-          if (live) live.textContent = 'Let me try that again...';
-          setTimeout(() => { if (voiceActive && !audioPlaying) doStartRecognition(); }, 800);
-        } else {
-          console.warn('[voice] unhandled error:', e.error, '— restarting');
-          setTimeout(() => { if (voiceActive && !audioPlaying) doStartRecognition(); }, 300);
-        }
-      };
-
-      // Single-shot auto-restart — always recreates the instance for reliability
-      recognition.onend = () => {
-        if (voiceActive && !audioPlaying) {
-          setTimeout(() => { if (voiceActive && !audioPlaying) doStartRecognition(); }, 80);
-        }
-      };
-
-      try { recognition.start(); } catch (err) {
-        console.warn('[voice] recognition.start failed:', err.message);
-      }
-    }
-
-    function startVoice() {
-      if (!SR) {
-        // Not supported — update UI and leave text input as primary
-        const live = document.getElementById('transcript-live');
-        if (live) live.textContent = 'Voice input requires Chrome or Edge. Please type your answer below.';
-        const btn = document.getElementById('voice-btn');
-        if (btn) { btn.textContent = '⌨️ Type your answer'; btn.disabled = true; }
-        return;
-      }
-      voiceActive = true;
-      currentTranscript = '';
-      clearTimeout(voiceLockTimer);
-
-      const btn = document.getElementById('voice-btn');
-      if (btn) { btn.classList.add('listening'); btn.textContent = '🎙 Listening...'; }
-      const area = document.getElementById('transcript-area');
-      if (area) area.classList.add('listening');
-      const live = document.getElementById('transcript-live');
-      if (live) live.textContent = '';
-      const locked = document.getElementById('transcript-locked');
-      if (locked) locked.textContent = '';
-      const submitBtn = document.getElementById('submit-btn');
-      if (submitBtn) submitBtn.disabled = true;
-      document.getElementById('done-speaking-btn')?.classList.remove('hidden');
-      setVoiceIndicator('waiting');
-
-      // Dim suggestion tiles while voice is active
-      document.getElementById('suggestions-wrap')?.classList.add('voice-active');
-
-      if (audioPlaying) {
-        // Edge: audio still playing — recognition.start() would be blocked.
-        // Set flag; doStartRecognition() will be called from audio.onended.
-        console.log('[voice] audio still playing, queuing recognition start');
-        pendingVoiceStart = true;
-      } else {
-        pendingVoiceStart = false;
-        console.log('[voice] starting recognition');
-        doStartRecognition();
-      }
-    }
-
-    function setVoiceIndicator(state) {
-      const ind = document.getElementById('voice-state-indicator');
-      const txt = document.getElementById('voice-state-text');
-      if (!ind) return;
-      if (state === 'off') {
-        ind.classList.add('hidden');
-        ind.classList.remove('hearing');
-      } else if (state === 'waiting') {
-        ind.classList.remove('hidden', 'hearing');
-        if (txt) txt.textContent = 'Waiting for your voice...';
-      } else if (state === 'hearing') {
-        ind.classList.remove('hidden');
-        ind.classList.add('hearing');
-        if (txt) txt.textContent = 'Hearing you...';
-      }
-    }
-
-    function stopVoice() {
-      voiceActive = false;
-      pendingVoiceStart = false;
-      clearTimeout(voiceLockTimer);
-      if (recognition) { try { recognition.stop(); } catch {} recognition = null; }
-      const btn = document.getElementById('voice-btn');
-      if (btn) { btn.classList.remove('listening'); btn.textContent = '🎙 Start speaking'; }
-      const area = document.getElementById('transcript-area');
-      if (area) area.classList.remove('listening');
-      document.getElementById('done-speaking-btn')?.classList.add('hidden');
-      setVoiceIndicator('off');
-      // Un-dim suggestion tiles when voice stops
-      document.getElementById('suggestions-wrap')?.classList.remove('voice-active');
-    }
-
-    function lockTranscript() {
-      const text = currentTranscript.trim();
-      stopVoice();
-      if (!text) return;
-      document.getElementById('transcript-live').textContent = '';
-      document.getElementById('transcript-locked').textContent = text;
-      document.getElementById('text-answer').value = text;
-      document.getElementById('submit-btn').disabled = false;
-    }
-
-    function toggleVoice() {
-      if (voiceActive) lockTranscript();
-      else startVoice();
-    }
 
     function onTextInput(val) {
       document.getElementById('submit-btn').disabled = !val.trim();
     }
 
     function resetAnswerArea() {
-      stopVoice();
-      currentTranscript = '';
-      const live = document.getElementById('transcript-live');
-      const locked = document.getElementById('transcript-locked');
       const txt = document.getElementById('text-answer');
       const btn = document.getElementById('submit-btn');
-      if (live) live.textContent = SR ? 'Press the microphone to start speaking...' : 'Type your answer below and press Submit.';
-      if (locked) locked.textContent = '';
       if (txt) txt.value = '';
       if (btn) { btn.disabled = true; btn.textContent = 'Submit answer'; }
       hideSuggestions();
@@ -1795,12 +1426,11 @@
     async function submitAnswer() {
       if (interviewState.submitting) return;
       const q = QUESTIONS[interviewState.currentQIndex];
-      const transcript = (document.getElementById('transcript-locked').textContent || document.getElementById('text-answer').value || '').trim();
+      const transcript = (document.getElementById('text-answer').value || '').trim();
       if (!transcript) return;
 
       stopAudio();
       interviewState.submitting = true;
-      stopVoice();
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
       btn.textContent = 'Thinking...';
@@ -1834,8 +1464,6 @@
           btn.textContent = 'Submit answer';
           resetAnswerArea();
           await speak(evalData.probeQuestion || q.probe, document.getElementById('iv-question'));
-          if (navVersion !== submitNav) return;
-          startVoice();
         } else {
           interviewState.submitting = false;
           resetAnswerArea();
@@ -1908,8 +1536,7 @@
       if (prevIdx < 0) return;
 
       console.log('[nav] goToPrevQuestion → idx', prevIdx);
-      stopAudio();    // cancel any playing audio immediately
-      stopVoice();    // cancel any active recognition
+      stopAudio();
       navVersion++;   // invalidate any ongoing askQuestion continuation
       interviewState.submitting = false;
       interviewState.probeCount = 0;
@@ -1918,17 +1545,11 @@
       const prevQ = QUESTIONS[prevIdx];
       const prevAnswer = interviewState.answers[prevQ.id] || '';
 
-      // askQuestion re-reads the question via ElevenLabs and resets the input area
       await askQuestion(prevIdx);
 
-      // After speak completes, pre-populate with the existing answer so Marcus can
-      // hear it in context and edit rather than starting blank
       if (prevAnswer) {
-        currentTranscript = prevAnswer;
-        document.getElementById('transcript-live').textContent  = '';
-        document.getElementById('transcript-locked').textContent = prevAnswer;
-        document.getElementById('text-answer').value            = prevAnswer;
-        document.getElementById('submit-btn').disabled          = false;
+        document.getElementById('text-answer').value = prevAnswer;
+        document.getElementById('submit-btn').disabled = false;
       }
     }
 
@@ -2099,10 +1720,6 @@
     function selectTile(text, cardEl) {
       document.querySelectorAll('.suggestion-card').forEach(c => c.classList.remove('selected'));
       cardEl.classList.add('selected');
-      stopVoice();
-      currentTranscript = text;
-      document.getElementById('transcript-locked').textContent = text;
-      document.getElementById('transcript-live').textContent = '';
       const ta = document.getElementById('text-answer');
       ta.value = text;
       ta.focus();
@@ -2111,7 +1728,7 @@
 
     function hideSuggestions() {
       const wrap = document.getElementById('suggestions-wrap');
-      if (wrap) { wrap.classList.add('hidden'); wrap.classList.remove('voice-active'); }
+      if (wrap) wrap.classList.add('hidden');
       const container = document.getElementById('suggestion-cards-container');
       if (container) container.innerHTML = '';
     }
@@ -2269,7 +1886,6 @@
 
     // ─── Finish interview ─────────────────────────────────────────────────────
     async function finishInterview() {
-      stopVoice();
       stopInterviewPoll();
       updateStatusPip('active', 'Generating your system');
       showState('state-speaking');
