@@ -2646,15 +2646,26 @@ app.post('/api/onboarding/sessions/:sessionId/tts', async (req, res) => {
 
 // What a sufficient answer looks like per question
 const Q_PURPOSE = {
-  q1: 'specific offer details: price, what is included, and exact guarantee terms',
-  q2: 'a specific surprising or undervalued offer element',
-  q3: 'a specific next cohort date and number of spots available',
-  q4: 'a vivid picture of a specific real member and their life before joining',
-  q5: 'a specific triggering moment or situation when the ideal member decides to act',
-  q6: 'specific concrete day-to-day life changes 60 days after joining',
-  q7: 'a specific description of their differentiator and what the first 30 days look like',
-  q8: 'what specifically would be irreplaceable if the gym closed',
-  q9: 'exact words a prospect uses for their most common objection',
+  // Section 1 branch question
+  q1:  'whether the gym has an existing front-end offer with specific details, or no offer yet',
+  // Path A
+  qa2: 'exact offer: price, duration in days or weeks, what is included, and any guarantee wording',
+  qa3: 'a specific surprising or undervalued element in their existing offer',
+  qa4: 'the exact guarantee wording word for word',
+  qa5: 'next group or cohort start date and exact number of spots available',
+  // Path B
+  qb2: 'desired trial period length in days',
+  qb3: 'chosen entry price point for the trial',
+  qb4: 'what is included during the trial period',
+  qb5: 'guarantee structure chosen for the offer',
+  qb6: 'the one thing about their gym that big box gyms cannot replicate',
+  // Sections 2-8
+  q4:  'a vivid picture of a specific real member and their life before joining',
+  q5:  'a specific triggering moment or situation when the ideal member decides to act',
+  q6:  'specific concrete day-to-day life changes 60 days after joining',
+  q7:  'a specific description of their differentiator and what the first 30 days look like',
+  q8:  'what specifically would be irreplaceable if the gym closed',
+  q9:  'exact words a prospect uses for their most common objection',
   q10: 'the specific response that changes their mind',
   q11: 'exact words for the second most common objection',
   q12: 'exact words for the third most common objection',
@@ -2681,6 +2692,14 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
   const words = transcript.trim().split(/\s+/);
   const lower = transcript.toLowerCase().trim();
 
+  // Q1 branch detection — runs before weak-answer check so any q1 answer routes correctly
+  if (questionId === 'q1') {
+    const noSignals  = /\b(no|not really|not yet|don.?t have|nothing specific|haven.?t|no offer|nope|figuring|working on|planning|nothing)\b/i.test(lower);
+    const yesSignals = /\b(yes|yeah|we have|we do|we offer|we run|trial|challenge|promo|free|dollar|\$|week|month|days|price|pay|cost|guarantee|cohort|included|access|membership)\b/i.test(lower);
+    const hasOffer = (yesSignals && !noSignals) || words.length >= 20;
+    return res.json({ sufficient: true, branch: hasOffer ? 'A' : 'B' });
+  }
+
   // Detect weak answers — offer suggestion cards instead of probing
   const isWeak = words.length < 5 || /^(i don.?t know|not sure|no idea|pass|skip|um+|uh+|hmm+|idk)[\.\s!]*$/i.test(lower);
   if (isWeak) {
@@ -2690,7 +2709,8 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
   }
 
   // Questions where any >5 word answer is sufficient — no Claude eval needed
-  const acceptAnything = ['q9','q10','q11','q12','q13','q14','q15','q16','q17','q18','q19'];
+  // Path A/B tile selections are always sufficient; qb6 is open-ended but accept any answer
+  const acceptAnything = ['qa3','qa4','qa5','qb2','qb3','qb4','qb5','qb6','q9','q10','q11','q12','q13','q14','q15','q16','q17','q18','q19'];
   if (acceptAnything.includes(questionId) || words.length >= 20) {
     return res.json({ sufficient: true });
   }
@@ -2781,6 +2801,13 @@ app.post('/api/onboarding/sessions/:sessionId/question-suggestions', async (req,
 
 /** Generate 3 market-specific suggestion tiles for a question using Claude Haiku. */
 async function generateQuestionSuggestions(questionId, questionText, section, session, research) {
+  // Path B questions and intro tiles use specialized research-based generation
+  if (['qb2','qb3','qb4','qb5','pathb-intro'].includes(questionId)) {
+    return generatePathBTiles(questionId, session, research);
+  }
+  // qb6 is open voice/text — no tiles
+  if (questionId === 'qb6') return [];
+
   const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
   if (!apiKey) return [];
   try {
@@ -2831,6 +2858,111 @@ Respond ONLY with a JSON array, no other text:
     return [];
   }
 }
+
+/** Generate research-specific tiles for Path B offer-building questions. */
+async function generatePathBTiles(questionId, session, research) {
+  const city = session.city || 'your city';
+  const competitors = (research?.competitors || []).slice(0, 3);
+  const competitorNames = competitors.map(c => c.name).filter(Boolean).join(', ') || 'local gyms';
+  const primaryGap = (research?.marketGaps || [])[0] || 'personalized coaching and accountability';
+
+  // Estimate competitor price range from research
+  const competitorPrices = competitors
+    .map(c => parseFloat(c.price || c.membershipPrice || c.monthly_price || 0))
+    .filter(p => p > 0);
+  const avgCompPrice = competitorPrices.length > 0
+    ? Math.round(competitorPrices.reduce((a, b) => a + b, 0) / competitorPrices.length)
+    : 49;
+
+  if (questionId === 'qb2') {
+    return [
+      { text: '14-day trial', subtext: 'Shorter window — lowest commitment barrier, great for skeptical leads' },
+      { text: '21-day trial', subtext: `Most common in ${city} — long enough to feel real results` },
+      { text: '30-day trial', subtext: 'Full month — highest perceived value, easiest to justify the price' },
+    ];
+  }
+
+  if (questionId === 'qb3') {
+    const low = Math.max(1, Math.round(avgCompPrice * 0.04));
+    const mid = Math.round(avgCompPrice * 0.3);
+    const rec = Math.round(avgCompPrice * 0.5);
+    return [
+      { text: `$${low} for the trial`, subtext: `Lowest barrier — competitors in ${city} charge ~$${avgCompPrice}/mo so this feels nearly free` },
+      { text: `$${mid} for the trial`, subtext: 'Filters for committed leads — attracts members with skin in the game' },
+      { text: `$${rec} for the trial`, subtext: `Recommended — roughly half your monthly rate, feels fair and funds the trial` },
+    ];
+  }
+
+  if (questionId === 'qb4') {
+    return [
+      { text: 'Unlimited group classes during the trial', subtext: 'Simplest offer — no friction, easy yes' },
+      { text: `Unlimited classes + one initial orientation session`, subtext: `Fills your market gap — ${competitorNames} don't offer coached onboarding` },
+      { text: 'Unlimited classes + weekly coach check-in during the trial', subtext: 'Highest value — personalized, impossible to replicate at a big box gym' },
+    ];
+  }
+
+  if (questionId === 'qb5') {
+    return [
+      { text: 'Full refund if not completely satisfied after the trial', subtext: 'Satisfaction guarantee — removes all risk, simplest to explain' },
+      { text: 'Come at least 3 times a week — if you don\'t feel a difference, full refund', subtext: 'Attendance-based — rewards commitment, protects you from non-starters' },
+      { text: 'Complete the trial and if you don\'t see measurable progress, we coach you free until you do', subtext: 'Results-based — strongest perceived value, best closing tool' },
+    ];
+  }
+
+  if (questionId === 'pathb-intro') {
+    // 3 complete offer templates — try LLM first, fall back to defaults
+    const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+    if (apiKey) {
+      try {
+        const Anthropic = require('@anthropic-ai/sdk');
+        const client = new Anthropic({ apiKey });
+        const prompt = `Generate 3 proven front-end gym offer templates for a gym in ${city}.
+Market context: competitors are ${competitorNames}, average monthly rate ~$${avgCompPrice}, biggest gap nobody is filling: "${primaryGap}".
+Use the Hormozi Grand Slam Offer framework: maximize Dream Outcome × Perceived Likelihood, minimize Time Delay × Effort.
+Each template: a short catchy offer name + one line explaining what makes it compelling.
+Output ONLY a JSON array, no other text:
+[{"text":"Offer name (e.g. 21-Day New You Challenge — $1)","subtext":"What's included and why it converts"},...]`;
+        const msg = await client.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 350,
+          messages: [{ role: 'user', content: prompt }],
+        });
+        const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(0, 3);
+      } catch {}
+    }
+    return [
+      { text: `21-Day New Member Challenge — $1`, subtext: `Unlimited access for 21 days + orientation session. Fills the gap ${competitorNames} leave open.` },
+      { text: `30-Day Trial — $${Math.round(avgCompPrice * 0.5)}`, subtext: `Full month + weekly coach check-in. Positions against "${primaryGap}".` },
+      { text: '14-Day Fast Start — Free', subtext: 'Highest volume of leads — no credit card. Qualify for membership at the end.' },
+    ];
+  }
+
+  return [];
+}
+
+// POST /api/onboarding/sessions/:sessionId/synthesize-offer — plain-language offer summary for Path B confirmation
+app.post('/api/onboarding/sessions/:sessionId/synthesize-offer', async (req, res) => {
+  const { sessionId } = req.params;
+  const { answers } = req.body;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const gymName = session.gymName || 'your gym';
+  const durationRaw = answers?.qb2 || '21 days';
+  const days = (durationRaw.match(/(\d+)/) || ['','21'])[1];
+  const price = answers?.qb3 ? ` for ${answers.qb3}` : '';
+  const inclusions = answers?.qb4 || 'access to all classes';
+  const guarantee = answers?.qb5 || 'satisfaction guarantee';
+  const differentiator = answers?.qb6 || 'personalized attention you cannot get at a big box gym';
+
+  const offerName = `${days}-Day Challenge`;
+  const summary = `Here is the offer we just built for ${gymName}. The ${offerName}${price}. What is included: ${inclusions}. The guarantee: ${guarantee}. And the one thing that sets it apart from every gym nearby: ${differentiator}. Does this feel right?`;
+
+  res.json({ summary, offerName, duration: durationRaw, price: answers?.qb3 || '', inclusions, guarantee, differentiator });
+});
 
 // PATCH /api/onboarding/sessions/:sessionId/answers — persist answers to R2 (no auth — UUID secured)
 app.patch('/api/onboarding/sessions/:sessionId/answers', async (req, res) => {
@@ -2960,9 +3092,23 @@ async function generateCanonicalKBFile(fileKey, answers, session, research, clie
   const prompts = {
     'brain-state': `Write a marketing brain state file for ${gym} in ${city}. Extract from the answers below. Use "[not captured]" for missing info. Output only the file — no preamble.
 
-Q1 (offer/price/guarantee): ${a.q1 || '[not captured]'}
-Q2 (surprise element in offer): ${a.q2 || '[not captured]'}
-Q3 (next cohort/spots remaining): ${a.q3 || '[not captured]'}
+SECTION 1 — THE OFFER
+Q1 (has offer / branch question): ${a.q1 || '[not captured]'}
+
+Path A (owner had existing offer):
+  QA2 (offer details — price, duration, inclusions, guarantee): ${a.qa2 || '[not captured]'}
+  QA3 (surprise element in offer): ${a.qa3 || '[not captured]'}
+  QA4 (guarantee — word for word): ${a.qa4 || '[not captured]'}
+  QA5 (next cohort / spots): ${a.qa5 || '[not captured]'}
+
+Path B (offer built with AHRI):
+  QB2 (trial duration): ${a.qb2 || '[not captured]'}
+  QB3 (entry price): ${a.qb3 || '[not captured]'}
+  QB4 (trial inclusions): ${a.qb4 || '[not captured]'}
+  QB5 (guarantee structure): ${a.qb5 || '[not captured]'}
+  QB6 (unique differentiator vs big box): ${a.qb6 || '[not captured]'}
+
+SECTIONS 3 AND 8
 Q7 (differentiator/first 30 days): ${a.q7 || '[not captured]'}
 Q8 (what they'd lose if gym closed): ${a.q8 || '[not captured]'}
 Q18 (local events/seasonal context): ${a.q18 || '[not captured]'}
@@ -2974,14 +3120,15 @@ Franchise type: ${franchise}
 # Generated: ${date}
 
 ## Active Offer
-Name: [extract offer name from q1 or infer]
-Price: [from q1]
-Duration: [from q1]
-Included: [from q1]
-Guarantee: [from q1 — word for word]
-Post-trial price: [from q1 or [not captured]]
-Cohort start: [from q3]
-Spots remaining: [from q3]
+Name: [derive from Path A (qa2) or Path B (qb2 duration → e.g. "21-Day Challenge")]
+Price: [from qa2 or qb3]
+Duration: [from qa2 or qb2]
+Included: [from qa2 or qb4]
+Guarantee: [from qa4 or qb5 — exact wording]
+Surprise element: [from qa3 or qb6 or [not captured]]
+Post-trial price: [from qa2 or [not captured]]
+Cohort start: [from qa5 or [not captured]]
+Spots remaining: [from qa5 or [not captured]]
 
 ## Active Avatar
 Primary: lifestyle member
@@ -2997,7 +3144,7 @@ Top competitor: [from research or [not captured]]
 [not captured — generated after interview complete]
 
 ## Mechanism
-[one sentence: the specific differentiator from q7 and q8]
+[one sentence: the specific differentiator from q7, q8, or qb6]
 
 ## Seasonal Context
 [from q18 or infer from current month]`,

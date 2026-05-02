@@ -217,6 +217,21 @@
     .mic-error { font-size: 13px; color: #fca5a5; line-height: 1.55; max-width: 400px; text-align: center; padding: 10px 0; }
     .skip-mic-btn { background: transparent; border: none; font-family: inherit; font-size: 13px; color: rgba(232,234,240,0.3); cursor: pointer; padding: 4px; margin-top: 4px; }
     .skip-mic-btn:hover { color: rgba(232,234,240,0.55); }
+
+    /* ─── Path B offer intro tiles (shown in speaking pane) ─────────── */
+    .intro-tiles-wrap { width: 100%; max-width: 460px; margin-top: 18px; }
+    .intro-tiles-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.25); margin-bottom: 10px; }
+    .intro-tile { background: rgba(124,58,237,0.06); border: 1px solid rgba(124,58,237,0.14); border-radius: 10px; padding: 12px 15px; margin-bottom: 8px; opacity: 0; transform: translateY(6px); transition: opacity 0.3s ease, transform 0.3s ease; }
+    .intro-tile.intro-tile-visible { opacity: 1; transform: translateY(0); }
+    .intro-tile-text { font-size: 13px; font-weight: 600; color: rgba(232,234,240,0.78); line-height: 1.4; }
+    .intro-tile-sub { font-size: 11px; color: rgba(232,234,240,0.33); margin-top: 4px; }
+
+    /* ─── Offer confirm actions ──────────────────────────────────────── */
+    .offer-confirm-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 24px; width: 100%; max-width: 380px; }
+    .offer-confirm-btn { background: #6366f1; border: none; border-radius: 10px; padding: 13px 32px; font-family: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; transition: background 0.15s; width: 100%; box-shadow: 0 0 24px rgba(99,102,241,0.25); }
+    .offer-confirm-btn:hover { background: #4f46e5; }
+    .offer-adjust-btn { background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px 20px; font-family: inherit; font-size: 13px; color: rgba(232,234,240,0.4); cursor: pointer; transition: border-color 0.15s, color 0.15s; width: 100%; }
+    .offer-adjust-btn:hover { border-color: rgba(255,255,255,0.2); color: rgba(232,234,240,0.6); }
   </style>
 </head>
 <body>
@@ -272,6 +287,16 @@
           <div class="act-label" id="act-label"></div>
           <div class="speaking-who"><span class="speaking-who-dot"></span>AHRI</div>
           <p class="speaking-text" id="speaking-text"></p>
+          <!-- Path B intro: offer template tiles shown briefly before qb2 -->
+          <div class="intro-tiles-wrap hidden" id="intro-tiles-wrap">
+            <div class="intro-tiles-label">What's working in your market:</div>
+            <div id="intro-tiles-container"></div>
+          </div>
+          <!-- Offer confirmation after Path B synthesis -->
+          <div class="offer-confirm-actions hidden" id="offer-confirm-actions">
+            <button class="offer-confirm-btn" onclick="confirmOffer()">Sounds good →</button>
+            <button class="offer-adjust-btn" onclick="adjustOffer()">Let me adjust something</button>
+          </div>
           <button class="continue-btn" id="continue-btn" onclick="onContinueClick()">Continue →</button>
         </div>
 
@@ -961,18 +986,41 @@
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // ─── Interview question bank (all 19 questions, 8 sections) ─────────────
+    // ─── Interview question bank — branching Section 1, then sections 2-8 ──────
     const QUESTIONS = [
-      // Section 1 — The Offer
+      // Section 1 — The Offer (branch question — always asked first)
       { id:'q1', section:1, sectionName:'The Offer', kbFile:'brain-state',
-        text:'Walk me through your current offer — what does someone get, what do they pay, and what happens if it doesn\'t work for them?',
-        probe:'Be specific — what\'s the price, what\'s included day by day, and what\'s the exact guarantee?' },
-      { id:'q2', section:1, sectionName:'The Offer', kbFile:'brain-state',
-        text:'What\'s the one thing in your offer that makes people say "wait, that\'s included?" The thing you don\'t talk about enough.',
+        text:'Do you currently have a front-end offer — something specific you use to get new members in the door? It could be a free trial, a challenge, a first-month promotion, anything at all. If yes, tell me about it. If not, that is completely fine — we will build one together right now.',
+        probe:'Just to confirm — do you have a specific offer with a price and terms already, or is this something we need to build together?' },
+      // Section 1 — Path A (they already have an offer)
+      { id:'qa2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
+        text:'Walk me through exactly what is included, what they pay, and what happens if it does not work for them. Be as specific as you can — price, duration, what they get day by day.',
+        probe:'Give me the exact numbers — price, how many days or weeks, and the exact guarantee wording.' },
+      { id:'qa3', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
+        text:'What is the one thing in your offer that makes people say — wait, that is included? The thing you never talk about enough.',
         probe:'Think about the last time someone was surprised by what you include. What was it?' },
-      { id:'q3', section:1, sectionName:'The Offer', kbFile:'brain-state',
-        text:'When does your next group start, and how many spots are left?',
-        probe:'What\'s the next date you\'re filling spots for and exactly how many are available?' },
+      { id:'qa4', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
+        text:'What is your guarantee — word for word? If you do not have one yet we will create one.',
+        probe:'Say it exactly as you would say it to a prospect — word for word.' },
+      { id:'qa5', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
+        text:'When does your next group or cohort start and how many spots are available?',
+        probe:'What is the next date you are filling spots for and exactly how many are available?' },
+      // Section 1 — Path B (building the offer with AHRI)
+      { id:'qb2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
+        text:'How long do you want the trial period to be — 14 days, 21 days, or 30 days? Pick what feels right for your gym.',
+        probe:'Which of those three would work best for how your gym runs?' },
+      { id:'qb3', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
+        text:'What should the entry price be? Based on your market I would suggest one of these — but you know your members best.',
+        probe:'Which price point feels right — or what would you change?' },
+      { id:'qb4', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
+        text:'What is included during the trial? I found that the biggest gap in your market is that nobody offers coached onboarding. Here are three ways to structure what you include.',
+        probe:'Which of those structures fits how you already run your gym?' },
+      { id:'qb5', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
+        text:'Every strong offer has a guarantee that removes the risk of saying yes. Here are three guarantee structures that work well for gyms like yours.',
+        probe:'Which guarantee style fits your gym?' },
+      { id:'qb6', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
+        text:'What is the one thing about your gym that a new member would never get at Planet Fitness or any big box gym nearby? This becomes the core of your offer.',
+        probe:'What is the thing — not just the workouts — that you do differently from the big chains?' },
       // Section 2 — The Avatar
       { id:'q4', section:2, sectionName:'The Avatar', kbFile:'lifestyle-avatar',
         text:'Tell me about the last person who joined and made you think — this is exactly who we\'re built for. What was their life like before they walked in?',
@@ -1065,7 +1113,34 @@
       answers: {},
       completedSections: new Set(),
       submitting: false,
+      section1Path: null,  // 'A' = has existing offer, 'B' = building offer with AHRI
     };
+
+    // ─── Path-aware navigation helpers ───────────────────────────────────────
+    function nextValidIdx(fromIdx) {
+      for (let i = fromIdx + 1; i < QUESTIONS.length; i++) {
+        const q = QUESTIONS[i];
+        if (!q.path || q.path === interviewState.section1Path) return i;
+      }
+      return -1;
+    }
+
+    function prevValidIdx(fromIdx) {
+      for (let i = fromIdx - 1; i >= 0; i--) {
+        const q = QUESTIONS[i];
+        if (!q.path || q.path === interviewState.section1Path) return i;
+      }
+      return -1;
+    }
+
+    function validQuestionNumber(qIdx) {
+      let n = 0;
+      for (let i = 0; i <= qIdx; i++) {
+        const q = QUESTIONS[i];
+        if (!q.path || q.path === interviewState.section1Path) n++;
+      }
+      return n;
+    }
 
     // ─── Build dynamic question text ─────────────────────────────────────────
     function buildQuestionText(q) {
@@ -1089,8 +1164,11 @@
     // ─── Resume interview after page reload ──────────────────────────────────
     async function resumeInterview(sess) {
       if (sess.answers) interviewState.answers = sess.answers;
+      // Restore section1Path from answered question IDs
+      if (interviewState.answers.qa2) interviewState.section1Path = 'A';
+      else if (interviewState.answers.qb2) interviewState.section1Path = 'B';
       const answered = Object.keys(interviewState.answers);
-      const nextIdx = QUESTIONS.findIndex(q => !answered.includes(q.id));
+      const nextIdx = QUESTIONS.findIndex(q => !answered.includes(q.id) && (!q.path || q.path === interviewState.section1Path));
       const resumeIdx = nextIdx >= 0 ? nextIdx : 0;
       // Restore completed sections
       QUESTIONS.slice(0, resumeIdx).forEach(q => interviewState.completedSections.add(q.section));
@@ -1115,7 +1193,7 @@
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
       startInterviewPoll();
-      await speak("Now I want to learn from you. I'm going to ask you nineteen questions. The better your answers, the sharper everything gets. Watch the panel on the right — you'll see your marketing system being built as we talk. Let's start.");
+      await speak("Now I want to learn from you. The better your answers, the sharper your marketing system gets. Watch the panel on the right — you will see it being built as we talk. Let's start.");
       await sleep(500);
       await askQuestion(0);
     }
@@ -1218,7 +1296,7 @@
       }
 
       document.getElementById('iv-section-tag').textContent = q.sectionName;
-      document.getElementById('iv-q-label').textContent = `Question ${qIdx + 1} of ${QUESTIONS.length}`;
+      document.getElementById('iv-q-label').textContent = `Question ${validQuestionNumber(qIdx)}`;
       document.getElementById('iv-question').textContent = buildQuestionText(q);
 
       updateBackButton();
@@ -1241,9 +1319,9 @@
         if (tiles?.length > 0) showSuggestionTiles(tiles);
       } catch {}
 
-      // Pre-fetch next question's tiles while the owner is answering
-      const nextQ = QUESTIONS[qIdx + 1];
-      if (nextQ) prefetchTiles(nextQ);
+      // Pre-fetch next valid question's tiles while the owner is answering
+      const nextValidQ = QUESTIONS[nextValidIdx(qIdx)];
+      if (nextValidQ) prefetchTiles(nextValidQ);
     }
 
     // ─── Voice input ──────────────────────────────────────────────────────────
@@ -1471,6 +1549,12 @@
         // Navigation may have changed during eval (back button) — abort if so
         if (navVersion !== submitNav) { interviewState.submitting = false; return; }
 
+        // Q1 branch detection — server tells us whether owner has an offer or not
+        if (q.id === 'q1' && evalData.branch) {
+          interviewState.section1Path = evalData.branch;
+          console.log('[interview] section1Path set to:', evalData.branch);
+        }
+
         if (!evalData.sufficient && interviewState.probeCount < 2 && q.probe) {
           interviewState.probeCount++;
           interviewState.submitting = false;
@@ -1493,20 +1577,32 @@
     // ─── Advance to next question / section ──────────────────────────────────
     async function advanceInterview() {
       const q = QUESTIONS[interviewState.currentQIndex];
-      const nextIdx = interviewState.currentQIndex + 1;
-      const nextSection = nextIdx < QUESTIONS.length ? QUESTIONS[nextIdx].section : null;
 
-      if (nextSection !== q.section) {
-        // Section just completed — write KB file + update right panel
+      // After Q1 on Path B: run intro before qb2
+      if (q.id === 'q1' && interviewState.section1Path === 'B') {
+        await runPathBIntro();
+      }
+
+      // After qb6: synthesize built offer and confirm with owner before writing KB
+      if (q.id === 'qb6') {
+        const confirmed = await synthesizeAndConfirmOffer();
+        if (!confirmed) return; // adjustOffer() handles navigation back to qb2
+      }
+
+      const nextIdx = nextValidIdx(interviewState.currentQIndex);
+      const nextSection = nextIdx >= 0 ? QUESTIONS[nextIdx].section : null;
+
+      if (nextSection !== null && nextSection !== q.section) {
+        // Section completed — write KB + speak section transition
         await writeSectionKB(q.section);
         interviewState.completedSections.add(q.section);
-        if (nextSection && SECTION_INTRO[nextSection]) {
+        if (SECTION_INTRO[nextSection]) {
           await speak(SECTION_INTRO[nextSection]);
           await sleep(400);
         }
       }
 
-      if (nextIdx >= QUESTIONS.length) {
+      if (nextIdx < 0) {
         await finishInterview();
       } else {
         await askQuestion(nextIdx);
@@ -1529,7 +1625,7 @@
     }
 
     async function goToPrevQuestion() {
-      const prevIdx = interviewState.currentQIndex - 1;
+      const prevIdx = prevValidIdx(interviewState.currentQIndex);
       if (prevIdx < 0) return;
 
       console.log('[nav] goToPrevQuestion → idx', prevIdx);
@@ -1726,6 +1822,105 @@
       if (container) container.innerHTML = '';
     }
 
+    // ─── Path B offer building helpers ───────────────────────────────────────
+
+    async function runPathBIntro() {
+      showState('state-speaking');
+      setActLabel('Section 1 — Building Your Offer');
+      const introText = "No problem at all — this is actually one of the most valuable things we will do today. I am going to help you build an offer right now using what I already know about your market. Based on what I found, here is what is working for gyms in similar markets.";
+      setSpeakingText(introText);
+      const templatesPromise = fetchOfferTemplateTiles();
+      await speak(introText);
+      try {
+        const templates = await templatesPromise;
+        if (templates.length > 0) {
+          const wrap = document.getElementById('intro-tiles-wrap');
+          const container = document.getElementById('intro-tiles-container');
+          if (wrap && container) {
+            container.innerHTML = '';
+            templates.forEach((t, i) => {
+              const card = document.createElement('div');
+              card.className = 'intro-tile';
+              card.innerHTML = `<div class="intro-tile-text">${esc(t.text)}</div>${t.subtext ? `<div class="intro-tile-sub">${esc(t.subtext)}</div>` : ''}`;
+              container.appendChild(card);
+              setTimeout(() => card.classList.add('intro-tile-visible'), 60 + i * 130);
+            });
+            wrap.classList.remove('hidden');
+            await sleep(4500);
+            wrap.classList.add('hidden');
+          }
+        }
+      } catch {}
+    }
+
+    async function fetchOfferTemplateTiles() {
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/question-suggestions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questionId: 'pathb-intro', questionText: 'offer template inspiration for path B', section: 1 }),
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.suggestions || [];
+      } catch { return []; }
+    }
+
+    let offerConfirmResolve = null;
+
+    async function synthesizeAndConfirmOffer() {
+      showState('state-speaking');
+      setActLabel('Your Offer — Review');
+
+      let summary = buildLocalOfferSummary();
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/synthesize-offer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answers: interviewState.answers }),
+        });
+        if (res.ok) { const d = await res.json(); if (d.summary) summary = d.summary; }
+      } catch {}
+
+      setSpeakingText(summary);
+      await speak(summary);
+      await sleep(800);
+
+      const confirmActions = document.getElementById('offer-confirm-actions');
+      if (confirmActions) confirmActions.classList.remove('hidden');
+
+      return new Promise(resolve => { offerConfirmResolve = resolve; });
+    }
+
+    function confirmOffer() {
+      document.getElementById('offer-confirm-actions')?.classList.add('hidden');
+      if (offerConfirmResolve) { const r = offerConfirmResolve; offerConfirmResolve = null; r(true); }
+    }
+
+    async function adjustOffer() {
+      document.getElementById('offer-confirm-actions')?.classList.add('hidden');
+      if (offerConfirmResolve) { const r = offerConfirmResolve; offerConfirmResolve = null; r(false); }
+      const qb2Idx = QUESTIONS.findIndex(q => q.id === 'qb2');
+      if (qb2Idx >= 0) {
+        stopAudio(); navVersion++; interviewState.submitting = false;
+        interviewState.currentQIndex = qb2Idx;
+        showState('state-interview');
+        await askQuestion(qb2Idx);
+      }
+    }
+
+    function buildLocalOfferSummary() {
+      const a = interviewState.answers;
+      const gymName = sessionData?.session?.gymName || 'your gym';
+      const durationRaw = a.qb2 || '21 days';
+      const days = (durationRaw.match(/(\d+)/) || ['','21'])[1];
+      const price = a.qb3 ? ` for ${a.qb3}` : '';
+      const inclusions = a.qb4 || 'access to all classes';
+      const guarantee = a.qb5 || 'satisfaction guarantee';
+      const differentiator = a.qb6 || 'a personalized experience you cannot get at a big box gym';
+      return `Here is the offer we just built for ${gymName}. A ${days}-day trial${price}. What is included: ${inclusions}. The guarantee: ${guarantee}. And the one thing that makes it different from every gym nearby: ${differentiator}. Does this feel right?`;
+    }
+
     // ─── Finish interview ─────────────────────────────────────────────────────
     async function finishInterview() {
       stopVoice();
@@ -1733,7 +1928,7 @@
       updateStatusPip('active', 'Generating your system');
       showState('state-speaking');
       document.getElementById('speaking-text').textContent = 'Generating your final hooks and offer brief...';
-      await speak("Your marketing system is configured. All nineteen questions answered. I'm generating your final hooks now — based on everything you've told me.");
+      await speak("Your marketing system is configured. Every question answered. I am generating your final hooks now — based on everything you have told me.");
       await sleep(400);
       await triggerCompletion();
     }
