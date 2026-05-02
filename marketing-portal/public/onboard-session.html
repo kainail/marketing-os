@@ -73,7 +73,7 @@
     /* ─── State 3: speaking ──────────────────────────────────────── */
     .speaking-who { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 22px; display: flex; align-items: center; gap: 8px; justify-content: center; }
     .speaking-who-dot { width: 6px; height: 6px; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 8px rgba(124,58,237,0.6); animation: pip-pulse 1.2s ease-in-out infinite; }
-    .speaking-text { font-size: 28px; color: rgba(232,234,240,0.95); max-width: 70%; line-height: 1.6; font-weight: 400; text-align: center; }
+    .speaking-text { font-size: 28px; color: rgba(232,234,240,0.95); max-width: 70%; line-height: 1.6; font-weight: 400; text-align: center; background: none; border: none; border-radius: 0; padding: 0; }
 
     /* ─── State 4: hook reveal ───────────────────────────────────── */
     .hook-counter { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 28px; min-height: 16px; }
@@ -84,10 +84,13 @@
     .hook-meta { margin-top: 12px; font-size: 11px; color: rgba(232,234,240,0.28); letter-spacing: 1px; text-transform: uppercase; }
     .hook-intro-text { font-size: 17px; font-weight: 500; color: rgba(232,234,240,0.6); line-height: 1.65; }
 
-    /* ─── Act label + continue button ───────────────────────────── */
+    /* ─── Act label + continue / skip buttons ───────────────────── */
     .act-label { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.22); margin-bottom: 14px; min-height: 14px; }
-    .continue-btn { margin-top: 32px; display: none; align-items: center; gap: 8px; background: #6366f1; border: none; border-radius: 10px; padding: 12px 28px; font-family: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; box-shadow: 0 0 24px rgba(99,102,241,0.25); transition: background 0.15s, opacity 0.35s, transform 0.35s; }
+    .act-nav-row { display: none; align-items: center; justify-content: center; gap: 12px; margin-top: 32px; }
+    .continue-btn { display: none; align-items: center; gap: 8px; background: #6366f1; border: none; border-radius: 10px; padding: 12px 28px; font-family: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; box-shadow: 0 0 24px rgba(99,102,241,0.25); transition: background 0.15s, opacity 0.35s, transform 0.35s; }
     .continue-btn:hover { background: #4f46e5; }
+    .skip-act-btn { display: none; align-items: center; background: transparent; border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; padding: 11px 20px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.45); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+    .skip-act-btn:hover { border-color: rgba(255,255,255,0.3); color: rgba(232,234,240,0.7); }
 
     /* ─── Right panel ─────────────────────────────────────────────── */
     .right-panel { background: rgba(255,255,255,0.013); display: flex; flex-direction: column; padding: 24px; overflow-y: auto; gap: 10px; }
@@ -351,7 +354,10 @@
             <button class="offer-confirm-btn" onclick="confirmOffer()">Sounds good →</button>
             <button class="offer-adjust-btn" onclick="adjustOffer()">Let me adjust something</button>
           </div>
-          <button class="continue-btn" id="continue-btn" onclick="onContinueClick()">Continue →</button>
+          <div class="act-nav-row" id="act-nav-row">
+            <button class="continue-btn" id="continue-btn" onclick="onContinueClick()">Continue →</button>
+            <button class="skip-act-btn" id="skip-act-btn" onclick="skipAct()">Skip</button>
+          </div>
         </div>
 
         <!-- State 4: hook reveal -->
@@ -511,6 +517,7 @@
     let stepIndex = 0;
     let briefingStarted = false;
     let continueResolve = null;
+    let actSkipActive = false;
 
     // Audio cancellation
     let currentAudio = null;
@@ -825,9 +832,10 @@
       displaySpeakingText(text, null, document.getElementById('speaking-text'));
     }
 
-    // ─── Await continue (blocks until button click or skip-act nav command) ───
+    // ─── Await continue (blocks until button click or skip-act command) ───────
     function awaitContinue() {
       return new Promise(resolve => {
+        if (actSkipActive) { resolve(); return; }
         continueResolve = resolve;
         const btn = document.getElementById('continue-btn');
         if (btn) {
@@ -962,8 +970,19 @@
       pendingVoiceStart = false;
     }
 
+    // ─── Skip current briefing act ───────────────────────────────────────────
+    function skipAct() {
+      stopAudio();
+      cancelWordReveal();
+      const speakEl = document.getElementById('speaking-text');
+      if (speakEl) speakEl.innerHTML = '';
+      actSkipActive = true;
+      if (continueResolve) { const r = continueResolve; continueResolve = null; r(); }
+    }
+
     // ─── TTS — calls server proxy, streams ElevenLabs audio ─────────────────
     async function speak(text, displayEl) {
+      if (actSkipActive) return;
       const normalized = normalizeTTS(text);
       console.log('[speak] →', normalized.substring(0, 70));
       setWaveformActive(true);
@@ -1073,26 +1092,34 @@
       el.style.display = visible ? 'flex' : 'none';
     }
 
-    // Act controls: single Continue → button only. Call at the start of every act.
+    // Act controls: Continue + Skip row. Call at the start of every act.
     function renderActControls() {
+      actSkipActive = false;
       showOfferConfirmButtons(false);
+      const row = document.getElementById('act-nav-row');
+      if (row) row.style.display = 'flex';
       const cb = document.getElementById('continue-btn');
       if (cb) cb.style.display = 'none';
+      const sb = document.getElementById('skip-act-btn');
+      if (sb) sb.style.display = 'inline-flex';
     }
 
     // Offer confirm controls: two-button state for Path B synthesis only.
     function renderOfferConfirmControls() {
-      const cb = document.getElementById('continue-btn');
-      if (cb) cb.style.display = 'none';
+      const row = document.getElementById('act-nav-row');
+      if (row) row.style.display = 'none';
       showOfferConfirmButtons(true);
     }
 
     function showState(id) {
+      actSkipActive = false;
       cancelWordReveal();
       ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-mic-test', 'state-interview', 'state-complete']
         .forEach(s => document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
       showOfferConfirmButtons(false);
+      const row = document.getElementById('act-nav-row');
+      if (row) row.style.display = 'none';
     }
 
     function setWaveformActive(active) {
@@ -1105,7 +1132,7 @@
       document.getElementById('status-text').textContent = text;
     }
 
-    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+    function sleep(ms) { return actSkipActive ? Promise.resolve() : new Promise(r => setTimeout(r, ms)); }
 
     function esc(s) {
       return String(s || '')
@@ -1834,7 +1861,7 @@
           if (cmd.action === 'prev') {
             await goToPrevQuestion();
           } else if (cmd.action === 'skip-act') {
-            onContinueClick();
+            skipAct();
           }
         } catch {}
       }, 2000);
