@@ -96,6 +96,29 @@
     .kb-pip { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.1); flex-shrink: 0; }
     .kb-pip.writing { background: #7c3aed; animation: pip-pulse 1s ease-in-out infinite; }
     .kb-pip.done { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+    .kb-pip.error { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+    .kb-state { font-size: 10px; color: rgba(232,234,240,0.3); margin-top: 3px; min-height: 13px; transition: color 0.2s; }
+    .kb-state.writing { color: #a78bfa; }
+    .kb-state.done { color: #86efac; }
+    .kb-state.error { color: #fca5a5; }
+    .kb-retry-btn { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 6px; padding: 2px 8px; font-family: inherit; font-size: 11px; color: #fca5a5; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
+    .kb-retry-btn:hover { background: rgba(239,68,68,0.22); }
+    .kb-retry-btn.hidden { display: none; }
+    .kb-preview-area { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 10px 12px; margin: -2px 0 4px; font-family: 'Space Mono', monospace; font-size: 10px; color: rgba(232,234,240,0.45); line-height: 1.7; white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow-y: auto; flex-shrink: 0; }
+    .kb-preview-area.hidden { display: none; }
+    .kb-file.complete { cursor: pointer; }
+    .kb-file.complete:hover { border-color: rgba(34,197,94,0.4); }
+
+    /* ─── State 5: complete ──────────────────────────────────────── */
+    .complete-badge { display: inline-flex; align-items: center; gap: 7px; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); border-radius: 20px; padding: 5px 14px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #86efac; margin-bottom: 26px; }
+    .complete-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); flex-shrink: 0; }
+    .complete-heading { font-size: 28px; font-weight: 800; line-height: 1.2; margin-bottom: 14px; }
+    .complete-sub { font-size: 15px; color: rgba(232,234,240,0.5); max-width: 440px; line-height: 1.65; margin-bottom: 28px; }
+    .complete-items { display: flex; flex-direction: column; gap: 8px; max-width: 420px; width: 100%; margin-bottom: 28px; }
+    .complete-item { display: flex; align-items: flex-start; gap: 10px; text-align: left; font-size: 14px; color: rgba(232,234,240,0.65); line-height: 1.45; }
+    .complete-item-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0; margin-top: 5px; }
+    .complete-cta { display: inline-flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 13px 28px; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(232,234,240,0.7); cursor: pointer; transition: background 0.15s; text-decoration: none; }
+    .complete-cta:hover { background: rgba(255,255,255,0.08); }
 
     /* ─── Intel section ───────────────────────────────────────────── */
     .intel-section { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -259,6 +282,20 @@
           </div>
         </div>
 
+        <!-- State 6: session complete -->
+        <div class="state-pane hidden" id="state-complete">
+          <div class="complete-badge"><div class="complete-badge-dot"></div>Session Complete</div>
+          <div class="complete-heading">Your marketing system<br/>is configured.</div>
+          <p class="complete-sub">Here's what we built in this session.</p>
+          <div class="complete-items">
+            <div class="complete-item"><div class="complete-item-dot"></div><span id="complete-avatar-line">Avatar: lifestyle member</span></div>
+            <div class="complete-item"><div class="complete-item-dot"></div><span id="complete-position-line">Market position: identified</span></div>
+            <div class="complete-item"><div class="complete-item-dot"></div><span id="complete-offer-line">Offer: configured</span></div>
+            <div class="complete-item"><div class="complete-item-dot"></div><span id="complete-hooks-line">5 hooks ready to run.</span></div>
+          </div>
+          <a id="complete-portal-link" class="complete-cta" href="#" target="_blank">View your marketing portal →</a>
+        </div>
+
       </div>
     </div>
 
@@ -266,38 +303,53 @@
     <div class="right-panel">
       <div class="panel-header">Knowledge Base</div>
 
-      <div class="kb-file">
+      <div class="kb-file" id="file-brain-state" onclick="toggleKBPreview('brain-state')">
         <div class="kb-icon">📋</div>
         <div class="kb-info">
           <div class="kb-filename">brain-state.md</div>
           <div class="kb-desc">Offer · Avatar · Market position</div>
+          <div class="kb-state" id="state-brain-state"></div>
         </div>
+        <button class="kb-retry-btn hidden" id="retry-brain-state" onclick="event.stopPropagation();retrySectionKB('brain-state')">↺ Retry</button>
         <div class="kb-pip" id="pip-brain-state"></div>
       </div>
-      <div class="kb-file">
+      <div class="kb-preview-area hidden" id="preview-brain-state"></div>
+
+      <div class="kb-file" id="file-avatar" onclick="toggleKBPreview('lifestyle-avatar')">
         <div class="kb-icon">🎯</div>
         <div class="kb-info">
           <div class="kb-filename">lifestyle-avatar.md</div>
           <div class="kb-desc">Who they are · The moment · Dream outcome</div>
+          <div class="kb-state" id="state-avatar"></div>
         </div>
+        <button class="kb-retry-btn hidden" id="retry-avatar" onclick="event.stopPropagation();retrySectionKB('lifestyle-avatar')">↺ Retry</button>
         <div class="kb-pip" id="pip-avatar"></div>
       </div>
-      <div class="kb-file">
+      <div class="kb-preview-area hidden" id="preview-avatar"></div>
+
+      <div class="kb-file" id="file-objections" onclick="toggleKBPreview('objections')">
         <div class="kb-icon">💬</div>
         <div class="kb-info">
           <div class="kb-filename">objection-vault.md</div>
           <div class="kb-desc">Exact words · What changes their mind</div>
+          <div class="kb-state" id="state-objections"></div>
         </div>
+        <button class="kb-retry-btn hidden" id="retry-objections" onclick="event.stopPropagation();retrySectionKB('objections')">↺ Retry</button>
         <div class="kb-pip" id="pip-objections"></div>
       </div>
-      <div class="kb-file">
+      <div class="kb-preview-area hidden" id="preview-objections"></div>
+
+      <div class="kb-file" id="file-compliance" onclick="toggleKBPreview('compliance')">
         <div class="kb-icon">✓</div>
         <div class="kb-info">
           <div class="kb-filename">compliance.md</div>
           <div class="kb-desc">Brand voice · Rules · What to avoid</div>
+          <div class="kb-state" id="state-compliance"></div>
         </div>
+        <button class="kb-retry-btn hidden" id="retry-compliance" onclick="event.stopPropagation();retrySectionKB('compliance')">↺ Retry</button>
         <div class="kb-pip" id="pip-compliance"></div>
       </div>
+      <div class="kb-preview-area hidden" id="preview-compliance"></div>
 
       <div class="intel-section">
         <div class="intel-header">Market Intelligence</div>
@@ -751,11 +803,18 @@
         probe:'Which of your Google reviews best represents what you\'d want a new member to read first?' },
     ];
 
-    // KB pip IDs per file name
-    const KB_PIP = { 'brain-state':'pip-brain-state', 'lifestyle-avatar':'pip-avatar', 'objections':'pip-objections', 'compliance':'pip-compliance' };
+    // fileKey → element ID maps for right panel
+    const KB_PIP     = { 'brain-state':'pip-brain-state',   'lifestyle-avatar':'pip-avatar',     'objections':'pip-objections',     'compliance':'pip-compliance' };
+    const KB_STATE   = { 'brain-state':'state-brain-state', 'lifestyle-avatar':'state-avatar',    'objections':'state-objections',   'compliance':'state-compliance' };
+    const KB_RETRY   = { 'brain-state':'retry-brain-state', 'lifestyle-avatar':'retry-avatar',    'objections':'retry-objections',   'compliance':'retry-compliance' };
+    const KB_PREVIEW = { 'brain-state':'preview-brain-state','lifestyle-avatar':'preview-avatar', 'objections':'preview-objections', 'compliance':'preview-compliance' };
+    const KB_FILE_EL = { 'brain-state':'file-brain-state',  'lifestyle-avatar':'file-avatar',     'objections':'file-objections',    'compliance':'file-compliance' };
 
     // Section → KB file written after that section completes
     const SECTION_WRITES = { 1:'brain-state', 2:'lifestyle-avatar', 3:'brain-state', 4:'objections', 5:'lifestyle-avatar', 6:'compliance', 7:'compliance', 8:'brain-state' };
+
+    // Track last section per fileKey for retry
+    const lastSectionForFile = {};
 
     // Section transition speeches
     const SECTION_INTRO = {
@@ -1083,14 +1142,19 @@
 
     // ─── Write KB section and update right panel ──────────────────────────────
     async function writeSectionKB(section) {
-      const kbFile = SECTION_WRITES[section];
-      if (!kbFile) return;
-      const pipId = KB_PIP[kbFile];
-      const pipEl = document.getElementById(pipId);
-      const fileEl = pipEl?.closest('.kb-file');
+      const fileKey = SECTION_WRITES[section];
+      if (!fileKey) return;
+      lastSectionForFile[fileKey] = section;
 
-      if (pipEl) pipEl.className = 'kb-pip writing';
-      if (fileEl) { fileEl.classList.add('active'); fileEl.classList.remove('complete'); }
+      const pipEl   = document.getElementById(KB_PIP[fileKey]);
+      const stateEl = document.getElementById(KB_STATE[fileKey]);
+      const retryEl = document.getElementById(KB_RETRY[fileKey]);
+      const fileEl  = document.getElementById(KB_FILE_EL[fileKey]);
+
+      if (pipEl)   pipEl.className = 'kb-pip writing';
+      if (stateEl) { stateEl.textContent = 'Writing...'; stateEl.className = 'kb-state writing'; }
+      if (retryEl) retryEl.classList.add('hidden');
+      if (fileEl)  { fileEl.classList.add('active'); fileEl.classList.remove('complete'); }
 
       try {
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/kb-section`, {
@@ -1098,15 +1162,66 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ section, answers: interviewState.answers }),
         });
+        const data = await res.json();
         if (res.ok) {
-          if (pipEl) pipEl.className = 'kb-pip done';
-          if (fileEl) { fileEl.classList.remove('active'); fileEl.classList.add('complete'); }
+          if (pipEl)   pipEl.className = 'kb-pip done';
+          if (stateEl) { stateEl.textContent = '✓ Done'; stateEl.className = 'kb-state done'; }
+          if (fileEl)  { fileEl.classList.remove('active'); fileEl.classList.add('complete'); }
+          if (data.previewLines) {
+            const previewEl = document.getElementById(KB_PREVIEW[fileKey]);
+            if (previewEl) previewEl.dataset.lines = JSON.stringify(data.previewLines);
+          }
         } else {
-          if (pipEl) pipEl.className = 'kb-pip';
+          setKBError(fileKey, retryEl, pipEl, stateEl, fileEl);
         }
       } catch {
-        if (pipEl) pipEl.className = 'kb-pip';
+        setKBError(fileKey, retryEl, pipEl, stateEl, fileEl);
       }
+    }
+
+    function setKBError(fileKey, retryEl, pipEl, stateEl, fileEl) {
+      if (pipEl)   pipEl.className = 'kb-pip error';
+      if (stateEl) { stateEl.textContent = '✗ Error'; stateEl.className = 'kb-state error'; }
+      if (retryEl) retryEl.classList.remove('hidden');
+      if (fileEl)  fileEl.classList.remove('active', 'complete');
+    }
+
+    async function retrySectionKB(fileKey) {
+      const section = lastSectionForFile[fileKey];
+      if (!section) return;
+      await writeSectionKB(section);
+    }
+
+    function toggleKBPreview(fileKey) {
+      const fileEl    = document.getElementById(KB_FILE_EL[fileKey]);
+      const previewEl = document.getElementById(KB_PREVIEW[fileKey]);
+      if (!previewEl || !fileEl?.classList.contains('complete')) return;
+
+      if (!previewEl.classList.contains('hidden')) {
+        previewEl.classList.add('hidden');
+        return;
+      }
+      const stored = previewEl.dataset.lines;
+      if (stored) {
+        previewEl.textContent = JSON.parse(stored).join('\n');
+        previewEl.classList.remove('hidden');
+      } else {
+        loadKBPreview(fileKey);
+      }
+    }
+
+    async function loadKBPreview(fileKey) {
+      const previewEl = document.getElementById(KB_PREVIEW[fileKey]);
+      if (!previewEl) return;
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/kb-preview/${fileKey}`);
+        if (res.ok) {
+          const data = await res.json();
+          previewEl.textContent = data.lines.join('\n');
+          previewEl.classList.remove('hidden');
+          previewEl.dataset.lines = JSON.stringify(data.lines);
+        }
+      } catch {}
     }
 
     // ─── Suggestion cards ─────────────────────────────────────────────────────
@@ -1149,11 +1264,90 @@
 
     // ─── Finish interview ─────────────────────────────────────────────────────
     async function finishInterview() {
+      stopVoice();
       updateStatusPip('active', 'Generating your system');
       showState('state-speaking');
       document.getElementById('speaking-text').textContent = 'Generating your final hooks and offer brief...';
       await speak("Your marketing system is configured. All nineteen questions answered. I'm generating your final hooks now — based on everything you've told me.");
-      // Phase 5: final hook generation handled in future build
+      await sleep(400);
+      await triggerCompletion();
+    }
+
+    // ─── Trigger completion: generate final hooks + session complete ──────────
+    async function triggerCompletion() {
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/complete`, { method: 'POST' });
+        if (!res.ok) throw new Error('complete API failed');
+        const data = await res.json();
+        await revealFinalHooks(data.hooks || []);
+      } catch (err) {
+        console.error('[AHRI] completion failed:', err);
+        showState('state-speaking');
+        document.getElementById('speaking-text').textContent = 'Your marketing system is configured. The technical setup begins today.';
+        updateStatusPip('active', 'Session complete');
+      }
+    }
+
+    // ─── Reveal final hooks one by one with speech ────────────────────────────
+    async function revealFinalHooks(hooks) {
+      showState('state-hook-reveal');
+      document.getElementById('hook-counter').textContent = '';
+
+      await speak("Remember the first three hooks I generated from public data alone? Here's what I build now that I know your story.");
+      await sleep(600);
+
+      for (let i = 0; i < hooks.length; i++) {
+        const h = hooks[i];
+        const hookText = typeof h === 'string' ? h : (h.hook || '');
+        const framework = typeof h === 'string' ? '' : (h.framework || '');
+        if (!hookText) continue;
+
+        document.getElementById('hook-counter').textContent = `Hook ${i + 1} of ${hooks.length}`;
+
+        const cardWrap = document.querySelector('.hook-card-wrap');
+        cardWrap.innerHTML = `<div class="hook-card" id="hc-new">
+          <div class="hook-text">${esc(hookText)}</div>
+          <div class="hook-meta">${esc(framework)}</div>
+        </div>`;
+        await sleep(80);
+        document.getElementById('hc-new').classList.add('visible');
+        await speak(hookText);
+        await sleep(350);
+      }
+
+      await speak("These are ready to run. Your first campaign brief is being prepared now.");
+      await sleep(500);
+      await showSessionComplete(hooks);
+    }
+
+    // ─── Session complete screen ──────────────────────────────────────────────
+    async function showSessionComplete(hooks) {
+      showState('state-complete');
+      updateStatusPip('active', 'Session complete');
+      document.getElementById('complete-hooks-line').textContent = `${hooks.length} hooks ready to run.`;
+      document.getElementById('complete-portal-link').href = `/onboard/portal/${sessionId}`;
+
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/portal-data`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const bs = typeof data.kb?.brainState === 'string' ? data.kb.brainState : '';
+        const av = typeof data.kb?.avatar === 'string' ? data.kb.avatar : '';
+
+        const offerMatch    = bs.match(/^Price:\s*(.+)$/m);
+        const positionMatch = bs.match(/^Market gap:\s*(.+)$/m);
+        const avatarMatch   = av.match(/^## Who They Are\n([^\n]+)/m);
+
+        if (avatarMatch?.[1] && avatarMatch[1] !== '[not captured]') {
+          document.getElementById('complete-avatar-line').textContent = 'Avatar: ' + avatarMatch[1].trim();
+        }
+        if (positionMatch?.[1] && positionMatch[1] !== '[not captured]') {
+          document.getElementById('complete-position-line').textContent = 'Market position: ' + positionMatch[1].trim();
+        }
+        if (offerMatch?.[1] && offerMatch[1] !== '[not captured]') {
+          document.getElementById('complete-offer-line').textContent = 'Offer: ' + offerMatch[1].trim();
+        }
+      } catch {}
     }
 
     init();

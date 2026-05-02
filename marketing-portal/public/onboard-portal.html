@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AHRI — Marketing Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100%; background: #0D0F14; color: #e8eaf0; font-family: 'Outfit', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    body::before { content: ''; position: fixed; inset: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.02) 1px, transparent 1px); background-size: 28px 28px; pointer-events: none; }
+
+    .topbar { height: 56px; display: flex; align-items: center; padding: 0 32px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(13,15,20,0.95); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 10; gap: 16px; }
+    .ahri-mark { display: flex; align-items: center; gap: 8px; }
+    .ahri-dot { width: 8px; height: 8px; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 10px rgba(124,58,237,0.6); }
+    .ahri-label { font-size: 13px; font-weight: 600; letter-spacing: 0.5px; color: rgba(232,234,240,0.7); }
+    .topbar-gym { font-size: 15px; font-weight: 700; }
+    .topbar-status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(232,234,240,0.4); }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+
+    .page { max-width: 960px; margin: 0 auto; padding: 40px 24px 80px; position: relative; z-index: 1; }
+
+    .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .section-dot { width: 8px; height: 8px; border-radius: 50%; background: #7c3aed; flex-shrink: 0; }
+    .section-title { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.35); }
+
+    h2 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+    .section-sub { font-size: 14px; color: rgba(232,234,240,0.45); margin-bottom: 28px; }
+
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 48px; }
+    .card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 18px 20px; }
+    .card-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(232,234,240,0.3); margin-bottom: 8px; }
+    .card-value { font-size: 15px; font-weight: 500; line-height: 1.55; color: rgba(232,234,240,0.85); }
+
+    .hook-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 48px; }
+    .hook-item { background: rgba(124,58,237,0.07); border: 1px solid rgba(124,58,237,0.16); border-radius: 12px; padding: 18px 22px; display: flex; align-items: flex-start; gap: 14px; }
+    .hook-num { font-size: 11px; font-weight: 700; color: rgba(124,58,237,0.6); width: 18px; flex-shrink: 0; margin-top: 2px; }
+    .hook-body { flex: 1; }
+    .hook-text { font-size: 17px; font-weight: 600; line-height: 1.45; color: #e8eaf0; margin-bottom: 4px; }
+    .hook-meta { font-size: 11px; color: rgba(232,234,240,0.3); letter-spacing: 0.5px; }
+    .hook-source-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.18); border-radius: 12px; padding: 3px 10px; font-size: 11px; font-weight: 600; color: #fde047; margin-bottom: 14px; }
+
+    .kb-block { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 20px 22px; margin-bottom: 12px; }
+    .kb-block-title { font-family: 'Space Mono', monospace; font-size: 12px; color: rgba(232,234,240,0.5); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .kb-block-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+    .kb-block-dot.missing { background: rgba(255,255,255,0.15); }
+    .kb-content { font-family: 'Space Mono', monospace; font-size: 11px; color: rgba(232,234,240,0.5); line-height: 1.8; white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow-y: auto; }
+    .kb-missing { font-size: 13px; color: rgba(232,234,240,0.25); padding: 10px 0; }
+
+    .next-steps { background: rgba(99,102,241,0.07); border: 1px solid rgba(99,102,241,0.16); border-radius: 12px; padding: 22px 24px; margin-top: 16px; }
+    .next-steps-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; color: rgba(232,234,240,0.85); }
+    .step { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; font-size: 14px; color: rgba(232,234,240,0.6); line-height: 1.45; }
+    .step-num { width: 20px; height: 20px; border-radius: 50%; background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.3); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #a5b4fc; flex-shrink: 0; }
+
+    .loading-state { text-align: center; padding: 80px 0; color: rgba(232,234,240,0.3); font-size: 15px; }
+    .error-state { text-align: center; padding: 80px 0; color: rgba(239,68,68,0.6); font-size: 15px; }
+    .incomplete-banner { background: rgba(234,179,8,0.07); border: 1px solid rgba(234,179,8,0.15); border-radius: 10px; padding: 14px 18px; font-size: 14px; color: rgba(234,179,8,0.8); margin-bottom: 32px; }
+
+    .sep { border: none; border-top: 1px solid rgba(255,255,255,0.05); margin: 40px 0; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="ahri-mark">
+      <div class="ahri-dot"></div>
+      <span class="ahri-label">AHRI</span>
+    </div>
+    <div class="topbar-gym" id="topbar-gym">Marketing Portal</div>
+    <div class="topbar-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Loading...</span>
+    </div>
+  </div>
+
+  <div class="page" id="page">
+    <div class="loading-state" id="loading">Loading session data...</div>
+  </div>
+
+  <script>
+    const sessionId = location.pathname.split('/').pop();
+
+    async function load() {
+      const page = document.getElementById('loading');
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/portal-data`);
+        if (!res.ok) throw new Error(res.status === 404 ? 'Session not found' : 'Failed to load');
+        const data = await res.json();
+        render(data);
+      } catch (err) {
+        document.getElementById('page').innerHTML = `<div class="error-state">${err.message}</div>`;
+      }
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function render(data) {
+      const { session, hooks, hooksSource, kb } = data;
+      const gym    = session.gymName  || 'Your Gym';
+      const owner  = session.ownerName || session.managerName || '';
+      const city   = session.city || '';
+      const status = session.status || 'in_progress';
+      const isComplete = status === 'complete';
+
+      document.getElementById('topbar-gym').textContent = gym;
+      document.getElementById('status-dot').style.background = isComplete ? '#22c55e' : '#eab308';
+      document.getElementById('status-text').textContent = isComplete ? 'Complete' : 'In progress';
+
+      const sections = [];
+
+      // Incomplete banner
+      if (!isComplete) {
+        sections.push(`<div class="incomplete-banner">
+          This session is still in progress. Complete the voice interview to unlock the full marketing system.
+        </div>`);
+      }
+
+      // ── Overview ──────────────────────────────────────────────────────
+      sections.push(`
+        <div class="section-header"><div class="section-dot"></div><div class="section-title">Overview</div></div>
+        <h2>${esc(gym)}</h2>
+        <p class="section-sub">${[owner, city].filter(Boolean).map(esc).join(' · ')}</p>
+        <div class="card-grid">
+          ${kbCard('Gym', gym)}
+          ${owner ? kbCard('Owner / Manager', owner) : ''}
+          ${city  ? kbCard('City', city + (session.state ? ', ' + session.state : '')) : ''}
+          ${kbCard('Session status', isComplete ? '✓ Complete' : 'In progress')}
+          ${session.completed_at ? kbCard('Completed', new Date(session.completed_at).toLocaleDateString()) : ''}
+        </div>
+        <hr class="sep"/>
+      `);
+
+      // ── Hooks ─────────────────────────────────────────────────────────
+      if (hooks && hooks.length > 0) {
+        const sourceLabel = hooksSource === 'final' ? 'Final hooks — from full interview' : 'Preview hooks — from public data';
+        const sourceStyle = hooksSource === 'final' ? '' : 'hook-source-badge';
+        sections.push(`
+          <div class="section-header"><div class="section-dot"></div><div class="section-title">Hooks</div></div>
+          <h2>${hooksSource === 'final' ? 'Your 5 Final Hooks' : 'Preview Hooks'}</h2>
+          <p class="section-sub">${hooksSource === 'final' ? 'Generated from your complete interview — ready to run.' : 'Generated from public market data before the interview.'}</p>
+          ${hooksSource !== 'final' ? `<div class="hook-source-badge">Preview only — complete interview for final hooks</div>` : ''}
+          <div class="hook-list">
+            ${hooks.map((h, i) => {
+              const text = typeof h === 'string' ? h : (h.hook || '');
+              const fw   = typeof h === 'string' ? '' : (h.framework || '');
+              return `<div class="hook-item">
+                <div class="hook-num">${i + 1}</div>
+                <div class="hook-body">
+                  <div class="hook-text">${esc(text)}</div>
+                  ${fw ? `<div class="hook-meta">${esc(fw)}</div>` : ''}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+          <hr class="sep"/>
+        `);
+      }
+
+      // ── Knowledge Base ────────────────────────────────────────────────
+      const kbFiles = [
+        { key: 'brainState',  name: 'brain-state/current-state.md',    desc: 'Offer · Market context · Mechanism' },
+        { key: 'avatar',      name: 'fitness/lifestyle-avatar.md',      desc: 'Who they are · The moment · Dream outcome' },
+        { key: 'objections',  name: 'fitness/objection-vault.md',       desc: 'Exact words · Responses that work' },
+        { key: 'compliance',  name: 'compliance-b2c.md',                desc: 'Brand voice · Franchise rules · FTC rules' },
+      ];
+      const kbBuilt = kbFiles.filter(f => kb[f.key]).length;
+
+      sections.push(`
+        <div class="section-header"><div class="section-dot"></div><div class="section-title">Knowledge Base</div></div>
+        <h2>Marketing Brain</h2>
+        <p class="section-sub">${kbBuilt} of ${kbFiles.length} files written.</p>
+        ${kbFiles.map(f => {
+          const content = kb[f.key];
+          const has = !!content;
+          const text = has ? (typeof content === 'string' ? content : JSON.stringify(content, null, 2)) : null;
+          const preview = text ? text.split('\n').slice(0, 12).join('\n') : null;
+          return `<div class="kb-block">
+            <div class="kb-block-title">
+              <div class="kb-block-dot${has ? '' : ' missing'}"></div>
+              ${esc(f.name)} <span style="color:rgba(232,234,240,0.2);margin-left:6px;font-size:10px;">${esc(f.desc)}</span>
+            </div>
+            ${has ? `<div class="kb-content">${esc(preview)}</div>` : `<div class="kb-missing">Not yet written — complete the interview to generate this file.</div>`}
+          </div>`;
+        }).join('')}
+        <hr class="sep"/>
+      `);
+
+      // ── What Happens Next ─────────────────────────────────────────────
+      sections.push(`
+        <div class="next-steps">
+          <div class="next-steps-title">What happens next</div>
+          <div class="step"><div class="step-num">1</div>AHRI runs your first campaign brief against these hooks and your offer.</div>
+          <div class="step"><div class="step-num">2</div>Content calendar is generated — 30 pieces for the active avatar.</div>
+          <div class="step"><div class="step-num">3</div>Technical setup completed within 3 days — you go live.</div>
+        </div>
+      `);
+
+      document.getElementById('page').innerHTML = sections.join('');
+    }
+
+    function kbCard(label, value) {
+      if (!value) return '';
+      return `<div class="card"><div class="card-label">${esc(label)}</div><div class="card-value">${esc(value)}</div></div>`;
+    }
+
+    load();
+  </script>
+</body>
+</html>

@@ -2452,6 +2452,7 @@ app.get('/onboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'o
 app.get('/onboard/session/:sessionId', (req, res) => res.sendFile(path.join(__dirname, 'public', 'onboard-session.html')));
 app.get('/onboard/host/:sessionId', (req, res) => res.sendFile(path.join(__dirname, 'public', 'onboard-host.html')));
 app.get('/onboard/solo/:token', (req, res) => res.sendFile(path.join(__dirname, 'public', 'onboard-solo.html')));
+app.get('/onboard/portal/:sessionId', (req, res) => res.sendFile(path.join(__dirname, 'public', 'onboard-portal.html')));
 
 // ── Onboarding API ─────────────────────────────────────────────────────────────
 
@@ -2775,12 +2776,23 @@ app.patch('/api/onboarding/sessions/:sessionId/answers', async (req, res) => {
   res.json({ success: true });
 });
 
-// POST /api/onboarding/sessions/:sessionId/kb-section — generate + write KB file section to R2
+// POST /api/onboarding/sessions/:sessionId/kb-section — generate + write canonical KB file to R2
 app.post('/api/onboarding/sessions/:sessionId/kb-section', async (req, res) => {
   const { sessionId } = req.params;
   const { section, answers } = req.body;
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
   if (!section || !answers) return res.status(400).json({ error: 'section and answers required' });
+
+  const SECTION_FILEKEY = { 1:'brain-state', 2:'lifestyle-avatar', 3:'brain-state', 4:'objections', 5:'lifestyle-avatar', 6:'compliance', 7:'compliance', 8:'brain-state' };
+  const KB_FILE_PATHS = {
+    'brain-state':      'knowledge-base/brain-state/current-state.md',
+    'lifestyle-avatar': 'knowledge-base/fitness/lifestyle-avatar.md',
+    'objections':       'knowledge-base/fitness/objection-vault.md',
+    'compliance':       'knowledge-base/compliance-b2c.md',
+  };
+
+  const fileKey = SECTION_FILEKEY[section];
+  if (!fileKey) return res.status(400).json({ error: 'Unknown section' });
 
   const [session, research] = await Promise.all([
     r2GetShared(`onboarding/sessions/${sessionId}/session.json`),
@@ -2794,111 +2806,120 @@ app.post('/api/onboarding/sessions/:sessionId/kb-section', async (req, res) => {
   try {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
-    const content = await generateKBSectionContent(section, answers, session, research, client);
+    const content = await generateCanonicalKBFile(fileKey, answers, session, research, client);
 
-    // File paths per section
-    const FILE_PATHS = {
-      1: 'knowledge-base/brain-state/current-state.md',
-      2: 'knowledge-base/lifestyle-avatar.md',
-      3: 'knowledge-base/brain-state/differentiator.md',
-      4: 'knowledge-base/objection-vault.md',
-      5: 'knowledge-base/lifestyle-avatar-voc.md',
-      6: 'knowledge-base/brand-voice.md',
-      7: 'knowledge-base/compliance.md',
-      8: 'knowledge-base/brain-state/local-context.md',
-    };
+    const filePath = KB_FILE_PATHS[fileKey];
+    await r2PutShared(`onboarding/sessions/${sessionId}/${filePath}`, content);
 
-    const filePath = FILE_PATHS[section];
-    if (filePath) {
-      await r2PutShared(`onboarding/sessions/${sessionId}/${filePath}`, content);
-    }
-
-    // Update session status
     session[`section_${section}_complete`] = true;
     session[`section_${section}_at`] = new Date().toISOString();
     if (session.status !== 'interview_started') session.status = 'interview_started';
     await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
 
-    console.log(`[onboarding] kb-section ${section} written: ${filePath}`);
-    res.json({ success: true, section, file: filePath });
+    const previewLines = content.split('\n').slice(0, 10);
+    console.log(`[onboarding] kb-section ${section} → ${fileKey} written`);
+    res.json({ success: true, section, fileKey, file: filePath, previewLines });
   } catch (err) {
     console.error(`[onboarding] kb-section ${section} failed:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-/** Generate KB file markdown content for a completed interview section. */
-async function generateKBSectionContent(section, answers, session, research, client) {
+/** Regenerate a full canonical KB file from all accumulated answers. Uses Claude Haiku for speed (<3s). */
+async function generateCanonicalKBFile(fileKey, answers, session, research, client) {
   const gym = session.gymName || 'Unknown Gym';
   const city = session.city || '';
   const date = new Date().toISOString().split('T')[0];
-  const gap = (research?.marketGaps || [])[0] || '';
+  const gap = (research?.marketGaps || [])[0] || research?.market_gap || '';
   const franchise = session.franchiseType || 'independent';
-  const a = answers; // shorthand
+  const manager = session.managerName || 'the manager';
+  const a = answers;
 
   const prompts = {
-    1: `Extract offer details from these raw interview answers and format as structured markdown.
-Q1 (offer/price/guarantee): ${a.q1 || '—'}
-Q2 (surprise element): ${a.q2 || '—'}
-Q3 (cohort/spots): ${a.q3 || '—'}
+    'brain-state': `Write a marketing brain state file for ${gym} in ${city}. Extract from the answers below. Use "[not captured]" for missing info. Output only the file — no preamble.
 
-Write this exact file — fill from answers, use "[not captured]" for gaps:
+Q1 (offer/price/guarantee): ${a.q1 || '[not captured]'}
+Q2 (surprise element in offer): ${a.q2 || '[not captured]'}
+Q3 (next cohort/spots remaining): ${a.q3 || '[not captured]'}
+Q7 (differentiator/first 30 days): ${a.q7 || '[not captured]'}
+Q8 (what they'd lose if gym closed): ${a.q8 || '[not captured]'}
+Q18 (local events/seasonal context): ${a.q18 || '[not captured]'}
+Q19 (best Google reviews): ${a.q19 || '[not captured]'}
+Market gap identified: ${gap || '[not captured]'}
+Franchise type: ${franchise}
+
 # Brain State — ${gym}
 # Generated: ${date}
 
 ## Active Offer
-Price: [extract]
-Duration: [extract]
-Included: [extract]
-Guarantee: [extract]
-Surprise element: [extract from q2]
-Next cohort: [extract from q3]
-Spots remaining: [extract from q3]
+Name: [extract offer name from q1 or infer]
+Price: [from q1]
+Duration: [from q1]
+Included: [from q1]
+Guarantee: [from q1 — word for word]
+Post-trial price: [from q1 or [not captured]]
+Cohort start: [from q3]
+Spots remaining: [from q3]
+
+## Active Avatar
+Primary: lifestyle member
+Age range: 30-50
 
 ## Market Context
 City: ${city}
 Franchise: ${franchise}
-Market gap: ${gap}`,
+Market gap: ${gap || '[not captured]'}
+Top competitor: [from research or [not captured]]
 
-    2: `Format avatar interview answers as structured markdown.
-Q4 (ideal member before): ${a.q4 || '—'}
-Q5 (trigger moment): ${a.q5 || '—'}
-Q6 (60 day outcome): ${a.q6 || '—'}
+## Winning Hooks (initial)
+[not captured — generated after interview complete]
 
-Write this exact file:
+## Mechanism
+[one sentence: the specific differentiator from q7 and q8]
+
+## Seasonal Context
+[from q18 or infer from current month]`,
+
+    'lifestyle-avatar': `Write a lifestyle avatar file for ${gym} in ${city}. Use exact words from answers. Output only the file — no preamble.
+
+Q4 (ideal member before joining): ${a.q4 || '[not captured]'}
+Q5 (trigger moment): ${a.q5 || '[not captured]'}
+Q6 (life 60 days after joining): ${a.q6 || '[not captured]'}
+Q8 (what they'd lose if gym closed): ${a.q8 || '[not captured]'}
+Q13 (exact words members said): ${a.q13 || '[not captured]'}
+Google reviews: ${(research?.googleReviews || []).slice(0, 3).map(r => r.text || r).join(' | ') || '[not captured]'}
+
 # Lifestyle Avatar — ${gym}
 # Generated: ${date}
 
 ## Who They Are
-${a.q4 || '[not captured]'}
+[narrative from q4 — 2-3 sentences in their voice]
+Age range: [from q4]
+Day in the life: [from q5]
 
-## The Moment They Decide
-${a.q5 || '[not captured]'}
+## The Moment
+[triggering situation from q5 — one sentence]
 
-## Dream Outcome (60 days)
-${a.q6 || '[not captured]'}`,
+## Previous Failures
+[infer from q4 or [not captured]]
 
-    3: `Format differentiator answers.
-Q7 (what fills the gap / first 30 days): ${a.q7 || '—'}
-Q8 (irreplaceable thing): ${a.q8 || '—'}
+## Dream Outcome
+[from q6]
 
-Write this exact file:
-# Differentiator — ${gym}
-# Generated: ${date}
+## VoC Phrases (exact words)
+[from q13 — each phrase on its own line with a dash]
+[1-2 Google review quotes]
 
-## The Mechanism
-${a.q7 || '[not captured]'}
+## What Makes Them Different
+[from q8]`,
 
-## What Cannot Be Replaced
-${a.q8 || '[not captured]'}`,
+    'objections': `Write an objection vault for ${gym}. Use EXACT words — do not paraphrase. Output only the file — no preamble.
 
-    4: `Format objection vault from raw answers. Use exact words — do not paraphrase.
-Q9 (objection 1): ${a.q9 || '—'}
-Q10 (response that works): ${a.q10 || '—'}
-Q11 (objection 2): ${a.q11 || '—'}
-Q12 (objection 3): ${a.q12 || '—'}
+Q9 (most common objection): ${a.q9 || '[not captured]'}
+Q10 (response that works): ${a.q10 || '[not captured]'}
+Q11 (second objection): ${a.q11 || '[not captured]'}
+Q12 (third objection): ${a.q12 || '[not captured]'}
 
-Write this exact file:
 # Objection Vault — ${gym}
 # Generated: ${date}
 
@@ -2908,76 +2929,211 @@ Response that works: "${a.q10 || '[not captured]'}"
 
 ## Objection 2
 Their exact words: "${a.q11 || '[not captured]'}"
+Response that works: [infer an effective response from this objection]
 
 ## Objection 3
-Their exact words: "${a.q12 || '[not captured]'}"`,
+Their exact words: "${a.q12 || '[not captured]'}"
+Response that works: [infer an effective response from this objection]`,
 
-    5: `Format member voice of customer. Use exact words.
-Q13 (things members said): ${a.q13 || '—'}
+    'compliance': `Write a compliance and brand voice file for ${gym}. Use exact words. Output only the file — no preamble.
 
-Write this exact file:
-# Member VoC — ${gym}
-# Generated: ${date}
-
-## What Members Said (before joining)
-${a.q13 || '[not captured]'}`,
-
-    6: `Format brand voice rules.
-Q14 (3 words for team style): ${a.q14 || '—'}
-Q15 (what always works): ${a.q15 || '—'}
-Q16 (what to never sound like): ${a.q16 || '—'}
-
-Write this exact file:
-# Brand Voice — ${gym}
-# Generated: ${date}
-
-## Manager Personality
-Three words: ${a.q14 || '[not captured]'}
-What always works: "${a.q15 || '[not captured]'}"
-Never sound like: "${a.q16 || '[not captured]'}"`,
-
-    7: `Format compliance rules.
-Q17 (restrictions/rules): ${a.q17 || '—'}
+Q14 (3 words for team personality): ${a.q14 || '[not captured]'}
+Q15 (what always works on the phone): ${a.q15 || '[not captured]'}
+Q16 (what to never sound like): ${a.q16 || '[not captured]'}
+Q17 (advertising restrictions/franchise rules): ${a.q17 || '[not captured]'}
 Franchise type: ${franchise}
+Manager name: ${manager}
 
-Write this exact file:
 # Compliance Rules — ${gym}
 # Generated: ${date}
+
+## Franchise Rules
+${franchise !== 'independent' ? franchise + ': [known restrictions for this franchise type]' : 'Independent gym — no franchise restrictions.'}
+${a.q17 ? 'Owner confirmed: ' + a.q17 : ''}
 
 ## Gym-Specific Rules
 ${a.q17 || 'No specific restrictions mentioned.'}
 
-## Standard Rules
-- No specific weight loss claims without substantiation
+## Brand Voice
+Manager personality: ${a.q14 || '[not captured]'}
+What always works: "${a.q15 || '[not captured]'}"
+Never sound like: "${a.q16 || '[not captured]'}"
+
+## FTC/Meta Standard Rules
 - No before/after body transformation images
+- No specific weight loss claims without substantiation
 - No guaranteed result language
-- SMS requires explicit opt-in consent`,
-
-    8: `Format local context.
-Q18 (local events/calendar): ${a.q18 || '—'}
-Q19 (best review): ${a.q19 || '—'}
-
-Write this exact file:
-# Local Context — ${gym}
-# Generated: ${date}
-
-## What's Happening Now
-${a.q18 || '[not captured]'}
-
-## Review Voice
-${a.q19 || '[not captured]'}`,
+- No body shaming
+- SMS requires explicit consent
+- All lead capture forms include privacy policy`,
   };
 
-  const prompt = prompts[section];
-  if (!prompt) return `# Section ${section} — ${gym}\n# Generated: ${date}\n\n[No content template for this section]`;
+  const prompt = prompts[fileKey];
+  if (!prompt) return `# ${fileKey} — ${gym}\n# Generated: ${date}\n\n[Unknown file key]`;
 
   const msg = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 700,
-    messages: [{ role: 'user', content: prompt }]
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 900,
+    messages: [{ role: 'user', content: prompt }],
   });
   return msg.content[0].text.trim();
 }
+
+// GET /api/onboarding/sessions/:sessionId/kb-preview/:fileKey — first 10 lines of a written KB file
+app.get('/api/onboarding/sessions/:sessionId/kb-preview/:fileKey', async (req, res) => {
+  const { sessionId, fileKey } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const KB_FILE_PATHS = {
+    'brain-state':      'knowledge-base/brain-state/current-state.md',
+    'lifestyle-avatar': 'knowledge-base/fitness/lifestyle-avatar.md',
+    'objections':       'knowledge-base/fitness/objection-vault.md',
+    'compliance':       'knowledge-base/compliance-b2c.md',
+  };
+  const filePath = KB_FILE_PATHS[fileKey];
+  if (!filePath) return res.status(400).json({ error: 'Unknown fileKey' });
+
+  const content = await r2GetShared(`onboarding/sessions/${sessionId}/${filePath}`);
+  if (!content) return res.status(404).json({ error: 'File not yet written' });
+
+  const text = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+  res.json({ fileKey, lines: text.split('\n').slice(0, 10) });
+});
+
+// POST /api/onboarding/sessions/:sessionId/complete — generate final hooks, mark done, email Kai
+app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) return res.status(503).json({ error: 'No API key' });
+
+  try {
+    const [brainState, avatar, objections, compliance] = await Promise.all([
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/brain-state/current-state.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/lifestyle-avatar.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/objection-vault.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/compliance-b2c.md`),
+    ]);
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const hooks = await generateFinalHooks(session, brainState, avatar, objections, compliance, client);
+
+    await r2PutShared(`onboarding/sessions/${sessionId}/hooks.json`, { hooks, generated_at: new Date().toISOString() });
+    session.status = 'complete';
+    session.completed_at = new Date().toISOString();
+    await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+
+    await sendKaiNotification(session, sessionId, hooks, brainState);
+    console.log(`[onboarding] session ${sessionId} complete — ${hooks.length} hooks`);
+    res.json({ success: true, hooks });
+  } catch (err) {
+    console.error('[onboarding] complete failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Generate 5 final hooks from full KB using claude-sonnet-4-6. */
+async function generateFinalHooks(session, brainState, avatar, objections, compliance, client) {
+  const gym = session.gymName || 'Unknown Gym';
+  const city = session.city || '';
+
+  const prompt = `You are AHRI generating 5 final hooks for ${gym} in ${city}. These are built from real interview data.
+
+KNOWLEDGE BASE:
+${brainState ? '--- BRAIN STATE ---\n' + brainState + '\n' : ''}${avatar ? '--- AVATAR ---\n' + avatar + '\n' : ''}${objections ? '--- OBJECTIONS ---\n' + objections + '\n' : ''}${compliance ? '--- COMPLIANCE ---\n' + compliance : ''}
+
+RULES:
+- Exactly 5 hooks, max 15 words each
+- One hook per framework: Pain Point (L2), Curiosity Gap (L3), Bold Claim (L4), Relatability (L2-3), Pattern Interrupt (L3-4)
+- Use exact VoC language from avatar file where possible
+- Never use: transform, crush, journey, elevate, beast mode, no excuses, unlock your potential, revolutionary, game-changing, state-of-the-art
+- The member is the hero — never make the gym the hero
+- Specific beats generic. Real over polished.
+
+Output JSON array only — no preamble:
+[
+  {"hook": "...", "framework": "Pain Point", "awarenessLevel": "L2"},
+  {"hook": "...", "framework": "Curiosity Gap", "awarenessLevel": "L3"},
+  {"hook": "...", "framework": "Bold Claim", "awarenessLevel": "L4"},
+  {"hook": "...", "framework": "Relatability", "awarenessLevel": "L2-3"},
+  {"hook": "...", "framework": "Pattern Interrupt", "awarenessLevel": "L3-4"}
+]`;
+
+  const msg = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 600,
+    messages: [{ role: 'user', content: prompt }],
+  });
+
+  try {
+    const raw = msg.content[0].text.trim();
+    const json = raw.match(/\[[\s\S]*\]/)?.[0];
+    return JSON.parse(json);
+  } catch {
+    return [{ hook: msg.content[0].text.trim(), framework: 'Generated', awarenessLevel: 'L3' }];
+  }
+}
+
+/** Send session-complete notification to Kai via Resend. */
+async function sendKaiNotification(session, sessionId, hooks, brainState) {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) { console.warn('[onboarding] RESEND_API_KEY not set — skipping Kai notification'); return; }
+
+  const gym = session.gymName || 'Unknown Gym';
+  const owner = session.ownerName || session.managerName || 'Owner';
+  const city = session.city || '';
+  const hookLines = (hooks || []).map((h, i) => `${i + 1}. ${h.hook || h}`).join('\n');
+  const brainSnippet = typeof brainState === 'string' ? brainState.split('\n').slice(0, 15).join('\n') : '';
+
+  try {
+    const axios = require('axios');
+    await axios.post('https://api.resend.com/emails', {
+      from: 'AHRI <notifications@gymsuite.ai>',
+      to: ['kaialexandernail@gmail.com'],
+      subject: `New Gym Onboarded: ${gym} — ${city}`,
+      text: `Onboarding complete.\n\nGym: ${gym}\nOwner: ${owner}\nCity: ${city}\nSession: ${sessionId}\n\nFINAL HOOKS:\n${hookLines}\n\nBRAIN STATE (first 15 lines):\n${brainSnippet}\n\nPortal: https://marketing-os-production-2b85.up.railway.app/onboard/portal/${sessionId}`,
+    }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
+    console.log(`[onboarding] Kai notification sent for session ${sessionId}`);
+  } catch (err) {
+    console.error('[onboarding] Kai notification failed:', err.message);
+  }
+}
+
+// GET /api/onboarding/sessions/:sessionId/portal-data — structured data for portal page
+app.get('/api/onboarding/sessions/:sessionId/portal-data', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+
+  const [session, research, hooks, previewHooks, brainState, avatar, objections, compliance] = await Promise.all([
+    r2GetShared(`onboarding/sessions/${sessionId}/session.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/hooks.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/preview-hooks.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/brain-state/current-state.md`),
+    r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/lifestyle-avatar.md`),
+    r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/objection-vault.md`),
+    r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/compliance-b2c.md`),
+  ]);
+
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  res.json({
+    session,
+    research: research || null,
+    hooks: hooks?.hooks || previewHooks?.hooks || [],
+    hooksSource: hooks ? 'final' : previewHooks ? 'preview' : 'none',
+    kb: {
+      brainState: brainState || null,
+      avatar: avatar || null,
+      objections: objections || null,
+      compliance: compliance || null,
+    },
+  });
+});
 
 // SPA fallback
 app.get('*', (req, res) => {
