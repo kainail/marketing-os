@@ -121,9 +121,9 @@
     .complete-cta:hover { background: rgba(255,255,255,0.08); }
 
     /* ─── Intel section ───────────────────────────────────────────── */
-    .intel-section { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-    .intel-header { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); padding: 12px 0 10px; border-top: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
-    .intel-area { flex: 1; overflow-y: auto; }
+    .intel-section { flex-shrink: 0; }
+    .intel-header { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); padding: 12px 0 10px; border-top: 1px solid rgba(255,255,255,0.05); }
+    .intel-area { }
 
     /* Loading placeholders */
     .intel-loading { background: rgba(255,255,255,0.022); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px 14px; margin-bottom: 6px; font-size: 13px; color: rgba(232,234,240,0.28); letter-spacing: 0.3px; animation: shimmer 2.5s ease-in-out infinite; }
@@ -147,8 +147,12 @@
     .section-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.23); margin: 10px 0 5px; }
     .intel-chip { display: inline-block; background: rgba(124,58,237,0.11); border: 1px solid rgba(124,58,237,0.17); border-radius: 4px; padding: 2px 7px; font-size: 10px; color: #c4b5fd; margin: 2px 2px 0 0; }
     .gap-chip { background: rgba(234,179,8,0.09); border-color: rgba(234,179,8,0.18); color: #fde047; }
-    .secondary-gaps { margin-top: 4px; opacity: 0; transition: opacity 0.45s; }
-    .secondary-gaps.revealed { opacity: 1; }
+    .secondary-gaps { margin-top: 4px; }
+    .gap-secondary { background: rgba(234,179,8,0.04); border: 1px solid rgba(234,179,8,0.12); border-radius: 8px; padding: 9px 12px; margin-bottom: 5px; font-size: 12px; color: rgba(232,234,240,0.6); line-height: 1.5; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; opacity: 0; }
+    .gap-secondary.revealed { animation: slide-in 0.35s ease forwards; }
+    .gap-secondary:hover { background: rgba(234,179,8,0.08); border-color: rgba(234,179,8,0.22); color: rgba(232,234,240,0.8); }
+    .gap-secondary.expanded { color: rgba(232,234,240,0.82); }
+    .gap-expand-hint { font-size: 10px; color: rgba(234,179,8,0.4); margin-top: 4px; letter-spacing: 0.3px; }
 
     /* ─── State 5: interview ─────────────────────────────────────── */
     .section-progress { display: flex; gap: 7px; margin-bottom: 16px; }
@@ -517,16 +521,24 @@
         setTimeout(() => featured.classList.add('revealed'), d);
         delay += 140;
         if (gaps.length > 1) {
-          const sec = document.createElement('div');
-          sec.className = 'secondary-gaps';
-          gaps.slice(1, 3).forEach(g => {
-            const chip = document.createElement('span');
-            chip.className = 'intel-chip gap-chip';
-            chip.textContent = g.length > 44 ? g.substring(0, 44) + '…' : g;
-            sec.appendChild(chip);
+          const PREVIEW_LEN = 72;
+          gaps.slice(1, 3).forEach((g, i) => {
+            const card = document.createElement('div');
+            card.className = 'gap-secondary';
+            const truncated = g.length > PREVIEW_LEN;
+            const preview = truncated ? g.substring(0, PREVIEW_LEN) + '…' : g;
+            card.innerHTML = `<div class="gap-secondary-text">${esc(preview)}</div>${truncated ? '<div class="gap-expand-hint">tap to read more</div>' : ''}`;
+            if (truncated) {
+              card.addEventListener('click', () => {
+                const isExpanded = card.classList.contains('expanded');
+                card.querySelector('.gap-secondary-text').textContent = isExpanded ? preview : g;
+                card.querySelector('.gap-expand-hint').textContent    = isExpanded ? 'tap to read more' : 'tap to collapse';
+                card.classList.toggle('expanded', !isExpanded);
+              });
+            }
+            area.appendChild(card);
+            setTimeout(() => card.classList.add('revealed'), delay + 80 + i * 80);
           });
-          area.appendChild(sec);
-          setTimeout(() => sec.classList.add('revealed'), delay + 80);
         }
       }
     }
