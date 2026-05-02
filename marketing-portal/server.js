@@ -2626,7 +2626,7 @@ app.post('/api/onboarding/sessions/:sessionId/tts', async (req, res) => {
     const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
       method: 'POST',
       headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
-      body: JSON.stringify({ text: script, model_id: 'eleven_turbo_v2_5', voice_settings: { stability: 0.45, similarity_boost: 0.75 } }),
+      body: JSON.stringify({ text: script, model_id: 'eleven_turbo_v2_5', speed: 1.1, voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0 } }),
     });
     if (!elRes.ok) {
       const errText = await elRes.text().catch(() => '');

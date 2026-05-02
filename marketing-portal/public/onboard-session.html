@@ -485,14 +485,45 @@
       setWaveformActive(false);
     }
 
+    // ─── TTS text normalization — runs before every ElevenLabs call ──────────
+    function normalizeTTS(raw) {
+      const STATE_MAP = {
+        AL:'Alabama', AK:'Alaska', AZ:'Arizona', AR:'Arkansas', CA:'California',
+        CO:'Colorado', CT:'Connecticut', DE:'Delaware', FL:'Florida', GA:'Georgia',
+        HI:'Hawaii', ID:'Idaho', IL:'Illinois', IN:'Indiana', IA:'Iowa',
+        KS:'Kansas', KY:'Kentucky', LA:'Louisiana', ME:'Maine', MD:'Maryland',
+        MA:'Massachusetts', MI:'Michigan', MN:'Minnesota', MS:'Mississippi', MO:'Missouri',
+        MT:'Montana', NE:'Nebraska', NV:'Nevada', NH:'New Hampshire', NJ:'New Jersey',
+        NM:'New Mexico', NY:'New York', NC:'North Carolina', ND:'North Dakota', OH:'Ohio',
+        OK:'Oklahoma', OR:'Oregon', PA:'Pennsylvania', RI:'Rhode Island', SC:'South Carolina',
+        SD:'South Dakota', TN:'Tennessee', TX:'Texas', UT:'Utah', VT:'Vermont',
+        VA:'Virginia', WA:'Washington', WV:'West Virginia', WI:'Wisconsin', WY:'Wyoming',
+        DC:'Washington DC',
+      };
+      let t = raw;
+      // $30.50 → 30 dollars and 50 cents; $30 → 30 dollars
+      t = t.replace(/\$(\d+)\.(\d{2})/g, (_, d, c) => `${d} dollars and ${parseInt(c, 10)} cents`);
+      t = t.replace(/\$(\d+)/g, (_, d) => `${d} dollars`);
+      // lbs → pounds
+      t = t.replace(/\blbs?\b/gi, 'pounds');
+      // Remove trailing commas from words (city names like "Eaton,")
+      t = t.replace(/([A-Za-z]),(\s|$)/g, '$1$2');
+      // State abbreviations — only standalone 2-letter uppercase tokens
+      t = t.replace(/\b([A-Z]{2})\b/g, (match, abbr) => STATE_MAP[abbr] || match);
+      // ALL CAPS words (3+ chars) → Title Case
+      t = t.replace(/\b([A-Z]{3,})\b/g, w => w.charAt(0) + w.slice(1).toLowerCase());
+      return t;
+    }
+
     // ─── TTS — calls server proxy, streams ElevenLabs audio ─────────────────
     async function speak(text) {
+      const normalized = normalizeTTS(text);
       setWaveformActive(true);
       try {
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/tts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ script: text }),
+          body: JSON.stringify({ script: normalized }),
         });
         if (res.ok) {
           const blob = await res.blob();
@@ -506,7 +537,7 @@
           URL.revokeObjectURL(url);
         } else if (res.status === 503) {
           // Voice not configured — simulate reading pace
-          const sentences = (text.match(/[.!?]+/g) || []).length || 1;
+          const sentences = (normalized.match(/[.!?]+/g) || []).length || 1;
           await sleep(Math.max(1400, sentences * 1600));
         } else {
           await sleep(1200);
