@@ -223,7 +223,7 @@
     .suggestion-card.selected { border-color: rgba(99,102,241,0.55); background: rgba(99,102,241,0.14); }
     .sug-text { font-size: 14px; color: rgba(232,234,240,0.85); line-height: 1.45; }
     .sug-sub { font-size: 11px; color: rgba(232,234,240,0.38); margin-top: 3px; }
-    .suggestions-wrap.voice-active .suggestion-card { opacity: 0.35; pointer-events: none; transition: opacity 0.2s; }
+    .suggestions-wrap.voice-active .suggestion-card { opacity: 0.35; transition: opacity 0.2s; }
 
     /* ─── Mic test state ─────────────────────────────────────────── */
     .mic-test-label { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 18px; }
@@ -537,6 +537,7 @@
 
     // Tile pre-generation
     const tilePromises = {};
+    let _currentSugTiles = [];
 
     // Mic test
     let micTestStream = null;
@@ -557,6 +558,7 @@
         document.getElementById('gym-name').textContent = 'Invalid session';
         return;
       }
+      setupTileDelegation();
       await loadSession();
       startStepCycle();
       // Only poll if session isn't already past the research stage
@@ -2055,6 +2057,7 @@
     }
 
     function showSuggestionTiles(tiles) {
+      _currentSugTiles = tiles;
       const wrap = document.getElementById('suggestions-wrap');
       const container = document.getElementById('suggestion-cards-container');
       if (!wrap || !container) return;
@@ -2065,11 +2068,25 @@
       tiles.forEach((s, i) => {
         const card = document.createElement('div');
         card.className = 'suggestion-card';
+        card.dataset.tileIndex = String(i);
         card.innerHTML = `<div class="sug-text">${esc(s.text)}</div>${s.subtext ? `<div class="sug-sub">${esc(s.subtext)}</div>` : ''}`;
-        card.addEventListener('click', () => selectTile(s.text, card));
         container.appendChild(card);
         setTimeout(() => card.classList.add('sug-visible'), 20 + i * 100);
       });
+    }
+
+    function setupTileDelegation() {
+      const sugContainer = document.getElementById('suggestion-cards-container');
+      if (sugContainer) {
+        sugContainer.addEventListener('click', function(e) {
+          const card = e.target.closest('[data-tile-index]');
+          if (!card) return;
+          const idx = parseInt(card.dataset.tileIndex, 10);
+          const tile = _currentSugTiles[idx];
+          console.log('[SugTile clicked]', idx, tile?.text?.slice(0, 50));
+          if (tile) selectTile(tile.text, card);
+        });
+      }
     }
 
     function selectTile(text, cardEl) {
@@ -2096,40 +2113,54 @@
 
     async function runPathBIntro() {
       showState('state-speaking');
-      renderActControls();
+      // No renderActControls — no buttons visible during intro
       setActLabel('Section 1 — Building Your Offer');
       const introText = "No problem at all — this is actually one of the most valuable things we will do today. I am going to help you build an offer right now using what I already know about your market. Based on what I found, here is what is working for gyms in similar markets.";
-      actFullText = introText;
       const templatesPromise = fetchOfferTemplateTiles();
       await speak(introText, document.getElementById('speaking-text'));
-      try {
-        const templates = await templatesPromise;
-        if (templates.length > 0) {
-          const wrap = document.getElementById('intro-tiles-wrap');
-          const container = document.getElementById('intro-tiles-container');
-          if (wrap && container) {
-            container.innerHTML = '';
-            templates.forEach((t, i) => {
-              const card = document.createElement('div');
-              card.className = 'intro-tile';
-              card.innerHTML = `<div class="intro-tile-text">${esc(t.text)}</div>${t.subtext ? `<div class="intro-tile-sub">${esc(t.subtext)}</div>` : ''}`;
-              card.addEventListener('click', () => {
-                container.querySelectorAll('.intro-tile').forEach(c => c.classList.remove('intro-tile-selected'));
-                card.classList.add('intro-tile-selected');
-                if (!interviewState.preFill) interviewState.preFill = {};
-                interviewState.preFill['qb2'] = t.text;
-              });
-              container.appendChild(card);
-              setTimeout(() => card.classList.add('intro-tile-visible'), 60 + i * 130);
-            });
-            wrap.classList.remove('hidden');
-          }
-        }
-      } catch {}
-      // Tiles stay visible — owner reads, optionally clicks one, then clicks Continue
-      await awaitContinue();
+
+      let templates = [];
+      try { templates = await templatesPromise; } catch {}
+      if (templates.length === 0) return; // no tiles — proceed straight to qb2
+
       const wrap = document.getElementById('intro-tiles-wrap');
-      if (wrap) wrap.classList.add('hidden');
+      const container = document.getElementById('intro-tiles-container');
+      if (!wrap || !container) return;
+
+      container.innerHTML = '';
+
+      // Event delegation — single listener on container, data-tile-index on each card
+      let introAdvance = null;
+      const introPromise = new Promise(r => { introAdvance = r; });
+
+      function handleIntroTileClick(e) {
+        const tile = e.target.closest('[data-tile-index]');
+        if (!tile) return;
+        const idx = parseInt(tile.dataset.tileIndex, 10);
+        console.log('[IntroTile clicked]', idx, tile.querySelector('.intro-tile-text')?.textContent?.slice(0, 50));
+        container.querySelectorAll('[data-tile-index]').forEach(c => c.classList.remove('intro-tile-selected'));
+        tile.classList.add('intro-tile-selected');
+        if (!interviewState.preFill) interviewState.preFill = {};
+        interviewState.preFill['qb2'] = templates[idx].text;
+        container.removeEventListener('click', handleIntroTileClick);
+        if (introAdvance) { const r = introAdvance; introAdvance = null; r(); }
+      }
+      container.addEventListener('click', handleIntroTileClick);
+
+      templates.forEach((t, i) => {
+        const card = document.createElement('div');
+        card.className = 'intro-tile';
+        card.dataset.tileIndex = String(i);
+        card.innerHTML = `<div class="intro-tile-text">${esc(t.text)}</div>${t.subtext ? `<div class="intro-tile-sub">${esc(t.subtext)}</div>` : ''}`;
+        container.appendChild(card);
+        setTimeout(() => card.classList.add('intro-tile-visible'), 60 + i * 130);
+      });
+      wrap.classList.remove('hidden');
+
+      // Wait for tile selection — no timeout, tiles stay until owner picks one
+      await introPromise;
+      await sleep(350); // brief pause for visual confirmation before advancing
+      wrap.classList.add('hidden');
     }
 
     async function fetchOfferTemplateTiles() {
