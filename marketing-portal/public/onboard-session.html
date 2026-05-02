@@ -86,8 +86,8 @@
 
     /* ─── Act label + continue button ───────────────────────────── */
     .act-label { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.22); margin-bottom: 14px; min-height: 14px; }
-    .continue-btn { margin-top: 32px; display: none; align-items: center; gap: 8px; background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.25); border-radius: 10px; padding: 12px 28px; font-family: inherit; font-size: 15px; font-weight: 600; color: #a78bfa; cursor: pointer; transition: background 0.15s, border-color 0.15s, opacity 0.35s, transform 0.35s; }
-    .continue-btn:hover { background: rgba(124,58,237,0.18); border-color: rgba(124,58,237,0.45); }
+    .continue-btn { margin-top: 32px; display: none; align-items: center; gap: 8px; background: #6366f1; border: none; border-radius: 10px; padding: 12px 28px; font-family: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; box-shadow: 0 0 24px rgba(99,102,241,0.25); transition: background 0.15s, opacity 0.35s, transform 0.35s; }
+    .continue-btn:hover { background: #4f46e5; }
 
     /* ─── Right panel ─────────────────────────────────────────────── */
     .right-panel { background: rgba(255,255,255,0.013); display: flex; flex-direction: column; padding: 24px; overflow-y: auto; gap: 10px; }
@@ -708,7 +708,6 @@
 
       startInterviewPoll();
       showState('state-speaking');
-      showOfferConfirmButtons(false);
       const speakEl = document.getElementById('speaking-text');
 
       const r = researchData || {};
@@ -720,6 +719,7 @@
       const reviews = (r.googleReviews || []).filter(rv => rv.text && rv.text.length > 15);
 
       // ── Act 1: Competitors ──────────────────────────────────────────────────
+      renderActControls();
       setActLabel('Act 1 of 4 — Competitors');
       const act1intro = comps.length > 0
         ? `Before we talk about your gym, let me show you what I already found. I looked at ${comps.length} competitor${comps.length !== 1 ? 's' : ''} in ${city} running ads right now.`
@@ -736,6 +736,7 @@
       await awaitContinue();
 
       // ── Act 2: What they're advertising ────────────────────────────────────
+      renderActControls();
       setActLabel("Act 2 of 4 — What They're Advertising");
       const allThemes = [...new Set(comps.flatMap(c => c.adThemes || []))].slice(0, 4);
       const act2text = allThemes.length > 0
@@ -746,6 +747,7 @@
       await awaitContinue();
 
       // ── Act 3: The gap ──────────────────────────────────────────────────────
+      renderActControls();
       setActLabel('Act 3 of 4 — The Gap');
       const gapText = gaps.length > 0
         ? `Here is what nobody is saying. ${gaps[0]}`
@@ -755,6 +757,7 @@
       await awaitContinue();
 
       // ── Act 4: Your members ─────────────────────────────────────────────────
+      renderActControls();
       setActLabel('Act 4 of 4 — Your Members');
       await speak('Here are some of your reviews. Your members are already telling the story.', speakEl);
       await sleep(1000);
@@ -853,6 +856,7 @@
     // ─── Reveal preview hooks — new pacing with "Let's talk" button ──────────
     async function revealHooks(hooks, gymName) {
       showState('state-hook-reveal');
+      renderActControls();
       const card = document.getElementById('hook-card');
       const counter = document.getElementById('hook-counter');
       const letsTalkBtn = document.getElementById('lets-talk-btn');
@@ -1068,6 +1072,20 @@
       if (!el) return;
       if (visible) el.classList.remove('hidden');
       else el.classList.add('hidden');
+    }
+
+    // Act controls: single Continue → button only. Call at the start of every act.
+    function renderActControls() {
+      showOfferConfirmButtons(false);
+      const cb = document.getElementById('continue-btn');
+      if (cb) cb.style.display = 'none';
+    }
+
+    // Offer confirm controls: two-button state for Path B synthesis only.
+    function renderOfferConfirmControls() {
+      const cb = document.getElementById('continue-btn');
+      if (cb) cb.style.display = 'none';
+      showOfferConfirmButtons(true);
     }
 
     function showState(id) {
@@ -2054,7 +2072,7 @@
       document.getElementById('oef-guarantee').value = a.qb5 || '';
       document.getElementById('oef-differentiator').value = a.qb6 || '';
       document.getElementById('offer-edit-fields').classList.remove('hidden');
-      showOfferConfirmButtons(true);
+      renderOfferConfirmControls();
 
       return new Promise(resolve => { offerConfirmResolve = resolve; });
     }
