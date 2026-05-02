@@ -83,6 +83,11 @@
     .hook-meta { margin-top: 12px; font-size: 11px; color: rgba(232,234,240,0.28); letter-spacing: 1px; text-transform: uppercase; }
     .hook-intro-text { font-size: 17px; font-weight: 500; color: rgba(232,234,240,0.6); line-height: 1.65; }
 
+    /* ─── Act label + continue button ───────────────────────────── */
+    .act-label { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.22); margin-bottom: 14px; min-height: 14px; }
+    .continue-btn { margin-top: 32px; display: none; align-items: center; gap: 8px; background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.25); border-radius: 10px; padding: 12px 28px; font-family: inherit; font-size: 15px; font-weight: 600; color: #a78bfa; cursor: pointer; transition: background 0.15s, border-color 0.15s, opacity 0.35s, transform 0.35s; }
+    .continue-btn:hover { background: rgba(124,58,237,0.18); border-color: rgba(124,58,237,0.45); }
+
     /* ─── Right panel ─────────────────────────────────────────────── */
     .right-panel { background: rgba(255,255,255,0.013); display: flex; flex-direction: column; padding: 24px; overflow-y: auto; gap: 10px; }
     .panel-header { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
@@ -244,8 +249,10 @@
 
         <!-- State 3: speaking (narration in progress) -->
         <div class="state-pane hidden" id="state-speaking">
+          <div class="act-label" id="act-label"></div>
           <div class="speaking-who"><span class="speaking-who-dot"></span>AHRI</div>
           <p class="speaking-text" id="speaking-text"></p>
+          <button class="continue-btn" id="continue-btn" onclick="onContinueClick()">Continue →</button>
         </div>
 
         <!-- State 4: hook reveal -->
@@ -254,6 +261,7 @@
           <div class="hook-card-wrap">
             <div class="hook-card" id="hook-card"></div>
           </div>
+          <button class="continue-btn" id="lets-talk-btn" onclick="onLetsTalkClick()">Let's talk →</button>
         </div>
 
         <!-- State 5: interview -->
@@ -378,6 +386,7 @@
     let pollTimer = null;
     let stepIndex = 0;
     let briefingStarted = false;
+    let continueResolve = null;
 
     const preparingSteps = [
       { heading: 'AHRI is preparing<br/>your market intelligence', sub: 'Scanning competitor ads, reading your Google reviews, and identifying the gaps in your market that nobody else is filling.' },
@@ -550,7 +559,7 @@
       return el;
     }
 
-    // ─── Begin briefing ───────────────────────────────────────────────────────
+    // ─── Begin briefing — 4-act flow ─────────────────────────────────────────
     async function beginBriefing() {
       if (briefingStarted) return;
       briefingStarted = true;
@@ -558,49 +567,150 @@
       btn.disabled = true;
       btn.textContent = 'Preparing...';
 
-      // Research narration
+      startInterviewPoll(); // enable skip-act from host panel during briefing
       showState('state-speaking');
-      const script = buildResearchScript(researchData, session);
-      document.getElementById('speaking-text').textContent = script;
-      await speak(script);
 
-      await sleep(900);
+      const r = researchData || {};
+      const s = session || {};
+      const city = s.city || 'your city';
+      const comps = r.competitors || [];
+      const activeComps = comps.filter(c => (c.adCount || 0) > 0);
+      const gaps = r.marketGaps || [];
+      const reviews = (r.googleReviews || []).filter(rv => rv.text && rv.text.length > 15);
 
-      // Load and reveal preview hooks
+      // ── Act 1: Competitors ──────────────────────────────────────────────────
+      setActLabel('Act 1 of 4 — Competitors');
+      const act1intro = comps.length > 0
+        ? `Before we talk about your gym, let me show you what I already found. I looked at ${comps.length} competitor${comps.length !== 1 ? 's' : ''} in ${city} running ads right now.`
+        : `Before we talk about your gym, let me show you what I already found.`;
+      setSpeakingText(act1intro);
+      await speak(act1intro);
+
+      for (const c of activeComps.slice(0, 3)) {
+        const adStr = c.adCount === 1 ? '1 ad running' : `${c.adCount} ads running`;
+        const compLine = `${c.name}. ${adStr}.`;
+        setSpeakingText(compLine);
+        await speak(compLine);
+        await sleep(200);
+      }
+
+      await sleep(3000);
+      await awaitContinue();
+
+      // ── Act 2: What they're advertising ────────────────────────────────────
+      setActLabel("Act 2 of 4 — What They're Advertising");
+      const allThemes = [...new Set(comps.flatMap(c => c.adThemes || []))].slice(0, 4);
+      const act2text = allThemes.length > 0
+        ? `Here is what they are all advertising. ${allThemes.join('. ')}.`
+        : `Here is what they are all advertising. The usual — weight loss, free trials, and low prices.`;
+      setSpeakingText(act2text);
+      await speak(act2text);
+      await sleep(3000);
+      await awaitContinue();
+
+      // ── Act 3: The gap ──────────────────────────────────────────────────────
+      setActLabel('Act 3 of 4 — The Gap');
+      const gapText = gaps.length > 0
+        ? `Here is what nobody is saying. ${gaps[0]}`
+        : `Here is what nobody in ${city} is saying. That is where we are going to play.`;
+      setSpeakingText(gapText);
+      await speak(gapText);
+      await sleep(3000);
+      await awaitContinue();
+
+      // ── Act 4: Your members ─────────────────────────────────────────────────
+      setActLabel('Act 4 of 4 — Your Members');
+      setSpeakingText('Your members are already telling the story.');
+      await speak('Your members are already telling the story.');
+      await sleep(300);
+
+      for (const rv of reviews.slice(0, 2)) {
+        const excerpt = rv.text.length > 85 ? rv.text.substring(0, 85) + '...' : rv.text;
+        setSpeakingText(`"${excerpt}"`);
+        await speak(`"${excerpt}"`);
+        await sleep(400);
+      }
+
+      setSpeakingText('This is the language we are going to use.');
+      await speak('This is the language we are going to use.');
+      await sleep(3000);
+      await awaitContinue();
+
+      // ── Hook reveal ─────────────────────────────────────────────────────────
+      setActLabel('');
       try {
         const hRes = await fetch(`/api/onboarding/sessions/${sessionId}/preview-hooks`);
         if (hRes.ok) {
           const hData = await hRes.json();
           if (hData.hooks && hData.hooks.length > 0) {
-            await revealHooks(hData.hooks, session.gymName);
+            await revealHooks(hData.hooks, s.gymName);
             return;
           }
         }
       } catch {}
 
-      // Hooks not available — go back to reveal-ready with replay option
+      // No hooks — go straight to interview
       briefingStarted = false;
-      showState('state-reveal-ready');
-      btn.disabled = false;
-      btn.textContent = '▶  Replay briefing';
+      await startInterview();
     }
 
-    // ─── Reveal preview hooks one by one ─────────────────────────────────────
+    // ─── Act helpers ──────────────────────────────────────────────────────────
+    function setActLabel(text) {
+      const el = document.getElementById('act-label');
+      if (el) el.textContent = text;
+    }
+
+    function setSpeakingText(text) {
+      const el = document.getElementById('speaking-text');
+      if (el) el.textContent = text;
+    }
+
+    // ─── Await continue (blocks until button click or skip-act nav command) ───
+    function awaitContinue() {
+      return new Promise(resolve => {
+        continueResolve = resolve;
+        const btn = document.getElementById('continue-btn');
+        if (btn) {
+          btn.style.display = 'inline-flex';
+          btn.style.opacity = '0';
+          btn.style.transform = 'translateY(8px)';
+          requestAnimationFrame(() => setTimeout(() => {
+            btn.style.opacity = '1';
+            btn.style.transform = 'translateY(0)';
+          }, 20));
+        }
+      });
+    }
+
+    function onContinueClick() {
+      const btn = document.getElementById('continue-btn');
+      if (btn) {
+        btn.style.opacity = '0';
+        btn.style.transform = 'translateY(8px)';
+        setTimeout(() => { btn.style.display = 'none'; }, 350);
+      }
+      if (continueResolve) { const r = continueResolve; continueResolve = null; r(); }
+    }
+
+    // ─── Reveal preview hooks — new pacing with "Let's talk" button ──────────
     async function revealHooks(hooks, gymName) {
       showState('state-hook-reveal');
       const card = document.getElementById('hook-card');
       const counter = document.getElementById('hook-counter');
+      const letsTalkBtn = document.getElementById('lets-talk-btn');
 
-      // Intro line
+      // Reset button state from any prior run
+      if (letsTalkBtn) letsTalkBtn.style.display = 'none';
       counter.textContent = '';
       card.className = 'hook-card';
-      card.innerHTML = `<div class="hook-intro-text">This is what I can write about ${esc(gymName)} right now — from public information alone.</div>`;
-      await sleep(40);
-      card.classList.add('visible');
-      await speak(`This is what I can write about ${gymName} right now — from public information alone.`);
-      await sleep(500);
+      card.innerHTML = '';
 
-      // Each hook
+      // Intro speech — then 2s pause before hooks start
+      const introText = `Now let me show you what I can already write about ${gymName || 'your gym'}. From public information alone — before you have told me a single thing.`;
+      await speak(introText);
+      await sleep(2000);
+
+      // Each hook: animate in, speak, 1.5s pause before next
       for (let i = 0; i < hooks.length; i++) {
         const h = hooks[i];
         counter.textContent = `Hook ${i + 1} of ${hooks.length}`;
@@ -610,21 +720,38 @@
         card.classList.add('visible');
         await sleep(380);
         await speak(h.text);
-        await sleep(650);
+        await sleep(1500);
       }
 
-      // Outro
+      // After last hook: 3s pause, then outro speech, then 2s pause
       counter.textContent = '';
       card.classList.remove('visible');
-      await sleep(280);
-      card.innerHTML = `<div class="hook-intro-text">Imagine what I build after we talk.</div>`;
-      card.classList.add('visible');
-      await speak('Imagine what I build after we talk.');
-      await sleep(600);
+      await sleep(3000);
 
-      counter.textContent = 'Preparation complete';
-      setWaveformActive(false);
-      await sleep(1200);
+      card.innerHTML = `<div class="hook-intro-text">That is what I build from public data alone. Imagine what I write once we talk.</div>`;
+      card.classList.add('visible');
+      await speak('That is what I build from public data alone. Imagine what I write once we talk.');
+      await sleep(2000);
+
+      // Show "Let's talk" button
+      if (letsTalkBtn) {
+        letsTalkBtn.style.display = 'inline-flex';
+        letsTalkBtn.style.opacity = '0';
+        letsTalkBtn.style.transform = 'translateY(8px)';
+        requestAnimationFrame(() => setTimeout(() => {
+          letsTalkBtn.style.opacity = '1';
+          letsTalkBtn.style.transform = 'translateY(0)';
+        }, 20));
+      }
+    }
+
+    async function onLetsTalkClick() {
+      const btn = document.getElementById('lets-talk-btn');
+      if (btn) {
+        btn.style.opacity = '0';
+        btn.style.transform = 'translateY(8px)';
+        setTimeout(() => { btn.style.display = 'none'; }, 350);
+      }
       await startInterview();
     }
 
@@ -727,7 +854,7 @@
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
     function showState(id) {
-      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-interview']
+      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-interview', 'state-complete']
         .forEach(s => document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
     }
@@ -1204,9 +1331,12 @@
           if (!res.ok) return;
           const data = await res.json();
           const cmd = data.nav_command;
-          if (cmd?.action === 'prev' && cmd.requested_at !== lastNavCommandAt) {
-            lastNavCommandAt = cmd.requested_at;
+          if (!cmd || cmd.requested_at === lastNavCommandAt) return;
+          lastNavCommandAt = cmd.requested_at;
+          if (cmd.action === 'prev') {
             await goToPrevQuestion();
+          } else if (cmd.action === 'skip-act') {
+            onContinueClick();
           }
         } catch {}
       }, 2000);
