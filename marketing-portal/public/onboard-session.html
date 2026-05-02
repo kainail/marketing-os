@@ -126,6 +126,42 @@
     .gap-chip { background: rgba(234,179,8,0.09); border-color: rgba(234,179,8,0.18); color: #fde047; }
     .secondary-gaps { margin-top: 4px; opacity: 0; transition: opacity 0.45s; }
     .secondary-gaps.revealed { opacity: 1; }
+
+    /* ─── State 5: interview ─────────────────────────────────────── */
+    .section-progress { display: flex; gap: 7px; margin-bottom: 16px; }
+    .section-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.08); transition: all 0.4s; }
+    .section-dot.done { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
+    .section-dot.active { background: #7c3aed; box-shadow: 0 0 10px rgba(124,58,237,0.6); transform: scale(1.35); }
+    .iv-section-tag { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 5px; }
+    .iv-q-label { font-size: 12px; color: rgba(232,234,240,0.28); margin-bottom: 14px; }
+    .iv-question { font-size: 17px; font-weight: 600; line-height: 1.58; color: rgba(232,234,240,0.88); max-width: 490px; margin-bottom: 20px; }
+    .transcript-area { width: 100%; max-width: 500px; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 13px 15px; min-height: 64px; margin-bottom: 12px; transition: border-color 0.2s, background 0.2s; }
+    .transcript-area.listening { border-color: rgba(124,58,237,0.35); background: rgba(124,58,237,0.04); }
+    .transcript-live { font-size: 14px; color: rgba(232,234,240,0.35); font-style: italic; line-height: 1.55; min-height: 20px; }
+    .transcript-locked { font-size: 15px; color: rgba(232,234,240,0.85); line-height: 1.6; }
+    .iv-controls { display: flex; gap: 10px; width: 100%; max-width: 500px; margin-bottom: 11px; }
+    .voice-btn { display: flex; align-items: center; gap: 7px; background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.22); border-radius: 10px; padding: 11px 16px; font-family: inherit; font-size: 14px; font-weight: 600; color: #a78bfa; cursor: pointer; transition: all 0.15s; flex-shrink: 0; white-space: nowrap; }
+    .voice-btn:hover { background: rgba(124,58,237,0.18); }
+    .voice-btn.listening { background: rgba(124,58,237,0.18); border-color: rgba(124,58,237,0.5); animation: voice-pulse 1.5s ease-in-out infinite; }
+    @keyframes voice-pulse { 0%,100% { box-shadow: 0 0 0 rgba(124,58,237,0); } 50% { box-shadow: 0 0 14px rgba(124,58,237,0.35); } }
+    .iv-submit { flex: 1; background: #6366f1; border: none; border-radius: 10px; padding: 11px 18px; font-family: inherit; font-size: 14px; font-weight: 700; color: #fff; cursor: pointer; transition: background 0.15s; }
+    .iv-submit:hover:not(:disabled) { background: #4f46e5; }
+    .iv-submit:disabled { opacity: 0.3; cursor: not-allowed; }
+    .text-fallback { width: 100%; max-width: 500px; }
+    .text-fallback textarea { width: 100%; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 13px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.72); resize: none; outline: none; line-height: 1.5; min-height: 52px; transition: border-color 0.15s; }
+    .text-fallback textarea:focus { border-color: rgba(99,102,241,0.35); }
+    .fallback-hint { font-size: 11px; color: rgba(232,234,240,0.2); margin-top: 5px; display: block; }
+    #state-interview { justify-content: flex-start; padding: 6px 0 20px; overflow-y: auto; max-height: 100%; }
+
+    /* ─── Suggestion cards ───────────────────────────────────────── */
+    .suggestions-wrap { width: 100%; max-width: 500px; margin-top: 10px; }
+    .suggestions-label { font-size: 12px; color: rgba(232,234,240,0.4); margin-bottom: 10px; line-height: 1.4; }
+    .suggestion-card { background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.15); border-radius: 10px; padding: 13px 15px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s, background 0.15s; text-align: left; opacity: 0; transform: translateY(8px); }
+    .suggestion-card.sug-visible { opacity: 1; transform: translateY(0); transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.15s, background 0.15s; }
+    .suggestion-card:hover { border-color: rgba(99,102,241,0.35); background: rgba(99,102,241,0.11); }
+    .suggestion-card.selected { border-color: rgba(99,102,241,0.55); background: rgba(99,102,241,0.14); }
+    .sug-text { font-size: 14px; color: rgba(232,234,240,0.85); line-height: 1.45; }
+    .sug-sub { font-size: 11px; color: rgba(232,234,240,0.38); margin-top: 3px; }
   </style>
 </head>
 <body>
@@ -187,6 +223,39 @@
           <div class="hook-counter" id="hook-counter"></div>
           <div class="hook-card-wrap">
             <div class="hook-card" id="hook-card"></div>
+          </div>
+        </div>
+
+        <!-- State 5: interview -->
+        <div class="state-pane hidden" id="state-interview">
+          <div class="section-progress">
+            <div class="section-dot" id="sdot-1"></div>
+            <div class="section-dot" id="sdot-2"></div>
+            <div class="section-dot" id="sdot-3"></div>
+            <div class="section-dot" id="sdot-4"></div>
+            <div class="section-dot" id="sdot-5"></div>
+            <div class="section-dot" id="sdot-6"></div>
+            <div class="section-dot" id="sdot-7"></div>
+            <div class="section-dot" id="sdot-8"></div>
+          </div>
+          <div class="iv-section-tag" id="iv-section-tag">The Offer</div>
+          <div class="iv-q-label" id="iv-q-label">Question 1 of 19</div>
+          <p class="iv-question" id="iv-question">—</p>
+          <div class="transcript-area" id="transcript-area">
+            <div class="transcript-live" id="transcript-live">Press the microphone to start speaking...</div>
+            <div class="transcript-locked" id="transcript-locked"></div>
+          </div>
+          <div class="iv-controls">
+            <button class="voice-btn" id="voice-btn" onclick="toggleVoice()">🎙&nbsp;Start speaking</button>
+            <button class="iv-submit" id="submit-btn" onclick="submitAnswer()" disabled>Submit answer</button>
+          </div>
+          <div class="text-fallback">
+            <textarea id="text-answer" placeholder="Or type your answer here..." rows="2" oninput="onTextInput(this.value)"></textarea>
+            <span class="fallback-hint">Text input always available</span>
+          </div>
+          <div class="suggestions-wrap hidden" id="suggestions-wrap">
+            <div class="suggestions-label">Here are some options based on your market — pick one or describe it in your own words:</div>
+            <div id="suggestion-cards-container"></div>
           </div>
         </div>
 
@@ -278,7 +347,11 @@
         document.title = `AHRI — ${session.gymName}`;
         if (session.status === 'research_complete') {
           await loadAndRevealResearch();
-          return; // don't start polling — we already know the answer
+          return;
+        }
+        if (session.status === 'interview_started') {
+          await resumeInterview(session);
+          return;
         }
       } catch {}
     }
@@ -483,6 +556,8 @@
 
       counter.textContent = 'Preparation complete';
       setWaveformActive(false);
+      await sleep(1200);
+      await startInterview();
     }
 
     // ─── TTS text normalization — runs before every ElevenLabs call ──────────
@@ -579,7 +654,7 @@
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
     function showState(id) {
-      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal']
+      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-interview']
         .forEach(s => document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
     }
@@ -600,6 +675,427 @@
       return String(s || '')
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ─── Interview question bank (all 19 questions, 8 sections) ─────────────
+    const QUESTIONS = [
+      // Section 1 — The Offer
+      { id:'q1', section:1, sectionName:'The Offer', kbFile:'brain-state',
+        text:'Walk me through your current offer — what does someone get, what do they pay, and what happens if it doesn\'t work for them?',
+        probe:'Be specific — what\'s the price, what\'s included day by day, and what\'s the exact guarantee?' },
+      { id:'q2', section:1, sectionName:'The Offer', kbFile:'brain-state',
+        text:'What\'s the one thing in your offer that makes people say "wait, that\'s included?" The thing you don\'t talk about enough.',
+        probe:'Think about the last time someone was surprised by what you include. What was it?' },
+      { id:'q3', section:1, sectionName:'The Offer', kbFile:'brain-state',
+        text:'When does your next group start, and how many spots are left?',
+        probe:'What\'s the next date you\'re filling spots for and exactly how many are available?' },
+      // Section 2 — The Avatar
+      { id:'q4', section:2, sectionName:'The Avatar', kbFile:'lifestyle-avatar',
+        text:'Tell me about the last person who joined and made you think — this is exactly who we\'re built for. What was their life like before they walked in?',
+        probe:'Paint the picture more specifically — what were they doing day to day, what wasn\'t working for them?' },
+      { id:'q5', section:2, sectionName:'The Avatar', kbFile:'lifestyle-avatar',
+        text:'What\'s the specific moment — the situation — when your ideal member finally decides to do something? For some gyms it\'s when they can\'t keep up with their kids. For others it\'s the doctor visit. What\'s yours?',
+        probe:'Describe that moment as specifically as you can — what did they feel, what did they decide?' },
+      { id:'q6', section:2, sectionName:'The Avatar', kbFile:'lifestyle-avatar',
+        text:'What does their life look like 60 days after joining? Not fitness improvements — what actually changes day to day?',
+        probe:'Think about a specific member — what\'s different about their week now versus before they joined?' },
+      // Section 3 — The Differentiator (q7 text built from research)
+      { id:'q7', section:3, sectionName:'The Differentiator', kbFile:'brain-state',
+        text:null,
+        probe:'Walk me through what actually happens — what does day one look like, day seven, day thirty?' },
+      { id:'q8', section:3, sectionName:'The Differentiator', kbFile:'brain-state',
+        text:'What would a member lose if your gym closed tomorrow that they couldn\'t get anywhere else?',
+        probe:'What is the thing — not just the workouts — that can\'t be replaced?' },
+      // Section 4 — Objections
+      { id:'q9', section:4, sectionName:'Objections', kbFile:'objections',
+        text:'What\'s the most common reason someone doesn\'t sign up after hearing your offer? Say it exactly how they say it — in their words.',
+        probe:'What\'s the most common thing you hear — use their exact words if you can.' },
+      { id:'q10', section:4, sectionName:'Objections', kbFile:'objections',
+        text:'What do you say that changes their mind?',
+        probe:'What\'s the one thing you say that consistently gets them to say yes?' },
+      { id:'q11', section:4, sectionName:'Objections', kbFile:'objections',
+        text:'What\'s the second most common objection? Again — their exact words.',
+        probe:'What\'s the next thing you hear most often after that?' },
+      { id:'q12', section:4, sectionName:'Objections', kbFile:'objections',
+        text:'And the third objection — what else comes up regularly?',
+        probe:'One more — what\'s the third thing that slows people down?' },
+      // Section 5 — Member Voice
+      { id:'q13', section:5, sectionName:'Member Voice', kbFile:'lifestyle-avatar',
+        text:'Think of things members have actually said to you — word for word — about why they almost didn\'t come in. What do you hear?',
+        probe:'What do you hear from people right before they join — what were they afraid of, what almost stopped them?' },
+      // Section 6 — Manager Voice
+      { id:'q14', section:6, sectionName:'Manager Voice', kbFile:'compliance',
+        text:'How does your team naturally talk when they\'re on the phone with a prospect — not the pitch, just how they actually speak? Give me three words.',
+        probe:'Three words that describe how your best person sounds on a call.' },
+      { id:'q15', section:6, sectionName:'Manager Voice', kbFile:'compliance',
+        text:'What does your team always say that gets people to come in?',
+        probe:'What\'s the line that works consistently — that you\'ve heard them use?' },
+      { id:'q16', section:6, sectionName:'Manager Voice', kbFile:'compliance',
+        text:'What should messages from your gym never sound like? What\'s the wrong tone?',
+        probe:'What would feel off-brand — too pushy, too casual, too corporate?' },
+      // Section 7 — Compliance
+      { id:'q17', section:7, sectionName:'Compliance', kbFile:'compliance',
+        text:'Are there things you can\'t say or show in your advertising? Franchise rules, things that feel wrong for your gym, anything off-limits?',
+        probe:'Specific words, images, or claims your franchise restricts — or anything that just doesn\'t fit your brand?' },
+      // Section 8 — Local Context (q18/q19 text built dynamically)
+      { id:'q18', section:8, sectionName:'Local Context', kbFile:'brain-state',
+        text:null,
+        probe:'What local events, schedules, or news is on your members\' minds right now?' },
+      { id:'q19', section:8, sectionName:'Local Context', kbFile:'brain-state',
+        text:null,
+        probe:'Which of your Google reviews best represents what you\'d want a new member to read first?' },
+    ];
+
+    // KB pip IDs per file name
+    const KB_PIP = { 'brain-state':'pip-brain-state', 'lifestyle-avatar':'pip-avatar', 'objections':'pip-objections', 'compliance':'pip-compliance' };
+
+    // Section → KB file written after that section completes
+    const SECTION_WRITES = { 1:'brain-state', 2:'lifestyle-avatar', 3:'brain-state', 4:'objections', 5:'lifestyle-avatar', 6:'compliance', 7:'compliance', 8:'brain-state' };
+
+    // Section transition speeches
+    const SECTION_INTRO = {
+      2: "Good. Now let's talk about who you're built for.",
+      3: "Now I want to understand your differentiator.",
+      4: "Let's get into objections — the exact words you hear.",
+      5: "Now I need the language your members actually use.",
+      6: "Let's talk about how your team sounds.",
+      7: "Quick compliance check.",
+      8: "Last section — local context.",
+    };
+
+    // ─── Interview state ──────────────────────────────────────────────────────
+    let interviewState = {
+      currentQIndex: 0,
+      probeCount: 0,
+      answers: {},
+      completedSections: new Set(),
+      submitting: false,
+    };
+
+    // ─── Build dynamic question text ─────────────────────────────────────────
+    function buildQuestionText(q) {
+      if (q.text) return q.text;
+      const city = session?.city || 'your city';
+      if (q.id === 'q7') {
+        const gap = (researchData?.marketGaps || [])[0] || 'personalized coaching';
+        return `Based on what I found in your market, nobody in ${city} is talking about ${gap}. What do you do specifically that fills that gap? Walk me through what happens in someone's first 30 days with you.`;
+      }
+      if (q.id === 'q18') {
+        return `Is there anything happening in ${city} right now — events, school calendar, local news — that your ideal member is thinking about?`;
+      }
+      if (q.id === 'q19') {
+        const rev = (researchData?.googleReviews || [])[0];
+        if (rev) return `I found your Google reviews. Which feels most like what you'd want new members to read? "${rev.text?.substring(0, 70)}..." — or describe which type feels right.`;
+        return 'Which of your Google reviews do you feel best represents your gym to new members?';
+      }
+      return '—';
+    }
+
+    // ─── Resume interview after page reload ──────────────────────────────────
+    async function resumeInterview(sess) {
+      if (sess.answers) interviewState.answers = sess.answers;
+      const answered = Object.keys(interviewState.answers);
+      const nextIdx = QUESTIONS.findIndex(q => !answered.includes(q.id));
+      const resumeIdx = nextIdx >= 0 ? nextIdx : 0;
+      // Restore completed sections
+      QUESTIONS.slice(0, resumeIdx).forEach(q => interviewState.completedSections.add(q.section));
+      showState('state-interview');
+      updateStatusPip('active', 'Interview in progress');
+      if (resumeIdx > 0) await speak(`Welcome back. We're on question ${resumeIdx + 1}. Ready to continue?`);
+      await askQuestion(resumeIdx);
+    }
+
+    // ─── Start interview (called at end of Phase 2 hook reveal) ──────────────
+    async function startInterview() {
+      showState('state-interview');
+      updateStatusPip('active', 'Interview in progress');
+      await speak("Now I want to learn from you. I'm going to ask you nineteen questions. The better your answers, the sharper everything gets. Watch the panel on the right — you'll see your marketing system being built as we talk. Let's start.");
+      await sleep(500);
+      await askQuestion(0);
+    }
+
+    // ─── Ask a question ───────────────────────────────────────────────────────
+    async function askQuestion(qIdx) {
+      const q = QUESTIONS[qIdx];
+      interviewState.currentQIndex = qIdx;
+      interviewState.probeCount = 0;
+
+      // Update section progress dots
+      for (let s = 1; s <= 8; s++) {
+        const dot = document.getElementById(`sdot-${s}`);
+        if (!dot) continue;
+        if (interviewState.completedSections.has(s)) dot.className = 'section-dot done';
+        else if (s === q.section) dot.className = 'section-dot active';
+        else dot.className = 'section-dot';
+      }
+
+      document.getElementById('iv-section-tag').textContent = q.sectionName;
+      document.getElementById('iv-q-label').textContent = `Question ${qIdx + 1} of ${QUESTIONS.length}`;
+      document.getElementById('iv-question').textContent = buildQuestionText(q);
+
+      resetAnswerArea();
+      await speak(buildQuestionText(q));
+      startVoice();
+    }
+
+    // ─── Voice input ──────────────────────────────────────────────────────────
+    let recognition = null;
+    let voiceActive = false;
+    let voiceLockTimer = null;
+    let currentTranscript = '';
+
+    function initRecognition() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) return null;
+      const r = new SR();
+      r.continuous = true;
+      r.interimResults = true;
+      r.lang = 'en-US';
+      r.maxAlternatives = 1;
+
+      r.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) {
+            currentTranscript += (currentTranscript ? ' ' : '') + e.results[i][0].transcript.trim();
+          } else {
+            interim = e.results[i][0].transcript;
+          }
+        }
+        const liveEl = document.getElementById('transcript-live');
+        liveEl.textContent = [currentTranscript, interim].filter(Boolean).join(' ') || 'Listening...';
+        clearTimeout(voiceLockTimer);
+        if (currentTranscript) voiceLockTimer = setTimeout(lockTranscript, 2200);
+      };
+
+      r.onerror = (e) => {
+        if (e.error === 'not-allowed') {
+          stopVoice();
+          document.getElementById('transcript-live').textContent = 'Microphone access denied — please use the text input below.';
+        }
+      };
+
+      r.onend = () => {
+        if (voiceActive) { try { r.start(); } catch {} }
+      };
+
+      return r;
+    }
+
+    function startVoice() {
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        document.getElementById('transcript-live').textContent = 'Speech recognition not supported — please type below.';
+        return;
+      }
+      voiceActive = true;
+      currentTranscript = '';
+      clearTimeout(voiceLockTimer);
+      recognition = initRecognition();
+      try { recognition.start(); } catch {}
+      document.getElementById('voice-btn').classList.add('listening');
+      document.getElementById('voice-btn').textContent = '🎙 Listening...';
+      document.getElementById('transcript-area').classList.add('listening');
+      document.getElementById('transcript-live').textContent = 'Listening...';
+      document.getElementById('transcript-locked').textContent = '';
+      document.getElementById('submit-btn').disabled = true;
+    }
+
+    function stopVoice() {
+      voiceActive = false;
+      clearTimeout(voiceLockTimer);
+      if (recognition) { try { recognition.stop(); } catch {} recognition = null; }
+      const btn = document.getElementById('voice-btn');
+      if (btn) { btn.classList.remove('listening'); btn.textContent = '🎙 Start speaking'; }
+      const area = document.getElementById('transcript-area');
+      if (area) area.classList.remove('listening');
+    }
+
+    function lockTranscript() {
+      const text = currentTranscript.trim();
+      stopVoice();
+      if (!text) return;
+      document.getElementById('transcript-live').textContent = '';
+      document.getElementById('transcript-locked').textContent = text;
+      document.getElementById('text-answer').value = text;
+      document.getElementById('submit-btn').disabled = false;
+    }
+
+    function toggleVoice() {
+      if (voiceActive) lockTranscript();
+      else startVoice();
+    }
+
+    function onTextInput(val) {
+      document.getElementById('submit-btn').disabled = !val.trim();
+      if (val.trim()) document.getElementById('transcript-locked').textContent = val;
+    }
+
+    function resetAnswerArea() {
+      stopVoice();
+      currentTranscript = '';
+      const live = document.getElementById('transcript-live');
+      const locked = document.getElementById('transcript-locked');
+      const txt = document.getElementById('text-answer');
+      const btn = document.getElementById('submit-btn');
+      if (live) live.textContent = 'Press the microphone to start speaking...';
+      if (locked) locked.textContent = '';
+      if (txt) txt.value = '';
+      if (btn) { btn.disabled = true; btn.textContent = 'Submit answer'; }
+      hideSuggestions();
+    }
+
+    // ─── Submit answer ────────────────────────────────────────────────────────
+    async function submitAnswer() {
+      if (interviewState.submitting) return;
+      const q = QUESTIONS[interviewState.currentQIndex];
+      const transcript = (document.getElementById('transcript-locked').textContent || document.getElementById('text-answer').value || '').trim();
+      if (!transcript) return;
+
+      interviewState.submitting = true;
+      stopVoice();
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Thinking...';
+
+      interviewState.answers[q.id] = transcript;
+      saveAnswers().catch(() => {});
+
+      try {
+        const evalRes = await fetch(`/api/onboarding/sessions/${sessionId}/answer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questionId: q.id, transcript, section: q.section }),
+        });
+
+        if (!evalRes.ok) throw new Error('eval failed');
+        const evalData = await evalRes.json();
+
+        if (evalData.suggestions && evalData.suggestions.length > 0) {
+          interviewState.submitting = false;
+          btn.textContent = 'Submit answer';
+          await showSuggestions(evalData.suggestions);
+        } else if (!evalData.sufficient && interviewState.probeCount < 2 && q.probe) {
+          interviewState.probeCount++;
+          interviewState.submitting = false;
+          btn.textContent = 'Submit answer';
+          resetAnswerArea();
+          await speak(evalData.probeQuestion || q.probe);
+          startVoice();
+        } else {
+          interviewState.submitting = false;
+          await advanceInterview();
+        }
+      } catch {
+        interviewState.submitting = false;
+        await advanceInterview();
+      }
+    }
+
+    // ─── Advance to next question / section ──────────────────────────────────
+    async function advanceInterview() {
+      const q = QUESTIONS[interviewState.currentQIndex];
+      const nextIdx = interviewState.currentQIndex + 1;
+      const nextSection = nextIdx < QUESTIONS.length ? QUESTIONS[nextIdx].section : null;
+
+      if (nextSection !== q.section) {
+        // Section just completed — write KB file + update right panel
+        await writeSectionKB(q.section);
+        interviewState.completedSections.add(q.section);
+        if (nextSection && SECTION_INTRO[nextSection]) {
+          await speak(SECTION_INTRO[nextSection]);
+          await sleep(400);
+        }
+      }
+
+      if (nextIdx >= QUESTIONS.length) {
+        await finishInterview();
+      } else {
+        await askQuestion(nextIdx);
+      }
+    }
+
+    // ─── Persist answers to R2 ────────────────────────────────────────────────
+    async function saveAnswers() {
+      await fetch(`/api/onboarding/sessions/${sessionId}/answers`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers: interviewState.answers }),
+      });
+    }
+
+    // ─── Write KB section and update right panel ──────────────────────────────
+    async function writeSectionKB(section) {
+      const kbFile = SECTION_WRITES[section];
+      if (!kbFile) return;
+      const pipId = KB_PIP[kbFile];
+      const pipEl = document.getElementById(pipId);
+      const fileEl = pipEl?.closest('.kb-file');
+
+      if (pipEl) pipEl.className = 'kb-pip writing';
+      if (fileEl) { fileEl.classList.add('active'); fileEl.classList.remove('complete'); }
+
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/kb-section`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ section, answers: interviewState.answers }),
+        });
+        if (res.ok) {
+          if (pipEl) pipEl.className = 'kb-pip done';
+          if (fileEl) { fileEl.classList.remove('active'); fileEl.classList.add('complete'); }
+        } else {
+          if (pipEl) pipEl.className = 'kb-pip';
+        }
+      } catch {
+        if (pipEl) pipEl.className = 'kb-pip';
+      }
+    }
+
+    // ─── Suggestion cards ─────────────────────────────────────────────────────
+    async function showSuggestions(suggestions) {
+      await speak("Here are some options based on what I know about your market. Pick one, or describe it in your own words.");
+      const wrap = document.getElementById('suggestions-wrap');
+      const container = document.getElementById('suggestion-cards-container');
+      wrap.classList.remove('hidden');
+      container.innerHTML = '';
+      suggestions.forEach((s, i) => {
+        const card = document.createElement('div');
+        card.className = 'suggestion-card';
+        card.innerHTML = `<div class="sug-text">${esc(s.text)}</div>${s.subtext ? `<div class="sug-sub">${esc(s.subtext)}</div>` : ''}`;
+        card.addEventListener('click', () => selectSuggestion(s.text, card));
+        container.appendChild(card);
+        setTimeout(() => card.classList.add('sug-visible'), i * 90);
+      });
+      document.getElementById('submit-btn').disabled = true;
+      startVoice();
+    }
+
+    function selectSuggestion(text, cardEl) {
+      document.querySelectorAll('.suggestion-card').forEach(c => c.classList.remove('selected'));
+      cardEl.classList.add('selected');
+      currentTranscript = text;
+      document.getElementById('transcript-locked').textContent = text;
+      document.getElementById('transcript-live').textContent = '';
+      document.getElementById('text-answer').value = text;
+      document.getElementById('submit-btn').disabled = false;
+      stopVoice();
+    }
+
+    function hideSuggestions() {
+      const wrap = document.getElementById('suggestions-wrap');
+      if (wrap) wrap.classList.add('hidden');
+      const container = document.getElementById('suggestion-cards-container');
+      if (container) container.innerHTML = '';
+    }
+
+    // ─── Finish interview ─────────────────────────────────────────────────────
+    async function finishInterview() {
+      updateStatusPip('active', 'Generating your system');
+      showState('state-speaking');
+      document.getElementById('speaking-text').textContent = 'Generating your final hooks and offer brief...';
+      await speak("Your marketing system is configured. All nineteen questions answered. I'm generating your final hooks now — based on everything you've told me.");
+      // Phase 5: final hook generation handled in future build
     }
 
     init();

@@ -2641,6 +2641,344 @@ app.post('/api/onboarding/sessions/:sessionId/tts', async (req, res) => {
   }
 });
 
+// ─── PHASE 3: Interview engine endpoints ─────────────────────────────────────
+
+// What a sufficient answer looks like per question
+const Q_PURPOSE = {
+  q1: 'specific offer details: price, what is included, and exact guarantee terms',
+  q2: 'a specific surprising or undervalued offer element',
+  q3: 'a specific next cohort date and number of spots available',
+  q4: 'a vivid picture of a specific real member and their life before joining',
+  q5: 'a specific triggering moment or situation when the ideal member decides to act',
+  q6: 'specific concrete day-to-day life changes 60 days after joining',
+  q7: 'a specific description of their differentiator and what the first 30 days look like',
+  q8: 'what specifically would be irreplaceable if the gym closed',
+  q9: 'exact words a prospect uses for their most common objection',
+  q10: 'the specific response that changes their mind',
+  q11: 'exact words for the second most common objection',
+  q12: 'exact words for the third most common objection',
+  q13: 'word-for-word things members said about why they almost did not come in',
+  q14: 'three specific words describing the team communication personality',
+  q15: 'a specific phrase that consistently gets prospects to book',
+  q16: 'specific examples of wrong tone',
+  q17: 'specific advertising restrictions or franchise rules',
+  q18: 'specific local events or community context right now',
+  q19: 'which review type best represents the brand',
+};
+
+// POST /api/onboarding/sessions/:sessionId/answer — evaluate answer quality
+app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
+  const { sessionId } = req.params;
+  const { questionId, transcript, section } = req.body;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  if (!transcript || typeof transcript !== 'string') return res.status(400).json({ error: 'transcript required' });
+  if (!questionId) return res.status(400).json({ error: 'questionId required' });
+
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const words = transcript.trim().split(/\s+/);
+  const lower = transcript.toLowerCase().trim();
+
+  // Detect weak answers — offer suggestion cards instead of probing
+  const isWeak = words.length < 5 || /^(i don.?t know|not sure|no idea|pass|skip|um+|uh+|hmm+|idk)[\.\s!]*$/i.test(lower);
+  if (isWeak) {
+    const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
+    const suggestions = await generateAnswerSuggestions(questionId, session, research);
+    return res.json({ sufficient: false, suggestions });
+  }
+
+  // Questions where any >5 word answer is sufficient — no Claude eval needed
+  const acceptAnything = ['q9','q10','q11','q12','q13','q14','q15','q16','q17','q18','q19'];
+  if (acceptAnything.includes(questionId) || words.length >= 20) {
+    return res.json({ sufficient: true });
+  }
+
+  // Claude evaluates vague but non-empty answers
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) return res.json({ sufficient: true });
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const msg = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 150,
+      messages: [{
+        role: 'user',
+        content: `Evaluate if this gym owner's answer is sufficient for our purpose.
+
+Purpose: Extract ${Q_PURPOSE[questionId] || 'relevant context'}
+Answer: "${transcript}"
+
+Is this answer specific enough to extract the required data, or does it need a follow-up?
+Respond JSON only: {"sufficient": boolean, "probeQuestion": "one follow-up question or null"}`
+      }]
+    });
+    const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+    const result = JSON.parse(raw);
+    return res.json({ sufficient: !!result.sufficient, probeQuestion: result.probeQuestion || null });
+  } catch {
+    return res.json({ sufficient: true });
+  }
+});
+
+/** Generate 3 suggestion cards when an answer is too weak. */
+async function generateAnswerSuggestions(questionId, session, research) {
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) return [];
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const gymName = session.gymName || 'this gym';
+    const city = session.city || 'their city';
+    const gaps = (research?.marketGaps || []).slice(0,2).join(', ') || 'personalized coaching';
+    const reviewSnippets = (research?.googleReviews || []).slice(0,2).map(r => r.text?.substring(0,80)).filter(Boolean).join('; ');
+    const competitors = (research?.competitors || []).slice(0,2).map(c => c.name).join(', ') || 'larger chain gyms';
+
+    const contextMap = {
+      q4: `Generate 3 vivid gym member avatar profiles for ${gymName} in ${city}. Market gap: ${gaps}. Reviews hint: ${reviewSnippets}. Each: one sentence describing a real person type — age, life situation, why they need a gym.`,
+      q5: `Generate 3 specific trigger moments when someone finally decides to join a gym like ${gymName}. Based on market gap: ${gaps}. Each: a specific real-life situation in one sentence.`,
+      q6: `Generate 3 descriptions of concrete day-to-day life changes 60 days after joining ${gymName}. Not fitness metrics — actual life changes. Based on reviews: ${reviewSnippets}.`,
+      q7: `Generate 3 differentiator descriptions for ${gymName} in ${city}. Market gap to fill: ${gaps}. Competitors doing: ${competitors}. Each: a one-sentence unique positioning statement.`,
+    };
+
+    const baseContext = `Generate 3 specific example answers for a gym owner being asked about: ${Q_PURPOSE[questionId] || 'their gym'}. Gym: ${gymName} in ${city}. Make each realistic and specific.`;
+    const prompt = contextMap[questionId] || baseContext;
+
+    const msg = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 400,
+      messages: [{ role: 'user', content: `${prompt}\n\nRespond JSON only: {"options": [{"text": "...", "subtext": "..."}, {"text": "...", "subtext": "..."}, {"text": "...", "subtext": "..."}]}` }]
+    });
+    const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+    const data = JSON.parse(raw);
+    return (data.options || []).slice(0, 3);
+  } catch (err) {
+    console.error('[onboarding] generateAnswerSuggestions failed:', err.message);
+    return [];
+  }
+}
+
+// PATCH /api/onboarding/sessions/:sessionId/answers — persist answers to R2 (no auth — UUID secured)
+app.patch('/api/onboarding/sessions/:sessionId/answers', async (req, res) => {
+  const { sessionId } = req.params;
+  const { answers } = req.body;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  if (!answers || typeof answers !== 'object') return res.status(400).json({ error: 'answers required' });
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  session.answers = answers;
+  if (session.status === 'research_complete') session.status = 'interview_started';
+  session.last_answer_at = new Date().toISOString();
+  await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+  res.json({ success: true });
+});
+
+// POST /api/onboarding/sessions/:sessionId/kb-section — generate + write KB file section to R2
+app.post('/api/onboarding/sessions/:sessionId/kb-section', async (req, res) => {
+  const { sessionId } = req.params;
+  const { section, answers } = req.body;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  if (!section || !answers) return res.status(400).json({ error: 'section and answers required' });
+
+  const [session, research] = await Promise.all([
+    r2GetShared(`onboarding/sessions/${sessionId}/session.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`),
+  ]);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) return res.status(503).json({ error: 'No API key' });
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const content = await generateKBSectionContent(section, answers, session, research, client);
+
+    // File paths per section
+    const FILE_PATHS = {
+      1: 'knowledge-base/brain-state/current-state.md',
+      2: 'knowledge-base/lifestyle-avatar.md',
+      3: 'knowledge-base/brain-state/differentiator.md',
+      4: 'knowledge-base/objection-vault.md',
+      5: 'knowledge-base/lifestyle-avatar-voc.md',
+      6: 'knowledge-base/brand-voice.md',
+      7: 'knowledge-base/compliance.md',
+      8: 'knowledge-base/brain-state/local-context.md',
+    };
+
+    const filePath = FILE_PATHS[section];
+    if (filePath) {
+      await r2PutShared(`onboarding/sessions/${sessionId}/${filePath}`, content);
+    }
+
+    // Update session status
+    session[`section_${section}_complete`] = true;
+    session[`section_${section}_at`] = new Date().toISOString();
+    if (session.status !== 'interview_started') session.status = 'interview_started';
+    await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+
+    console.log(`[onboarding] kb-section ${section} written: ${filePath}`);
+    res.json({ success: true, section, file: filePath });
+  } catch (err) {
+    console.error(`[onboarding] kb-section ${section} failed:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Generate KB file markdown content for a completed interview section. */
+async function generateKBSectionContent(section, answers, session, research, client) {
+  const gym = session.gymName || 'Unknown Gym';
+  const city = session.city || '';
+  const date = new Date().toISOString().split('T')[0];
+  const gap = (research?.marketGaps || [])[0] || '';
+  const franchise = session.franchiseType || 'independent';
+  const a = answers; // shorthand
+
+  const prompts = {
+    1: `Extract offer details from these raw interview answers and format as structured markdown.
+Q1 (offer/price/guarantee): ${a.q1 || '—'}
+Q2 (surprise element): ${a.q2 || '—'}
+Q3 (cohort/spots): ${a.q3 || '—'}
+
+Write this exact file — fill from answers, use "[not captured]" for gaps:
+# Brain State — ${gym}
+# Generated: ${date}
+
+## Active Offer
+Price: [extract]
+Duration: [extract]
+Included: [extract]
+Guarantee: [extract]
+Surprise element: [extract from q2]
+Next cohort: [extract from q3]
+Spots remaining: [extract from q3]
+
+## Market Context
+City: ${city}
+Franchise: ${franchise}
+Market gap: ${gap}`,
+
+    2: `Format avatar interview answers as structured markdown.
+Q4 (ideal member before): ${a.q4 || '—'}
+Q5 (trigger moment): ${a.q5 || '—'}
+Q6 (60 day outcome): ${a.q6 || '—'}
+
+Write this exact file:
+# Lifestyle Avatar — ${gym}
+# Generated: ${date}
+
+## Who They Are
+${a.q4 || '[not captured]'}
+
+## The Moment They Decide
+${a.q5 || '[not captured]'}
+
+## Dream Outcome (60 days)
+${a.q6 || '[not captured]'}`,
+
+    3: `Format differentiator answers.
+Q7 (what fills the gap / first 30 days): ${a.q7 || '—'}
+Q8 (irreplaceable thing): ${a.q8 || '—'}
+
+Write this exact file:
+# Differentiator — ${gym}
+# Generated: ${date}
+
+## The Mechanism
+${a.q7 || '[not captured]'}
+
+## What Cannot Be Replaced
+${a.q8 || '[not captured]'}`,
+
+    4: `Format objection vault from raw answers. Use exact words — do not paraphrase.
+Q9 (objection 1): ${a.q9 || '—'}
+Q10 (response that works): ${a.q10 || '—'}
+Q11 (objection 2): ${a.q11 || '—'}
+Q12 (objection 3): ${a.q12 || '—'}
+
+Write this exact file:
+# Objection Vault — ${gym}
+# Generated: ${date}
+
+## Objection 1 (most common)
+Their exact words: "${a.q9 || '[not captured]'}"
+Response that works: "${a.q10 || '[not captured]'}"
+
+## Objection 2
+Their exact words: "${a.q11 || '[not captured]'}"
+
+## Objection 3
+Their exact words: "${a.q12 || '[not captured]'}"`,
+
+    5: `Format member voice of customer. Use exact words.
+Q13 (things members said): ${a.q13 || '—'}
+
+Write this exact file:
+# Member VoC — ${gym}
+# Generated: ${date}
+
+## What Members Said (before joining)
+${a.q13 || '[not captured]'}`,
+
+    6: `Format brand voice rules.
+Q14 (3 words for team style): ${a.q14 || '—'}
+Q15 (what always works): ${a.q15 || '—'}
+Q16 (what to never sound like): ${a.q16 || '—'}
+
+Write this exact file:
+# Brand Voice — ${gym}
+# Generated: ${date}
+
+## Manager Personality
+Three words: ${a.q14 || '[not captured]'}
+What always works: "${a.q15 || '[not captured]'}"
+Never sound like: "${a.q16 || '[not captured]'}"`,
+
+    7: `Format compliance rules.
+Q17 (restrictions/rules): ${a.q17 || '—'}
+Franchise type: ${franchise}
+
+Write this exact file:
+# Compliance Rules — ${gym}
+# Generated: ${date}
+
+## Gym-Specific Rules
+${a.q17 || 'No specific restrictions mentioned.'}
+
+## Standard Rules
+- No specific weight loss claims without substantiation
+- No before/after body transformation images
+- No guaranteed result language
+- SMS requires explicit opt-in consent`,
+
+    8: `Format local context.
+Q18 (local events/calendar): ${a.q18 || '—'}
+Q19 (best review): ${a.q19 || '—'}
+
+Write this exact file:
+# Local Context — ${gym}
+# Generated: ${date}
+
+## What's Happening Now
+${a.q18 || '[not captured]'}
+
+## Review Voice
+${a.q19 || '[not captured]'}`,
+  };
+
+  const prompt = prompts[section];
+  if (!prompt) return `# Section ${section} — ${gym}\n# Generated: ${date}\n\n[No content template for this section]`;
+
+  const msg = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 700,
+    messages: [{ role: 'user', content: prompt }]
+  });
+  return msg.content[0].text.trim();
+}
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
