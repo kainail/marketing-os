@@ -604,10 +604,15 @@
           const blob = await res.blob();
           const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
+          audioPlaying = true;
           await new Promise(resolve => {
-            audio.onended = resolve;
-            audio.onerror = () => resolve();
-            audio.play().catch(() => resolve());
+            audio.onended = () => {
+              audioPlaying = false;
+              if (pendingVoiceStart) { pendingVoiceStart = false; doStartRecognition(); }
+              resolve();
+            };
+            audio.onerror = () => { audioPlaying = false; resolve(); };
+            audio.play().catch(() => { audioPlaying = false; resolve(); });
           });
           URL.revokeObjectURL(url);
         } else if (res.status === 503) {
@@ -807,6 +812,8 @@
 
     // ─── Start interview (called at end of Phase 2 hook reveal) ──────────────
     async function startInterview() {
+      // Request mic permission before any audio plays so Edge grants it cleanly
+      await requestMicPermission();
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
       await speak("Now I want to learn from you. I'm going to ask you nineteen questions. The better your answers, the sharper everything gets. Watch the panel on the right — you'll see your marketing system being built as we talk. Let's start.");
@@ -839,21 +846,41 @@
     }
 
     // ─── Voice input ──────────────────────────────────────────────────────────
+    // Edge compatibility: continuous:false + single-shot restart + permission pre-request
     let recognition = null;
     let voiceActive = false;
     let voiceLockTimer = null;
     let currentTranscript = '';
+    let audioPlaying = false;      // true while ElevenLabs audio is playing
+    let pendingVoiceStart = false; // queued startVoice() while audio was playing
 
-    function initRecognition() {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SR) return null;
-      const r = new SR();
-      r.continuous = true;
-      r.interimResults = true;
-      r.lang = 'en-US';
-      r.maxAlternatives = 1;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-      r.onresult = (e) => {
+    /** Pre-request mic permission so Edge shows the dialog before the interview starts. */
+    async function requestMicPermission() {
+      if (!navigator.mediaDevices?.getUserMedia) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop()); // grant permission then immediately release
+      } catch { /* denied or unavailable — voice falls back to text */ }
+    }
+
+    /**
+     * Create and start a single-shot recognition session.
+     * Called by startVoice() and by recognition.onend for auto-restart.
+     * Never called while audio is playing — Edge blocks it.
+     */
+    function doStartRecognition() {
+      if (!SR || !voiceActive || audioPlaying) return;
+      if (recognition) { try { recognition.stop(); } catch {} }
+
+      recognition = new SR();
+      recognition.continuous = false;   // Edge requires false for reliable results
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
+
+      recognition.onresult = (e) => {
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
           if (e.results[i].isFinal) {
@@ -863,46 +890,74 @@
           }
         }
         const liveEl = document.getElementById('transcript-live');
-        liveEl.textContent = [currentTranscript, interim].filter(Boolean).join(' ') || 'Listening...';
+        if (liveEl) liveEl.textContent = [currentTranscript, interim].filter(Boolean).join(' ') || 'Listening...';
         clearTimeout(voiceLockTimer);
         if (currentTranscript) voiceLockTimer = setTimeout(lockTranscript, 2200);
       };
 
-      r.onerror = (e) => {
+      recognition.onerror = (e) => {
         if (e.error === 'not-allowed') {
           stopVoice();
-          document.getElementById('transcript-live').textContent = 'Microphone access denied — please use the text input below.';
+          const live = document.getElementById('transcript-live');
+          if (live) live.textContent = 'Microphone access denied — please use the text input below.';
+        }
+        // no-speech / audio-capture / network: onend will handle restart
+      };
+
+      // Single-shot auto-restart — replaces continuous:true
+      recognition.onend = () => {
+        if (voiceActive && !audioPlaying) {
+          try {
+            recognition.start();
+          } catch {
+            // State error: recreate on next tick
+            setTimeout(() => { if (voiceActive && !audioPlaying) doStartRecognition(); }, 80);
+          }
         }
       };
 
-      r.onend = () => {
-        if (voiceActive) { try { r.start(); } catch {} }
-      };
-
-      return r;
+      try { recognition.start(); } catch (err) {
+        console.warn('[voice] recognition.start failed:', err.message);
+      }
     }
 
     function startVoice() {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (!SR) {
-        document.getElementById('transcript-live').textContent = 'Speech recognition not supported — please type below.';
+        // Not supported — update UI and leave text input as primary
+        const live = document.getElementById('transcript-live');
+        if (live) live.textContent = 'Voice input requires Chrome or Edge. Please type your answer below.';
+        const btn = document.getElementById('voice-btn');
+        if (btn) { btn.textContent = '⌨️ Type your answer'; btn.disabled = true; }
         return;
       }
       voiceActive = true;
       currentTranscript = '';
       clearTimeout(voiceLockTimer);
-      recognition = initRecognition();
-      try { recognition.start(); } catch {}
-      document.getElementById('voice-btn').classList.add('listening');
-      document.getElementById('voice-btn').textContent = '🎙 Listening...';
-      document.getElementById('transcript-area').classList.add('listening');
-      document.getElementById('transcript-live').textContent = 'Listening...';
-      document.getElementById('transcript-locked').textContent = '';
-      document.getElementById('submit-btn').disabled = true;
+
+      const btn = document.getElementById('voice-btn');
+      if (btn) { btn.classList.add('listening'); btn.textContent = '🎙 Listening...'; }
+      const area = document.getElementById('transcript-area');
+      if (area) area.classList.add('listening');
+      const live = document.getElementById('transcript-live');
+      if (live) live.textContent = 'Listening...';
+      const locked = document.getElementById('transcript-locked');
+      if (locked) locked.textContent = '';
+      const submitBtn = document.getElementById('submit-btn');
+      if (submitBtn) submitBtn.disabled = true;
+
+      if (audioPlaying) {
+        // Edge: audio still playing — recognition.start() would be blocked.
+        // Set flag; doStartRecognition() will be called from audio.onended.
+        pendingVoiceStart = true;
+      } else {
+        pendingVoiceStart = false;
+        doStartRecognition();
+      }
     }
 
     function stopVoice() {
       voiceActive = false;
+      pendingVoiceStart = false;
       clearTimeout(voiceLockTimer);
       if (recognition) { try { recognition.stop(); } catch {} recognition = null; }
       const btn = document.getElementById('voice-btn');
@@ -927,8 +982,10 @@
     }
 
     function onTextInput(val) {
+      // Textarea is the primary input path — keep transcript-locked in sync so
+      // submitAnswer() reads the same value regardless of input method used.
+      document.getElementById('transcript-locked').textContent = val;
       document.getElementById('submit-btn').disabled = !val.trim();
-      if (val.trim()) document.getElementById('transcript-locked').textContent = val;
     }
 
     function resetAnswerArea() {
@@ -938,7 +995,7 @@
       const locked = document.getElementById('transcript-locked');
       const txt = document.getElementById('text-answer');
       const btn = document.getElementById('submit-btn');
-      if (live) live.textContent = 'Press the microphone to start speaking...';
+      if (live) live.textContent = SR ? 'Press the microphone to start speaking...' : 'Type your answer below and press Submit.';
       if (locked) locked.textContent = '';
       if (txt) txt.value = '';
       if (btn) { btn.disabled = true; btn.textContent = 'Submit answer'; }
@@ -1065,7 +1122,8 @@
         card.innerHTML = `<div class="sug-text">${esc(s.text)}</div>${s.subtext ? `<div class="sug-sub">${esc(s.subtext)}</div>` : ''}`;
         card.addEventListener('click', () => selectSuggestion(s.text, card));
         container.appendChild(card);
-        setTimeout(() => card.classList.add('sug-visible'), i * 90);
+        // 20ms floor: browser must paint the initial opacity:0 state before transition fires
+        setTimeout(() => card.classList.add('sug-visible'), 20 + i * 100);
       });
       document.getElementById('submit-btn').disabled = true;
       startVoice();
