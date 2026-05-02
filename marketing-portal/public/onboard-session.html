@@ -19,23 +19,17 @@
     .status-pip { width: 6px; height: 6px; border-radius: 50%; background: #eab308; flex-shrink: 0; }
     .status-pip.active { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.5); }
     .status-pip.preparing { background: #7c3aed; animation: pip-pulse 2s ease-in-out infinite; }
-    @keyframes pip-pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(124,58,237,0.6); } 50% { opacity: 0.5; box-shadow: 0 0 3px rgba(124,58,237,0.2); } }
+    @keyframes pip-pulse { 0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(124,58,237,0.6); } 50% { opacity: 0.5; box-shadow: none; } }
 
     /* ─── Main layout ─────────────────────────────────────────────── */
     .main { display: grid; grid-template-columns: 1fr 380px; height: calc(100vh - 56px); }
 
-    /* ─── Left panel — conversation ──────────────────────────────── */
-    .left-panel { display: flex; flex-direction: column; padding: 32px; border-right: 1px solid rgba(255,255,255,0.05); position: relative; overflow: hidden; }
-
-    /* Background glow */
+    /* ─── Left panel ─────────────────────────────────────────────── */
+    .left-panel { display: flex; flex-direction: column; align-items: center; padding: 36px 32px 28px; border-right: 1px solid rgba(255,255,255,0.05); position: relative; overflow: hidden; }
     .left-panel::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 30% 20%, rgba(124,58,237,0.06) 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(99,102,241,0.04) 0%, transparent 50%); pointer-events: none; }
 
-    /* Preparing state */
-    .preparing-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; z-index: 1; }
-    .preparing-state.hidden { display: none; }
-
-    /* Waveform visualization */
-    .waveform { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 32px; height: 48px; }
+    /* ─── Waveform — always visible ──────────────────────────────── */
+    .waveform { display: flex; align-items: center; justify-content: center; gap: 4px; height: 48px; flex-shrink: 0; margin-bottom: 32px; position: relative; z-index: 1; }
     .wave-bar { width: 3px; border-radius: 3px; background: #7c3aed; animation: wave 1.4s ease-in-out infinite; }
     .wave-bar:nth-child(1) { height: 8px; animation-delay: 0s; }
     .wave-bar:nth-child(2) { height: 16px; animation-delay: 0.1s; }
@@ -47,49 +41,91 @@
     .wave-bar:nth-child(8) { height: 16px; animation-delay: 0.7s; }
     .wave-bar:nth-child(9) { height: 8px; animation-delay: 0.8s; }
     @keyframes wave { 0%, 100% { transform: scaleY(0.4); opacity: 0.5; } 50% { transform: scaleY(1); opacity: 1; } }
-    .waveform.idle .wave-bar { animation: wave-idle 3s ease-in-out infinite; opacity: 0.25; }
-    @keyframes wave-idle { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(0.6); } }
+    .waveform.idle .wave-bar { animation: wave-idle 3s ease-in-out infinite; opacity: 0.18; }
+    @keyframes wave-idle { 0%, 100% { transform: scaleY(0.3); } 50% { transform: scaleY(0.55); } }
 
-    .preparing-label { font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 16px; }
-    .preparing-heading { font-size: 28px; font-weight: 800; line-height: 1.2; margin-bottom: 12px; }
-    .preparing-sub { font-size: 15px; color: rgba(232,234,240,0.5); max-width: 420px; line-height: 1.6; }
-    .progress-dots { display: flex; gap: 8px; margin-top: 28px; justify-content: center; }
+    /* ─── State area ─────────────────────────────────────────────── */
+    .state-area { flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; z-index: 1; }
+    .state-pane { width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .state-pane.hidden { display: none; }
+
+    /* ─── State 1: preparing ─────────────────────────────────────── */
+    .preparing-label { font-size: 13px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 18px; }
+    .preparing-heading { font-size: 28px; font-weight: 800; line-height: 1.25; margin-bottom: 14px; max-width: 480px; }
+    .preparing-sub { font-size: 15px; color: rgba(232,234,240,0.5); max-width: 420px; line-height: 1.65; }
+    .progress-dots { display: flex; gap: 8px; margin-top: 32px; justify-content: center; }
     .progress-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.15); transition: background 0.3s, transform 0.3s; }
     .progress-dot.done { background: #7c3aed; }
-    .progress-dot.active { background: #a78bfa; transform: scale(1.3); animation: dot-blink 1s ease-in-out infinite; }
-    @keyframes dot-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .progress-dot.active { background: #a78bfa; transform: scale(1.4); animation: dot-blink 1s ease-in-out infinite; }
+    @keyframes dot-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-    /* Research ready state */
-    .ready-state { flex: 1; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; z-index: 1; }
-    .ready-state.show { display: flex; }
-    .ready-icon { width: 64px; height: 64px; border-radius: 50%; background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.3); display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 24px; box-shadow: 0 0 40px rgba(124,58,237,0.15); }
-    .ready-heading { font-size: 32px; font-weight: 800; margin-bottom: 10px; }
-    .ready-sub { font-size: 15px; color: rgba(232,234,240,0.5); max-width: 380px; line-height: 1.6; }
-    .ready-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); border-radius: 20px; padding: 6px 14px; font-size: 13px; font-weight: 500; color: #6ee7b7; margin-top: 20px; }
+    /* ─── State 2: reveal-ready ──────────────────────────────────── */
+    .reveal-badge { display: inline-flex; align-items: center; gap: 7px; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); border-radius: 20px; padding: 5px 14px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #86efac; margin-bottom: 26px; }
+    .reveal-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); flex-shrink: 0; }
+    .reveal-heading { font-size: 32px; font-weight: 800; line-height: 1.2; margin-bottom: 14px; }
+    .reveal-sub { font-size: 15px; color: rgba(232,234,240,0.5); max-width: 400px; line-height: 1.65; margin-bottom: 36px; }
+    .begin-btn { display: inline-flex; align-items: center; gap: 10px; background: #7c3aed; border: none; border-radius: 12px; padding: 17px 38px; font-family: inherit; font-size: 16px; font-weight: 700; color: #fff; cursor: pointer; transition: background 0.15s, transform 0.15s, box-shadow 0.15s; box-shadow: 0 0 48px rgba(124,58,237,0.3); letter-spacing: 0.3px; }
+    .begin-btn:hover { background: #6d28d9; transform: translateY(-2px); box-shadow: 0 0 64px rgba(124,58,237,0.5); }
+    .begin-btn:active { transform: translateY(0); }
+    .begin-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
-    /* ─── Right panel — knowledge base ───────────────────────────── */
-    .right-panel { background: rgba(255,255,255,0.015); display: flex; flex-direction: column; padding: 24px; overflow-y: auto; gap: 12px; }
-    .kb-header { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.3); margin-bottom: 4px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-    .kb-file { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; transition: border-color 0.3s; }
+    /* ─── State 3: speaking ──────────────────────────────────────── */
+    .speaking-who { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 22px; display: flex; align-items: center; gap: 8px; justify-content: center; }
+    .speaking-who-dot { width: 6px; height: 6px; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 8px rgba(124,58,237,0.6); animation: pip-pulse 1.2s ease-in-out infinite; }
+    .speaking-text { font-size: 17px; color: rgba(232,234,240,0.72); max-width: 460px; line-height: 1.78; font-weight: 400; }
+
+    /* ─── State 4: hook reveal ───────────────────────────────────── */
+    .hook-counter { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 28px; min-height: 16px; }
+    .hook-card-wrap { width: 100%; max-width: 500px; }
+    .hook-card { padding: 30px 34px; background: rgba(124,58,237,0.07); border: 1px solid rgba(124,58,237,0.18); border-radius: 16px; opacity: 0; transform: translateY(22px); transition: opacity 0.5s cubic-bezier(0.22,1,0.36,1), transform 0.5s cubic-bezier(0.22,1,0.36,1); box-shadow: 0 0 64px rgba(124,58,237,0.07); min-height: 90px; display: flex; flex-direction: column; justify-content: center; }
+    .hook-card.visible { opacity: 1; transform: translateY(0); }
+    .hook-text { font-size: 22px; font-weight: 700; line-height: 1.45; color: #e8eaf0; }
+    .hook-meta { margin-top: 12px; font-size: 11px; color: rgba(232,234,240,0.28); letter-spacing: 1px; text-transform: uppercase; }
+    .hook-intro-text { font-size: 17px; font-weight: 500; color: rgba(232,234,240,0.6); line-height: 1.65; }
+
+    /* ─── Right panel ─────────────────────────────────────────────── */
+    .right-panel { background: rgba(255,255,255,0.013); display: flex; flex-direction: column; padding: 24px; overflow-y: auto; gap: 10px; }
+    .panel-header { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
+    .kb-file { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 13px 16px; display: flex; align-items: center; gap: 12px; transition: border-color 0.3s, background 0.3s; flex-shrink: 0; }
     .kb-file.active { border-color: rgba(124,58,237,0.3); background: rgba(124,58,237,0.05); }
     .kb-file.complete { border-color: rgba(34,197,94,0.25); background: rgba(34,197,94,0.04); }
-    .kb-icon { font-size: 16px; flex-shrink: 0; }
+    .kb-icon { font-size: 15px; flex-shrink: 0; }
     .kb-info { flex: 1; min-width: 0; }
-    .kb-filename { font-family: 'Space Mono', monospace; font-size: 12px; color: rgba(232,234,240,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .kb-desc { font-size: 11px; color: rgba(232,234,240,0.35); margin-top: 2px; }
-    .kb-status { flex-shrink: 0; }
-    .kb-pip { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.12); }
+    .kb-filename { font-family: 'Space Mono', monospace; font-size: 12px; color: rgba(232,234,240,0.68); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .kb-desc { font-size: 11px; color: rgba(232,234,240,0.32); margin-top: 2px; }
+    .kb-pip { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.1); flex-shrink: 0; }
     .kb-pip.writing { background: #7c3aed; animation: pip-pulse 1s ease-in-out infinite; }
     .kb-pip.done { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.4); }
 
-    .intel-section { margin-top: 8px; }
-    .intel-header { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.3); margin-bottom: 8px; padding: 12px 0 8px; border-top: 1px solid rgba(255,255,255,0.05); }
-    .intel-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; font-size: 13px; color: rgba(232,234,240,0.5); text-align: center; letter-spacing: 0.3px; }
-    .intel-card.loading { animation: shimmer 2s ease-in-out infinite; }
-    @keyframes shimmer { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.8; } }
-    .intel-card.ready { color: rgba(232,234,240,0.7); text-align: left; }
-    .intel-chip { display: inline-block; background: rgba(124,58,237,0.12); border: 1px solid rgba(124,58,237,0.2); border-radius: 4px; padding: 2px 8px; font-size: 11px; color: #a78bfa; margin: 2px 2px 0 0; }
-    .gap-chip { background: rgba(234,179,8,0.1); border-color: rgba(234,179,8,0.2); color: #fde047; }
+    /* ─── Intel section ───────────────────────────────────────────── */
+    .intel-section { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    .intel-header { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); padding: 12px 0 10px; border-top: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
+    .intel-area { flex: 1; overflow-y: auto; }
+
+    /* Loading placeholders */
+    .intel-loading { background: rgba(255,255,255,0.022); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 12px 14px; margin-bottom: 6px; font-size: 13px; color: rgba(232,234,240,0.28); letter-spacing: 0.3px; animation: shimmer 2.5s ease-in-out infinite; }
+    @keyframes shimmer { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.75; } }
+
+    /* Research data cards */
+    @keyframes slide-in { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: translateX(0); } }
+    .comp-card, .review-card, .gap-featured { border-radius: 8px; padding: 11px 13px; margin-bottom: 6px; opacity: 0; }
+    .comp-card.revealed { animation: slide-in 0.35s ease forwards; }
+    .review-card.revealed { animation: slide-in 0.35s ease forwards; }
+    .gap-featured.revealed { animation: slide-in 0.35s ease forwards; }
+    .comp-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); }
+    .comp-name { font-size: 13px; font-weight: 600; color: rgba(232,234,240,0.85); margin-bottom: 3px; }
+    .comp-meta { font-size: 11px; color: rgba(232,234,240,0.33); margin-bottom: 5px; }
+    .review-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); }
+    .review-stars { font-size: 11px; color: #fbbf24; margin-bottom: 4px; letter-spacing: 1px; }
+    .review-excerpt { font-size: 12px; color: rgba(232,234,240,0.53); font-style: italic; line-height: 1.5; }
+    .gap-featured { background: rgba(234,179,8,0.07); border: 1px solid rgba(234,179,8,0.17); }
+    .gap-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(234,179,8,0.55); margin-bottom: 5px; }
+    .gap-text { font-size: 13px; color: #fde047; font-weight: 500; line-height: 1.4; }
+    .section-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.23); margin: 10px 0 5px; }
+    .intel-chip { display: inline-block; background: rgba(124,58,237,0.11); border: 1px solid rgba(124,58,237,0.17); border-radius: 4px; padding: 2px 7px; font-size: 10px; color: #c4b5fd; margin: 2px 2px 0 0; }
+    .gap-chip { background: rgba(234,179,8,0.09); border-color: rgba(234,179,8,0.18); color: #fde047; }
+    .secondary-gaps { margin-top: 4px; opacity: 0; transition: opacity 0.45s; }
+    .secondary-gaps.revealed { opacity: 1; }
   </style>
 </head>
 <body>
@@ -108,86 +144,99 @@
   <div class="main">
     <!-- Left: conversation panel -->
     <div class="left-panel">
-      <!-- Preparing state -->
-      <div class="preparing-state" id="preparing-state">
-        <div class="waveform idle" id="waveform">
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-          <div class="wave-bar"></div>
-        </div>
-        <div class="preparing-label">Intelligence gathering</div>
-        <div class="preparing-heading" id="preparing-heading">AHRI is preparing<br/>your market intelligence</div>
-        <p class="preparing-sub" id="preparing-sub">Scanning competitor ads, reading your Google reviews, and identifying the gaps in your market that nobody else is filling.</p>
-        <div class="progress-dots">
-          <div class="progress-dot active" id="dot-1"></div>
-          <div class="progress-dot" id="dot-2"></div>
-          <div class="progress-dot" id="dot-3"></div>
-          <div class="progress-dot" id="dot-4"></div>
-        </div>
+      <!-- Waveform — always visible, idle/active state controlled via JS -->
+      <div class="waveform idle" id="waveform">
+        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+        <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
       </div>
 
-      <!-- Research ready state -->
-      <div class="ready-state" id="ready-state">
-        <div class="ready-icon">◉</div>
-        <div class="ready-heading">Research ready</div>
-        <p class="ready-sub">AHRI has gathered intelligence on your market. Your session is about to begin.</p>
-        <div class="ready-badge">
-          <span>●</span> Market intelligence complete
+      <div class="state-area">
+
+        <!-- State 1: preparing (while Manus runs) -->
+        <div class="state-pane" id="state-preparing">
+          <div class="preparing-label">Intelligence gathering</div>
+          <div class="preparing-heading" id="preparing-heading">AHRI is preparing<br/>your market intelligence</div>
+          <p class="preparing-sub" id="preparing-sub">Scanning competitor ads, reading your Google reviews, and identifying the gaps in your market that nobody else is filling.</p>
+          <div class="progress-dots">
+            <div class="progress-dot active" id="dot-1"></div>
+            <div class="progress-dot" id="dot-2"></div>
+            <div class="progress-dot" id="dot-3"></div>
+            <div class="progress-dot" id="dot-4"></div>
+          </div>
         </div>
+
+        <!-- State 2: reveal ready (research done, waiting for click) -->
+        <div class="state-pane hidden" id="state-reveal-ready">
+          <div class="reveal-badge"><span class="reveal-badge-dot"></span>Market intelligence complete</div>
+          <div class="reveal-heading">AHRI has reviewed<br/>your market</div>
+          <p class="reveal-sub">Your competitor landscape is on the right. Click below to hear what AHRI found — before we start the interview.</p>
+          <button class="begin-btn" id="begin-btn" onclick="beginBriefing()">
+            ▶&nbsp;&nbsp;Hear what AHRI found
+          </button>
+        </div>
+
+        <!-- State 3: speaking (narration in progress) -->
+        <div class="state-pane hidden" id="state-speaking">
+          <div class="speaking-who"><span class="speaking-who-dot"></span>AHRI</div>
+          <p class="speaking-text" id="speaking-text"></p>
+        </div>
+
+        <!-- State 4: hook reveal -->
+        <div class="state-pane hidden" id="state-hook-reveal">
+          <div class="hook-counter" id="hook-counter"></div>
+          <div class="hook-card-wrap">
+            <div class="hook-card" id="hook-card"></div>
+          </div>
+        </div>
+
       </div>
     </div>
 
-    <!-- Right: knowledge base panel -->
+    <!-- Right: knowledge base + market intelligence panel -->
     <div class="right-panel">
-      <div class="kb-header">Knowledge Base</div>
+      <div class="panel-header">Knowledge Base</div>
 
-      <div class="kb-file" id="kb-brain-state">
+      <div class="kb-file">
         <div class="kb-icon">📋</div>
         <div class="kb-info">
           <div class="kb-filename">brain-state.md</div>
           <div class="kb-desc">Offer · Avatar · Market position</div>
         </div>
-        <div class="kb-status"><div class="kb-pip" id="pip-brain-state"></div></div>
+        <div class="kb-pip" id="pip-brain-state"></div>
       </div>
-
-      <div class="kb-file" id="kb-avatar">
+      <div class="kb-file">
         <div class="kb-icon">🎯</div>
         <div class="kb-info">
           <div class="kb-filename">lifestyle-avatar.md</div>
           <div class="kb-desc">Who they are · The moment · Dream outcome</div>
         </div>
-        <div class="kb-status"><div class="kb-pip" id="pip-avatar"></div></div>
+        <div class="kb-pip" id="pip-avatar"></div>
       </div>
-
-      <div class="kb-file" id="kb-objections">
+      <div class="kb-file">
         <div class="kb-icon">💬</div>
         <div class="kb-info">
           <div class="kb-filename">objection-vault.md</div>
           <div class="kb-desc">Exact words · What changes their mind</div>
         </div>
-        <div class="kb-status"><div class="kb-pip" id="pip-objections"></div></div>
+        <div class="kb-pip" id="pip-objections"></div>
       </div>
-
-      <div class="kb-file" id="kb-compliance">
+      <div class="kb-file">
         <div class="kb-icon">✓</div>
         <div class="kb-info">
           <div class="kb-filename">compliance.md</div>
           <div class="kb-desc">Brand voice · Rules · What to avoid</div>
         </div>
-        <div class="kb-status"><div class="kb-pip" id="pip-compliance"></div></div>
+        <div class="kb-pip" id="pip-compliance"></div>
       </div>
 
       <div class="intel-section">
         <div class="intel-header">Market Intelligence</div>
-        <div class="intel-card loading" id="intel-competitors">Scanning competitor ads...</div>
-        <div class="intel-card loading" id="intel-reviews">Reading your Google reviews...</div>
-        <div class="intel-card loading" id="intel-gaps">Identifying market gaps...</div>
+        <div class="intel-area" id="intel-area">
+          <div class="intel-loading">Scanning competitor ads...</div>
+          <div class="intel-loading">Reading your Google reviews...</div>
+          <div class="intel-loading">Identifying market gaps...</div>
+        </div>
       </div>
     </div>
   </div>
@@ -195,16 +244,19 @@
   <script>
     const sessionId = location.pathname.split('/').pop();
     let session = null;
+    let researchData = null;
     let pollTimer = null;
     let stepIndex = 0;
+    let briefingStarted = false;
 
     const preparingSteps = [
       { heading: 'AHRI is preparing<br/>your market intelligence', sub: 'Scanning competitor ads, reading your Google reviews, and identifying the gaps in your market that nobody else is filling.' },
       { heading: 'Scanning competitor<br/>ad libraries', sub: 'Looking at every gym running ads within 15 miles of your location right now.' },
       { heading: 'Reading your<br/>Google reviews', sub: 'Finding the exact words your members use when they talk about why they chose you.' },
-      { heading: 'Identifying<br/>market gaps', sub: 'Synthesizing what nobody in your market is saying. That's where we play.' },
+      { heading: 'Identifying<br/>market gaps', sub: "Synthesizing what nobody in your market is saying. That's where we play." },
     ];
 
+    // ─── Init ────────────────────────────────────────────────────────────────
     async function init() {
       if (!sessionId || sessionId.length < 10) {
         document.getElementById('gym-name').textContent = 'Invalid session';
@@ -212,7 +264,7 @@
       }
       await loadSession();
       startStepCycle();
-      startPolling();
+      if (!researchData) startPolling();
     }
 
     async function loadSession() {
@@ -223,108 +275,294 @@
         document.getElementById('gym-name').textContent = session.gymName || 'Your Gym';
         document.title = `AHRI — ${session.gymName}`;
         if (session.status === 'research_complete') {
-          showResearchReady();
+          await loadAndRevealResearch();
         }
       } catch {}
     }
 
+    // ─── Step cycle while preparing ─────────────────────────────────────────
     function startStepCycle() {
       setInterval(() => {
-        if (document.getElementById('preparing-state').classList.contains('hidden')) return;
+        if (document.getElementById('state-preparing').classList.contains('hidden')) return;
         stepIndex = (stepIndex + 1) % preparingSteps.length;
         const step = preparingSteps[stepIndex];
-        const headingEl = document.getElementById('preparing-heading');
-        const subEl = document.getElementById('preparing-sub');
-        headingEl.style.opacity = '0';
-        subEl.style.opacity = '0';
+        const hEl = document.getElementById('preparing-heading');
+        const sEl = document.getElementById('preparing-sub');
+        hEl.style.opacity = '0'; sEl.style.opacity = '0';
         setTimeout(() => {
-          headingEl.innerHTML = step.heading;
-          subEl.textContent = step.sub;
-          headingEl.style.transition = 'opacity 0.4s';
-          subEl.style.transition = 'opacity 0.4s';
-          headingEl.style.opacity = '1';
-          subEl.style.opacity = '1';
-        }, 300);
-
-        // Advance progress dots
+          hEl.innerHTML = step.heading; sEl.textContent = step.sub;
+          hEl.style.transition = 'opacity 0.4s'; sEl.style.transition = 'opacity 0.4s';
+          hEl.style.opacity = '1'; sEl.style.opacity = '1';
+        }, 320);
         for (let i = 0; i <= stepIndex; i++) {
-          const dot = document.getElementById(`dot-${i + 1}`);
-          if (dot) { dot.classList.remove('active'); dot.classList.add('done'); }
+          const d = document.getElementById(`dot-${i + 1}`);
+          if (d) { d.classList.remove('active'); d.classList.add('done'); }
         }
         const next = document.getElementById(`dot-${stepIndex + 2}`);
         if (next) next.classList.add('active');
       }, 7000);
     }
 
+    // ─── Polling ─────────────────────────────────────────────────────────────
     function startPolling() {
       pollTimer = setInterval(async () => {
         try {
           const res = await fetch(`/api/onboarding/sessions/${sessionId}`);
           if (!res.ok) return;
           const data = await res.json();
-          if (data.status === 'research_complete' || data.status === 'interview_started') {
+          if (data.status === 'research_complete') {
             clearInterval(pollTimer);
-            await loadResearch();
-            showResearchReady();
+            await loadAndRevealResearch();
           }
         } catch {}
       }, 4000);
     }
 
-    async function loadResearch() {
+    // ─── Load research and reveal cards ──────────────────────────────────────
+    async function loadAndRevealResearch() {
       try {
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/research`);
         if (!res.ok) return;
         const data = await res.json();
         if (!data.research) return;
-        const r = data.research;
-
-        // Update competitor card
-        if (r.competitors && r.competitors.length > 0) {
-          const compCard = document.getElementById('intel-competitors');
-          compCard.classList.remove('loading');
-          compCard.classList.add('ready');
-          const names = r.competitors.slice(0, 3).map(c => `<span class="intel-chip">${c.name}</span>`).join('');
-          compCard.innerHTML = `<div style="font-size:11px;color:rgba(232,234,240,0.4);margin-bottom:6px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Competitors Active</div>${names}<div style="font-size:12px;color:rgba(232,234,240,0.4);margin-top:6px;">${r.competitors.length} competitor${r.competitors.length !== 1 ? 's' : ''} found in market</div>`;
-        }
-
-        // Update reviews card
-        if (r.googleReviews && r.googleReviews.length > 0) {
-          const revCard = document.getElementById('intel-reviews');
-          revCard.classList.remove('loading');
-          revCard.classList.add('ready');
-          const review = r.googleReviews[0];
-          revCard.innerHTML = `<div style="font-size:11px;color:rgba(232,234,240,0.4);margin-bottom:6px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Google Reviews · ${r.googleRating}★ (${r.googleReviewCount})</div><div style="font-size:13px;color:rgba(232,234,240,0.65);font-style:italic;line-height:1.4;">"${review.text.substring(0, 100)}${review.text.length > 100 ? '…' : ''}"</div>`;
-        }
-
-        // Update gaps card
-        if (r.marketGaps && r.marketGaps.length > 0) {
-          const gapCard = document.getElementById('intel-gaps');
-          gapCard.classList.remove('loading');
-          gapCard.classList.add('ready');
-          const gaps = r.marketGaps.slice(0, 2).map(g => `<span class="intel-chip gap-chip">${g.substring(0, 50)}${g.length > 50 ? '…' : ''}</span>`).join('');
-          gapCard.innerHTML = `<div style="font-size:11px;color:rgba(232,234,240,0.4);margin-bottom:6px;font-weight:600;letter-spacing:1px;text-transform:uppercase;">Market Gaps Identified</div>${gaps}`;
-        }
+        researchData = data.research;
+        await populateResearchCards(researchData);
+        updateStatusPip('active', 'Research complete');
+        showState('state-reveal-ready');
       } catch {}
     }
 
-    function showResearchReady() {
-      document.getElementById('preparing-state').classList.add('hidden');
-      document.getElementById('ready-state').classList.add('show');
+    // ─── Populate right-panel with animated cards ─────────────────────────────
+    async function populateResearchCards(r) {
+      const area = document.getElementById('intel-area');
+      area.innerHTML = '';
+      let delay = 0;
 
-      const pip = document.getElementById('status-pip');
-      pip.classList.remove('preparing');
-      pip.classList.add('active');
-      document.getElementById('status-text').textContent = 'Research complete';
+      // Competitors
+      const comps = (r.competitors || []).slice(0, 3);
+      if (comps.length > 0) {
+        area.appendChild(mkLabel(`${r.competitors.length} Competitor${r.competitors.length !== 1 ? 's' : ''} Active in Market`));
+        comps.forEach(c => {
+          const card = document.createElement('div');
+          card.className = 'comp-card';
+          const themes = (c.adThemes || []).slice(0, 2).map(t => `<span class="intel-chip">${esc(t)}</span>`).join('');
+          card.innerHTML = `<div class="comp-name">${esc(c.name)}</div><div class="comp-meta">${c.adCount || 0} ads active · ${esc(c.offerType || 'general promotion')}</div><div>${themes}</div>`;
+          area.appendChild(card);
+          const d = delay;
+          setTimeout(() => card.classList.add('revealed'), d);
+          delay += 140;
+        });
+      }
 
-      // Mark intel cards complete if still loading
-      ['intel-competitors', 'intel-reviews', 'intel-gaps'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el && el.classList.contains('loading')) {
-          el.classList.remove('loading');
-          el.style.opacity = '0.5';
+      // Reviews
+      const reviews = (r.googleReviews || []).filter(rv => rv.text && rv.text.length > 15).slice(0, 2);
+      if (reviews.length > 0) {
+        area.appendChild(mkLabel(`Google Reviews · ${r.googleRating || '—'}★ · ${r.googleReviewCount || 0} total`));
+        reviews.forEach(rv => {
+          const card = document.createElement('div');
+          card.className = 'review-card';
+          const excerpt = rv.text.length > 88 ? rv.text.substring(0, 88) + '…' : rv.text;
+          card.innerHTML = `<div class="review-stars">${'★'.repeat(Math.min(5, rv.rating || 5))}</div><div class="review-excerpt">"${esc(excerpt)}"</div>`;
+          area.appendChild(card);
+          const d = delay;
+          setTimeout(() => card.classList.add('revealed'), d);
+          delay += 140;
+        });
+      }
+
+      // Market gaps
+      const gaps = r.marketGaps || [];
+      if (gaps.length > 0) {
+        area.appendChild(mkLabel('Market Gap — Nobody Is Saying:'));
+        const featured = document.createElement('div');
+        featured.className = 'gap-featured';
+        featured.innerHTML = `<div class="gap-label">Primary opportunity</div><div class="gap-text">${esc(gaps[0])}</div>`;
+        area.appendChild(featured);
+        const d = delay;
+        setTimeout(() => featured.classList.add('revealed'), d);
+        delay += 140;
+        if (gaps.length > 1) {
+          const sec = document.createElement('div');
+          sec.className = 'secondary-gaps';
+          gaps.slice(1, 3).forEach(g => {
+            const chip = document.createElement('span');
+            chip.className = 'intel-chip gap-chip';
+            chip.textContent = g.length > 44 ? g.substring(0, 44) + '…' : g;
+            sec.appendChild(chip);
+          });
+          area.appendChild(sec);
+          setTimeout(() => sec.classList.add('revealed'), delay + 80);
         }
-      });
+      }
+    }
+
+    function mkLabel(text) {
+      const el = document.createElement('div');
+      el.className = 'section-label';
+      el.textContent = text;
+      return el;
+    }
+
+    // ─── Begin briefing ───────────────────────────────────────────────────────
+    async function beginBriefing() {
+      if (briefingStarted) return;
+      briefingStarted = true;
+      const btn = document.getElementById('begin-btn');
+      btn.disabled = true;
+      btn.textContent = 'Preparing...';
+
+      // Research narration
+      showState('state-speaking');
+      const script = buildResearchScript(researchData, session);
+      document.getElementById('speaking-text').textContent = script;
+      await speak(script);
+
+      await sleep(900);
+
+      // Load and reveal preview hooks
+      try {
+        const hRes = await fetch(`/api/onboarding/sessions/${sessionId}/preview-hooks`);
+        if (hRes.ok) {
+          const hData = await hRes.json();
+          if (hData.hooks && hData.hooks.length > 0) {
+            await revealHooks(hData.hooks, session.gymName);
+            return;
+          }
+        }
+      } catch {}
+
+      // Hooks not available — go back to reveal-ready with replay option
+      briefingStarted = false;
+      showState('state-reveal-ready');
+      btn.disabled = false;
+      btn.textContent = '▶  Replay briefing';
+    }
+
+    // ─── Reveal preview hooks one by one ─────────────────────────────────────
+    async function revealHooks(hooks, gymName) {
+      showState('state-hook-reveal');
+      const card = document.getElementById('hook-card');
+      const counter = document.getElementById('hook-counter');
+
+      // Intro line
+      counter.textContent = '';
+      card.className = 'hook-card';
+      card.innerHTML = `<div class="hook-intro-text">This is what I can write about ${esc(gymName)} right now — from public information alone.</div>`;
+      await sleep(40);
+      card.classList.add('visible');
+      await speak(`This is what I can write about ${gymName} right now — from public information alone.`);
+      await sleep(500);
+
+      // Each hook
+      for (let i = 0; i < hooks.length; i++) {
+        const h = hooks[i];
+        counter.textContent = `Hook ${i + 1} of ${hooks.length}`;
+        card.classList.remove('visible');
+        await sleep(280);
+        card.innerHTML = `<div class="hook-text">${esc(h.text)}</div><div class="hook-meta">${esc((h.framework || 'hook').replace(/_/g, ' '))} · Awareness ${h.awareness || 3}</div>`;
+        card.classList.add('visible');
+        await sleep(380);
+        await speak(h.text);
+        await sleep(650);
+      }
+
+      // Outro
+      counter.textContent = '';
+      card.classList.remove('visible');
+      await sleep(280);
+      card.innerHTML = `<div class="hook-intro-text">Imagine what I build after we talk.</div>`;
+      card.classList.add('visible');
+      await speak('Imagine what I build after we talk.');
+      await sleep(600);
+
+      counter.textContent = 'Preparation complete';
+      setWaveformActive(false);
+    }
+
+    // ─── TTS — calls server proxy, streams ElevenLabs audio ─────────────────
+    async function speak(text) {
+      setWaveformActive(true);
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/tts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script: text }),
+        });
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          await new Promise(resolve => {
+            audio.onended = resolve;
+            audio.onerror = () => resolve();
+            audio.play().catch(() => resolve());
+          });
+          URL.revokeObjectURL(url);
+        } else if (res.status === 503) {
+          // Voice not configured — simulate reading pace
+          const sentences = (text.match(/[.!?]+/g) || []).length || 1;
+          await sleep(Math.max(1400, sentences * 1600));
+        } else {
+          await sleep(1200);
+        }
+      } catch {
+        await sleep(1200);
+      }
+      setWaveformActive(false);
+    }
+
+    // ─── Research narration script builder ───────────────────────────────────
+    function buildResearchScript(r, s) {
+      const city = s?.city || 'your city';
+      const parts = ['Before we talk about your gym, let me show you what I already found.'];
+      const activeComps = (r.competitors || []).filter(c => (c.adCount || 0) > 0);
+      if (activeComps.length > 0) {
+        parts.push(`I looked at ${r.competitors.length} competitor${r.competitors.length !== 1 ? 's' : ''} in ${city} running ads right now.`);
+        activeComps.slice(0, 2).forEach(c => {
+          const theme = (c.adThemes || [])[0] || 'general fitness';
+          parts.push(`${c.name} is running ${c.adCount} ads, all focused on ${theme}.`);
+        });
+      } else if ((r.competitors || []).length > 0) {
+        parts.push(`I scanned ${r.competitors.length} competitor${r.competitors.length !== 1 ? 's' : ''} in ${city}.`);
+      }
+      if ((r.marketGaps || []).length > 0) {
+        parts.push(`Nobody in ${city} is talking about ${r.marketGaps[0]}. That's where we're going to play.`);
+      }
+      const goodReviews = (r.googleReviews || []).filter(rv => rv.text && rv.text.length > 20);
+      if (goodReviews.length > 0) {
+        parts.push('Your members are already telling the story.');
+        goodReviews.slice(0, 2).forEach(rv => {
+          const excerpt = rv.text.length > 85 ? rv.text.substring(0, 85) + '...' : rv.text;
+          parts.push(`"${excerpt}" — ${rv.rating} stars.`);
+        });
+        parts.push('This is the language we are going to use.');
+      }
+      return parts.join(' ');
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+    function showState(id) {
+      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal']
+        .forEach(s => document.getElementById(s).classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function setWaveformActive(active) {
+      document.getElementById('waveform').classList.toggle('idle', !active);
+    }
+
+    function updateStatusPip(cls, text) {
+      const pip = document.getElementById('status-pip');
+      pip.className = `status-pip ${cls}`;
+      document.getElementById('status-text').textContent = text;
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    function esc(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
     init();

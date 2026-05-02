@@ -360,7 +360,7 @@ function getTaskType(filename) {
   return TASK_TYPE_MAP[filename] || filename.replace('.md', '');
 }
 
-/** Write prospect-research output to session-scoped R2 key and update session status. */
+/** Write prospect-research output, generate preview hooks, update session status to research_complete. */
 async function handleProspectResearchOutput(task_id, taskData, runRecord) {
   if (!runRecord || !runRecord.session_id) return;
   const sessionId = runRecord.session_id;
@@ -369,12 +369,69 @@ async function handleProspectResearchOutput(task_id, taskData, runRecord) {
     console.log(`[manus/callback] prospect-research → shared R2: onboarding/sessions/${sessionId}/prospect-research.json`);
     const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
     if (session) {
+      const hooks = await generatePreviewHooks(sessionId, session, taskData);
+      if (hooks.length > 0) {
+        await r2PutShared(`onboarding/sessions/${sessionId}/preview-hooks.json`, { hooks, generated_at: new Date().toISOString() });
+        console.log(`[onboarding] preview-hooks generated: ${hooks.length} for session ${sessionId}`);
+      }
       session.status = 'research_complete';
       session.research_completed_at = new Date().toISOString();
+      session.preview_hooks_count = hooks.length;
       await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
     }
   } catch (err) {
     console.error('[manus/callback] handleProspectResearchOutput failed:', err.message);
+  }
+}
+
+/** Generate 3 preview hooks from prospect-research data only (no interview knowledge base yet). */
+async function generatePreviewHooks(sessionId, session, research) {
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) { console.warn('[onboarding] generatePreviewHooks: no Anthropic key — skipping'); return []; }
+  const Anthropic = require('@anthropic-ai/sdk');
+  const client = new Anthropic({ apiKey });
+  const comps = (research.competitors || []).slice(0, 4)
+    .map(c => `${c.name}: ${c.adCount || 0} ads — themes: ${(c.adThemes || []).join(', ') || 'unknown'}`)
+    .join('\n');
+  const gaps = (research.marketGaps || []).slice(0, 3).join('; ');
+  const reviewLines = (research.googleReviews || []).slice(0, 3).map(r => `"${r.text}"`).join('\n');
+  const prompt = `You are AHRI generating 3 preview hooks for a gym onboarding session. Use ONLY the market research data below — no interview data exists yet.
+
+GYM: ${session.gymName}
+LOCATION: ${session.city}, ${session.state}
+FRANCHISE TYPE: ${session.franchiseType || 'independent'}
+
+COMPETITORS IN MARKET:
+${comps || 'No competitor data available'}
+
+MARKET GAPS (what nobody in this market is currently saying):
+${gaps || 'No gap data available'}
+
+REAL MEMBER REVIEW LANGUAGE:
+${reviewLines || 'No review data available'}
+Rating: ${research.googleRating || 'N/A'} (${research.googleReviewCount || 0} reviews)
+
+Generate exactly 3 hooks. Rules:
+- Each hook: 15 words or fewer
+- Forbidden: transform, crush, journey, elevate, beast mode, no excuses, unlock your potential, revolutionary, game-changing, state-of-the-art
+- No weight loss claims, no fake urgency, no manufactured scarcity
+- Must feel like something a real person would say — not ad copy
+- Use competitor gap positioning and real review language where possible
+
+Return ONLY valid JSON, no other text:
+{"hooks":[{"text":"...","framework":"pain_point","awareness":2},{"text":"...","framework":"curiosity_gap","awareness":3},{"text":"...","framework":"pattern_interrupt","awareness":3}]}`;
+  try {
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 400,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw = response.content[0]?.type === 'text' ? response.content[0].text : '';
+    const parsed = JSON.parse(stripMarkdownFences(raw));
+    return Array.isArray(parsed.hooks) ? parsed.hooks.slice(0, 3) : [];
+  } catch (err) {
+    console.error('[onboarding] generatePreviewHooks failed:', err.message);
+    return [];
   }
 }
 
@@ -2480,6 +2537,49 @@ app.patch('/api/onboarding/sessions/:sessionId/notes', requireAdmin, async (req,
   session.notes_updated_at = new Date().toISOString();
   await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
   res.json({ success: true });
+});
+
+// GET /api/onboarding/sessions/:sessionId/preview-hooks — serve generated hooks (no auth — secured by UUID)
+app.get('/api/onboarding/sessions/:sessionId/preview-hooks', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  const data = await r2GetShared(`onboarding/sessions/${sessionId}/preview-hooks.json`);
+  if (!data) return res.status(404).json({ error: 'Preview hooks not ready' });
+  res.json(data);
+});
+
+// POST /api/onboarding/sessions/:sessionId/tts — ElevenLabs TTS proxy (no auth — secured by session UUID)
+// Called at most ~6 times per session. UUID provides equivalent security to a short-lived token.
+app.post('/api/onboarding/sessions/:sessionId/tts', async (req, res) => {
+  const { sessionId } = req.params;
+  const { script } = req.body;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  if (!script || typeof script !== 'string' || script.length === 0) return res.status(400).json({ error: 'script required' });
+  if (script.length > 2000) return res.status(400).json({ error: 'script exceeds 2000 chars' });
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  const apiKey = process.env.AHRI_ELEVENLABS_API_KEY;
+  const voiceId = process.env.AHRI_VOICE_ID;
+  if (!apiKey || !voiceId) return res.status(503).json({ error: 'Voice not configured', code: 'NO_VOICE' });
+  try {
+    const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
+      method: 'POST',
+      headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
+      body: JSON.stringify({ text: script, model_id: 'eleven_turbo_v2_5', voice_settings: { stability: 0.45, similarity_boost: 0.75 } }),
+    });
+    if (!elRes.ok) {
+      const errText = await elRes.text().catch(() => '');
+      return res.status(elRes.status).json({ error: `ElevenLabs: ${errText.substring(0, 200)}` });
+    }
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', 'no-cache');
+    const { Readable } = require('stream');
+    Readable.fromWeb(elRes.body).pipe(res);
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
 });
 
 // SPA fallback
