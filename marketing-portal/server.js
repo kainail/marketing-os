@@ -647,6 +647,7 @@ const AHRI_PUBLIC_API = [
   '/api/leads/submit',
   '/api/manus/callback',
   '/api/status',
+  '/api/test-email-now', // TEMP — remove after confirming email delivery
 ];
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) return next();
@@ -657,6 +658,19 @@ app.use((req, res, next) => {
   // Admin-only sub-routes (/notes, /simulate-research, POST /research) carry requireAdmin individually.
   if (req.path.startsWith('/api/onboarding/sessions/')) return next();
   requireAuth(req, res, next);
+});
+
+// TEMP — no-auth email smoke test. Remove after confirming delivery.
+app.get('/api/test-email-now', async (req, res) => {
+  const fakeSession = { ownerEmail: 'kaialexandernail@gmail.com', ownerName: 'Kai', gymName: 'Test Gym', city: 'Test City' };
+  try {
+    await sendCredentialsEmail(fakeSession, 'TestPass#2025!');
+    console.log('[TestEmail] smoke-test credentials email sent → kaialexandernail@gmail.com');
+    res.send('Email sent. Check kaialexandernail@gmail.com.');
+  } catch (err) {
+    console.error('[TestEmail] smoke-test FAILED:', err.message);
+    res.status(500).send('Email failed: ' + err.message);
+  }
 });
 
 // Location enforcement — admins pass through; owners must own the requested location
