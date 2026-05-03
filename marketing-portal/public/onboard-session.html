@@ -285,14 +285,18 @@
     .oa-field-highlighted .oa-field-value { color: #e8eaf0; background: rgba(124,58,237,0.1); border-radius: 6px; padding: 4px 8px; border: 1px solid rgba(124,58,237,0.2); display: inline-block; }
     .oa-loading { width: 100%; max-width: 500px; text-align: center; padding: 16px 0; }
     .oa-loading-text { font-size: 13px; color: rgba(232,234,240,0.35); letter-spacing: 0.3px; animation: shimmer 2.5s ease-in-out infinite; }
-    .oa-iter-tiles { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 10px; padding-bottom: 16px; }
-    .oa-iter-tile { background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.15); border-radius: 12px; padding: 16px 18px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
-    .oa-iter-tile:hover { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.3); }
-    .oa-iter-tile.selected { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.55); }
-    .oa-iter-tile.keep-original { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.1); }
-    .oa-iter-tile.keep-original:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18); }
-    .oa-iter-title { font-size: 14px; font-weight: 600; color: rgba(232,234,240,0.9); margin-bottom: 5px; }
-    .oa-iter-change { font-size: 12px; color: rgba(232,234,240,0.45); line-height: 1.5; }
+    .oa-iter-tiles { width: 100%; max-width: 640px; display: flex; flex-direction: row; gap: 12px; padding-bottom: 16px; }
+    .oa-iter-tile { flex: 1; background: rgba(99,102,241,0.06); border: 2px solid rgba(99,102,241,0.15); border-radius: 12px; padding: 15px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+    .oa-iter-tile:hover { background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); }
+    .oa-iter-tile.selected { border-color: #7c3aed; background: rgba(124,58,237,0.12); }
+    .oa-iter-title { font-size: 12px; font-weight: 700; color: #a78bfa; margin-bottom: 4px; letter-spacing: 0.2px; }
+    .oa-iter-change { font-size: 11px; color: rgba(232,234,240,0.45); line-height: 1.5; margin-bottom: 10px; }
+    .oa-iter-tile-fields { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px; }
+    .oa-confirm-panel { width: 100%; max-width: 500px; background: rgba(124,58,237,0.07); border: 2px solid rgba(124,58,237,0.28); border-radius: 14px; padding: 20px 22px; margin-bottom: 8px; }
+    .oa-confirm-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: #a78bfa; margin-bottom: 14px; }
+    .oa-confirm-actions { display: flex; gap: 10px; margin-top: 18px; align-items: center; }
+    .oa-confirm-back-btn { flex: 0 0 auto; background: none; border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; color: rgba(232,234,240,0.45); font-family: inherit; font-size: 13px; padding: 10px 16px; cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+    .oa-confirm-back-btn:hover { border-color: rgba(255,255,255,0.25); color: rgba(232,234,240,0.7); }
 
     /* ─── Path B single-screen tile builder ───────────────────���──────── */
     .tile-builder { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
@@ -454,6 +458,14 @@
               <div class="oa-loading-text">Scoring against Hormozi value equation...</div>
             </div>
             <div class="oa-iter-tiles hidden" id="oa-iter-tiles"></div>
+            <div class="oa-confirm-panel hidden" id="oa-confirm-panel">
+              <div class="oa-confirm-label">Your selected offer</div>
+              <div id="oa-confirm-fields"></div>
+              <div class="oa-confirm-actions">
+                <button class="oa-confirm-back-btn" id="oa-confirm-back">← Go back</button>
+                <button class="iv-submit" id="oa-confirm-confirm">Confirm this offer →</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -626,7 +638,6 @@
         return;
       }
       setupTileDelegation();
-      setupOfferChoiceDelegation();
       await loadSession();
       startStepCycle();
       // Only poll if session isn't already past the research stage
@@ -1202,11 +1213,20 @@
       { id:'q1', section:1, sectionName:'The Offer', kbFile:'brain-state',
         text:'Do you currently have a front-end offer — something specific you use to get new members in the door? It could be a free trial, a challenge, a first-month promotion, anything at all. If yes, tell me about it. If not, that is completely fine — we will build one together right now.',
         probe:'Just to confirm — do you have a specific offer with a price and terms already, or is this something we need to build together?' },
-      // Section 1 — Path A (one comprehensive question, Haiku extracts all components)
+      // Section 1 — Path A (four focused questions, server extracts all 5 offer fields)
       { id:'qa2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
         text:'Walk me through everything about your offer — what they pay, what they get, how long it runs, what happens if it does not work, and the guarantee if you have one. Be as specific as you can.',
         probe:'Give me the exact numbers — price, duration, what is included day to day, and your guarantee wording.' },
-      // Section 1 — Path B (single-screen tile builder — 4 rows)
+      { id:'qa3', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
+        text:'Is there anything in your offer that most prospects overlook or underestimate — something that makes it better than it sounds on paper?',
+        probe:'What is the one part of your offer you wish people understood before they even walked in?' },
+      { id:'qa4', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
+        text:'What is your guarantee — exactly as you would say it to a prospect who is on the fence? Give me the wording word for word.',
+        probe:'Say it exactly as you say it — what do you promise if they are not satisfied?' },
+      { id:'qa5', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
+        text:'When is your next intake or cohort starting, and how many spots do you have available right now?',
+        probe:'Give me the number of spots and a date — even an approximate one works.' },
+      // Section 1 — Path B (single-screen tile builder — 5 rows)
       { id:'qb2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
         text:'Let me walk you through this. For each row below, pick the option that fits your gym best — these are based on what I found in your market.',
         probe:'' },
@@ -1546,8 +1566,8 @@
         await runPathBIntro();
       }
 
-      // After qb2 (Path B tile builder) or qa2 (Path A): run Hormozi analysis
-      if (q.id === 'qb2' || q.id === 'qa2') {
+      // After tile builder (qb2) or last Path A question (qa5): run offer analysis
+      if (q.id === 'qb2' || q.id === 'qa5') {
         await runOfferAnalysis();
         return;
       }
@@ -1837,16 +1857,18 @@
     // ─── Path B single-screen tile builder ───────────────────────────────────
 
     const TB_ROWS = [
-      { id:'qb2', label:'Trial duration',    fieldLabel:'Duration' },
-      { id:'qb3', label:'Entry price',        fieldLabel:'Price' },
-      { id:'qb4', label:"What's included",    fieldLabel:'Includes' },
-      { id:'qb5', label:'Your guarantee',     fieldLabel:'Guarantee' },
+      { id:'qb2', label:'Trial duration',      fieldLabel:'Duration' },
+      { id:'qb3', label:'Entry price',          fieldLabel:'Price' },
+      { id:'qb4', label:"What's included",      fieldLabel:'Includes' },
+      { id:'qb5', label:'Your guarantee',       fieldLabel:'Guarantee' },
+      { id:'qb6', label:'Core differentiator',  fieldLabel:'Differentiator' },
     ];
     const TB_FALLBACKS = {
       qb2: ['14 days', '21 days', '30 days'],
       qb3: ['$0 trial', '$27 trial', '$47 trial'],
       qb4: ['Unlimited access + weekly coach check-in', 'Group classes + 1 personal training session', 'Full access + daily accountability text'],
       qb5: ['Love it or your money back', 'Full refund if not satisfied after 7 days', 'Results in 30 days or it\'s free'],
+      qb6: ['1-on-1 coaching you won\'t find at a big box gym', 'Small group classes — you\'re known by name here', 'A dedicated coach who tracks your progress every week'],
     };
     const _tbTilePromises = {};
 
@@ -2095,80 +2117,16 @@
       showState('state-interview');
     }
 
-    /** Handle iteration tile selection — writes offer, speaks transition, advances to Section 2. */
-    async function selectIteration(tileEl, offer) {
-      console.log('[Iteration] Selected offer:', offer);
-      if (!offer) return;
-
-      // Mark tile selected
-      document.querySelectorAll('.oa-iter-tile').forEach(t => t.classList.remove('selected'));
-      if (tileEl) tileEl.classList.add('selected');
-
-      const speakEl = document.getElementById('oa-speak');
-
-      // Persist to R2 — error logged but never blocks the interview advance
-      try {
-        await fetch(`/api/onboarding/sessions/${sessionId}/select-offer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ offer }),
-        });
-      } catch (err) {
-        console.error('[Iteration] R2 write failed, advancing anyway:', err.message);
-      }
-
-      // Update local answers from selected offer iteration
-      if (offer.duration)  interviewState.answers.qb2 = offer.duration;
-      if (offer.price)     interviewState.answers.qb3 = offer.price;
-      if (offer.included)  interviewState.answers.qb4 = offer.included;
-      if (offer.guarantee) interviewState.answers.qb5 = offer.guarantee;
-      saveAnswers().catch(() => {});
-
-      // Write section KB and mark complete (fire-and-forget)
-      const currentQ = QUESTIONS[interviewState.currentQIndex];
-      writeSectionKB(currentQ.section).catch(() => {});
-      interviewState.completedSections.add(currentQ.section);
-
-      // Speak transition to Section 2
-      await speak("Perfect. Your offer is locked in. Now let me learn more about who you are built for.", speakEl);
-
-      // Clear iteration tiles before advancing
-      const tilesContainer = document.getElementById('oa-iter-tiles');
-      if (tilesContainer) { tilesContainer.innerHTML = ''; tilesContainer.classList.add('hidden'); }
-      document.getElementById('oa-assembled')?.classList.add('hidden');
-
-      // Transition to interview state — Section 2 begins
-      interviewState.sectionIntroSpoken = true;
-      showState('state-interview');
-      const nextIdx = nextValidIdx(interviewState.currentQIndex);
-      if (nextIdx >= 0) {
-        await askQuestion(nextIdx);
-      } else {
-        await finishInterview();
-      }
-    }
-
-    function setupOfferChoiceDelegation() {
-      const tilesContainer = document.getElementById('oa-iter-tiles');
-      if (!tilesContainer) return;
-      tilesContainer.addEventListener('click', function(e) {
-        const tile = e.target.closest('[data-offer]');
-        if (!tile) return;
-        let offer;
-        try { offer = JSON.parse(tile.dataset.offer); } catch { return; }
-        selectIteration(tile, offer);
-      });
-    }
-
+    /** Render 5 structured offer fields into a container element. */
     function renderOfferFields(containerId, offerData) {
       const el = document.getElementById(containerId);
       if (!el || !offerData) return;
       const fields = [
-        { label: 'Trial duration',     value: offerData.duration },
-        { label: 'Entry price',        value: offerData.price },
-        { label: "What's included",    value: offerData.included },
-        { label: 'Guarantee',          value: offerData.guarantee },
-        { label: 'Core differentiator',value: offerData.differentiator },
+        { label: 'Trial duration',      value: offerData.duration },
+        { label: 'Entry price',         value: offerData.price },
+        { label: "What's included",     value: offerData.included },
+        { label: 'Guarantee',           value: offerData.guarantee },
+        { label: 'Core differentiator', value: offerData.differentiator },
       ];
       el.innerHTML = fields.map(f =>
         `<div class="oa-field-row">
@@ -2176,6 +2134,87 @@
           <div class="oa-field-value">${esc(f.value || '—')}</div>
         </div>`
       ).join('');
+    }
+
+    /** Render 5 structured fields inside an iteration tile (compact oa-field-row style). */
+    function renderIterTileFields(containerEl, offer) {
+      const fields = [
+        { label: 'Duration',       value: offer.duration },
+        { label: 'Price',          value: offer.price },
+        { label: 'Included',       value: offer.included },
+        { label: 'Guarantee',      value: offer.guarantee },
+        { label: 'Differentiator', value: offer.differentiator },
+      ];
+      containerEl.innerHTML = fields.map(f =>
+        `<div class="oa-field-row" style="margin-bottom:6px">
+          <div class="oa-field-label" style="font-size:9px">${esc(f.label)}</div>
+          <div class="oa-field-value" style="font-size:12px">${esc(f.value || '—')}</div>
+        </div>`
+      ).join('');
+    }
+
+    /** Speak a readback of the assembled offer fields. */
+    async function speakOfferReadback(offer, speakEl) {
+      const parts = [];
+      if (offer.duration) parts.push(offer.duration);
+      if (offer.price) parts.push(offer.price);
+      if (offer.included) parts.push(`includes ${offer.included.substring(0, 70)}`);
+      if (offer.guarantee) parts.push(`with a ${offer.guarantee.substring(0, 60)} guarantee`);
+      if (offer.differentiator) parts.push(offer.differentiator.substring(0, 80));
+      if (parts.length > 0) {
+        await speak(`Here is what your offer looks like. ${parts.join(', ')}.`, speakEl);
+      }
+    }
+
+    /** Persist confirmed offer to R2 and update local answers. */
+    async function commitOffer(offer) {
+      if (offer.duration)       interviewState.answers.qb2 = offer.duration;
+      if (offer.price)          interviewState.answers.qb3 = offer.price;
+      if (offer.included)       interviewState.answers.qb4 = offer.included;
+      if (offer.guarantee)      interviewState.answers.qb5 = offer.guarantee;
+      if (offer.differentiator) interviewState.answers.qb6 = offer.differentiator;
+      saveAnswers().catch(() => {});
+      fetch(`/api/onboarding/sessions/${sessionId}/select-offer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offer }),
+      }).catch(err => console.error('[commitOffer] R2 write failed:', err.message));
+    }
+
+    /** Called when owner confirms an offer (original or iteration). Advances to Section 2. */
+    async function selectIteration(offer) {
+      if (!offer) return;
+      const speakEl = document.getElementById('oa-speak');
+      await commitOffer(offer);
+      const currentQ = QUESTIONS[interviewState.currentQIndex];
+      writeSectionKB(currentQ.section).catch(() => {});
+      interviewState.completedSections.add(currentQ.section);
+      document.getElementById('oa-iter-tiles').innerHTML = '';
+      document.getElementById('oa-iter-tiles').classList.add('hidden');
+      document.getElementById('oa-confirm-panel').classList.add('hidden');
+      document.getElementById('oa-assembled').classList.add('hidden');
+      interviewState.sectionIntroSpoken = true;
+      showState('state-interview');
+      const nextIdx = nextValidIdx(interviewState.currentQIndex);
+      if (nextIdx >= 0) { await askQuestion(nextIdx); } else { await finishInterview(); }
+    }
+
+    /** Show the confirmation panel for a chosen offer iteration. */
+    function showOfferConfirmPanel(offer) {
+      renderOfferFields('oa-confirm-fields', offer);
+      document.getElementById('oa-iter-tiles').classList.add('hidden');
+      const panel = document.getElementById('oa-confirm-panel');
+      panel.classList.remove('hidden');
+      document.getElementById('oa-confirm-back').onclick = () => {
+        panel.classList.add('hidden');
+        document.getElementById('oa-iter-tiles').classList.remove('hidden');
+        document.querySelectorAll('.oa-iter-tile').forEach(t => t.classList.remove('selected'));
+      };
+      document.getElementById('oa-confirm-confirm').onclick = () => {
+        document.getElementById('oa-confirm-back').onclick = null;
+        document.getElementById('oa-confirm-confirm').onclick = null;
+        selectIteration(offer);
+      };
     }
 
     async function runOfferAnalysis() {
@@ -2186,32 +2225,29 @@
       document.getElementById('oa-assembled').classList.add('hidden');
       document.getElementById('oa-loading').classList.add('hidden');
       document.getElementById('oa-iter-tiles').classList.add('hidden');
+      document.getElementById('oa-confirm-panel').classList.add('hidden');
       const speakEl = document.getElementById('oa-speak');
       if (speakEl) speakEl.innerHTML = '';
 
-      if (isPathA) {
-        await speak("Let me take a look at what you have and see if I can make it stronger.", speakEl);
-      } else {
-        await speak("Here is the offer you built. Now let me see if I can make it stronger.", speakEl);
-      }
-      if (navVersion !== thisNav) return;
-
       const a = interviewState.answers;
-      let originalOffer;
 
-      // Path B: show assembled offer immediately from structured answers
+      // Path B: construct offer from tile builder answers (all 5 fields now available)
       if (!isPathA) {
-        originalOffer = {
-          duration: a.qb2 || '21 days',
-          price: a.qb3 || '$0',
-          included: a.qb4 || 'Unlimited classes',
-          guarantee: a.qb5 || 'Satisfaction guarantee',
-          differentiator: (researchData?.marketGaps || [])[0] || 'Personalized coaching',
+        const pathBOffer = {
+          duration:      a.qb2 || '21 days',
+          price:         a.qb3 || '$0',
+          included:      a.qb4 || 'Unlimited classes',
+          guarantee:     a.qb5 || 'Satisfaction guarantee',
+          differentiator: a.qb6 || (researchData?.marketGaps || [])[0] || 'Personalized coaching',
         };
-        renderOfferFields('oa-assembled-fields', originalOffer);
+        renderOfferFields('oa-assembled-fields', pathBOffer);
         document.getElementById('oa-assembled').classList.remove('hidden');
-        await sleep(400);
+        await speakOfferReadback(pathBOffer, speakEl);
+        if (navVersion !== thisNav) return;
       }
+
+      await speak("Let me see if I can make this stronger.", speakEl);
+      if (navVersion !== thisNav) return;
       document.getElementById('oa-loading').classList.remove('hidden');
 
       // Call analyze-offer API
@@ -2230,7 +2266,8 @@
       if (navVersion !== thisNav) return;
       document.getElementById('oa-loading').classList.add('hidden');
 
-      // Path A: render extracted offer after API returns
+      // Path A: show extracted offer after API returns
+      let originalOffer;
       if (isPathA) {
         originalOffer = analysisData?.original || {
           duration: '21 days', price: '$0', included: 'Unlimited classes',
@@ -2238,42 +2275,54 @@
         };
         renderOfferFields('oa-assembled-fields', originalOffer);
         document.getElementById('oa-assembled').classList.remove('hidden');
-        await sleep(400);
+        await speakOfferReadback(originalOffer, speakEl);
+        if (navVersion !== thisNav) return;
+      } else {
+        originalOffer = {
+          duration: a.qb2 || '21 days', price: a.qb3 || '$0',
+          included: a.qb4 || 'Unlimited classes', guarantee: a.qb5 || 'Satisfaction guarantee',
+          differentiator: a.qb6 || (researchData?.marketGaps || [])[0] || 'Personalized coaching',
+        };
       }
 
-      // Path A allAbove7 shortcut — offer is already strong, route through selectIteration
-      if (isPathA && analysisData?.allAbove7) {
-        await speak("Your offer is already well structured. I am writing it exactly as you described.", speakEl);
+      // Skip iterations if offer is already strong
+      if (analysisData?.allAbove7) {
+        await speak("Your offer is already well structured for this market. I would not change a thing.", speakEl);
         if (navVersion !== thisNav) return;
-        await selectIteration(null, originalOffer);
+        await selectIteration(originalOffer);
         return;
       }
 
-      // Build iteration tiles — 3 iterations + keep original
-      const iterations = analysisData?.iterations || [];
+      // Build 2 iteration tiles side by side with full offer fields
+      const iterations = (analysisData?.iterations || []).slice(0, 2);
       const tilesContainer = document.getElementById('oa-iter-tiles');
       tilesContainer.innerHTML = '';
 
-      if (iterations.length > 0) {
-        await speak(analysisData.ahriAnalysis || "I found a few dimensions I can strengthen.", speakEl);
-        if (navVersion !== thisNav) return;
-        iterations.forEach(iter => {
-          const tile = document.createElement('div');
-          tile.className = 'oa-iter-tile';
-          tile.dataset.offer = JSON.stringify(iter.offer);
-          tile.innerHTML = `<div class="oa-iter-title">${esc(iter.title)}</div><div class="oa-iter-change">${esc(iter.change)}</div>`;
-          tilesContainer.appendChild(tile);
-        });
-      }
+      await speak("Based on everything you told me and what I found in your market, I came up with two ways to make your offer stronger. Each one keeps what you described but sharpens a specific part of it. Take a look at both and tell me which one feels more like your gym.", speakEl);
+      if (navVersion !== thisNav) return;
 
-      // Keep original tile — always present
-      const keepTile = document.createElement('div');
-      keepTile.className = 'oa-iter-tile keep-original';
-      keepTile.dataset.offer = JSON.stringify(originalOffer);
-      keepTile.innerHTML = `<div class="oa-iter-title">Keep my original</div><div class="oa-iter-change">Use the offer exactly as you built it.</div>`;
-      tilesContainer.appendChild(keepTile);
-      document.getElementById('oa-iter-tiles').classList.remove('hidden');
-      // selectIteration() drives the rest from here — advanceInterview returned early
+      const tilesData = iterations.length >= 2 ? iterations : [
+        { title: 'Iteration A — Stronger guarantee', change: 'A clearer guarantee reduces the perceived risk of saying yes.', offer: { ...originalOffer } },
+        { title: 'Iteration B — Keep original', change: 'Use your offer exactly as described.', offer: { ...originalOffer } },
+      ];
+
+      tilesData.forEach(iter => {
+        const tile = document.createElement('div');
+        tile.className = 'oa-iter-tile';
+        const fieldsDiv = document.createElement('div');
+        fieldsDiv.className = 'oa-iter-tile-fields';
+        renderIterTileFields(fieldsDiv, iter.offer);
+        tile.innerHTML = `<div class="oa-iter-title">${esc(iter.title)}</div><div class="oa-iter-change">${esc(iter.change)}</div>`;
+        tile.appendChild(fieldsDiv);
+        tile.onclick = () => {
+          document.querySelectorAll('.oa-iter-tile').forEach(t => t.classList.remove('selected'));
+          tile.classList.add('selected');
+          showOfferConfirmPanel(iter.offer);
+        };
+        tilesContainer.appendChild(tile);
+      });
+
+      tilesContainer.classList.remove('hidden');
     }
 
     // ─── Finish interview ─────────────────────────────────────────────────────

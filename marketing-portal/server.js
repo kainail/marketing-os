@@ -3255,7 +3255,7 @@ Step 2 — Score each Hormozi dimension 1-10 for the extracted offer:
 Dream Outcome, Perceived Likelihood, Time Delay (inverted — shorter = higher score), Effort & Sacrifice (inverted — less = higher score).
 
 Step 3 — If ALL FOUR dimensions score 7 or higher: set allAbove7 to true, return empty iterations array.
-         Otherwise: generate 3 iterations that each fix a different weak dimension.
+         Otherwise: generate exactly 2 iterations, each fixing a different weak dimension.
 
 Return ONLY this JSON (no markdown, no explanation):
 {
@@ -3271,16 +3271,11 @@ Return ONLY this JSON (no markdown, no explanation):
   "iterations": [
     {
       "title": "Iteration A — [short label naming the change]",
-      "change": "One sentence: what changed and why",
+      "change": "One sentence: what changed and why, referencing the market data",
       "offer": { "duration": "...", "price": "...", "included": "...", "guarantee": "...", "differentiator": "..." }
     },
     {
       "title": "Iteration B — [short label]",
-      "change": "One sentence",
-      "offer": { "duration": "...", "price": "...", "included": "...", "guarantee": "...", "differentiator": "..." }
-    },
-    {
-      "title": "Iteration C — [short label]",
       "change": "One sentence",
       "offer": { "duration": "...", "price": "...", "included": "...", "guarantee": "...", "differentiator": "..." }
     }
@@ -3328,7 +3323,7 @@ HORMOZI VALUE EQUATION: Value = (Dream Outcome × Perceived Likelihood) / (Time 
 
 Score each dimension 1-10 for this offer as written.
 Identify the weakest dimensions.
-Generate THREE complete offer iterations — each makes a different improvement.
+Generate exactly 2 complete offer iterations — each makes a different improvement.
 Each iteration changes ONE or TWO fields from the original. All other fields stay identical.
 Title each iteration with a short label naming what was changed (e.g. "Iteration A — Stronger guarantee").
 
@@ -3349,11 +3344,6 @@ Return ONLY this JSON (no markdown, no explanation):
     },
     {
       "title": "Iteration B — [short label]",
-      "change": "One sentence",
-      "offer": { "duration": "...", "price": "...", "included": "...", "guarantee": "...", "differentiator": "..." }
-    },
-    {
-      "title": "Iteration C — [short label]",
       "change": "One sentence",
       "offer": { "duration": "...", "price": "...", "included": "...", "guarantee": "...", "differentiator": "..." }
     }
