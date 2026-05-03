@@ -2635,7 +2635,8 @@ app.post('/api/onboarding/sessions/:sessionId/tts', async (req, res) => {
   const { script } = req.body;
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
   if (!script || typeof script !== 'string' || script.length === 0) return res.status(400).json({ error: 'script required' });
-  if (script.length > 2000) return res.status(400).json({ error: 'script exceeds 2000 chars' });
+  console.log(`[TTS] script length: ${script.length} chars`);
+  if (script.length > 5000) return res.status(400).json({ error: 'script exceeds 5000 chars' });
   const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
   if (!session) return res.status(404).json({ error: 'Session not found' });
   const apiKey = process.env.AHRI_ELEVENLABS_API_KEY;
