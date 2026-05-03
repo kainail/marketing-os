@@ -1328,7 +1328,7 @@
         probe:'Just to confirm — do you have a specific offer with a price and terms already, or is this something we need to build together?' },
       // Section 1 — Path A (four focused questions, server extracts all 5 offer fields)
       { id:'qa2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
-        text:'Walk me through everything about your offer — what they pay, what they get, how long it runs, what happens if it does not work, and the guarantee if you have one. Be as specific as you can.',
+        text:'What promotions are you running right now? Tell me what they pay, what they get, how long it runs, what happens if it does not work, and the guarantee if you have one. Be as specific as you can.',
         probe:'Give me the exact numbers — price, duration, what is included day to day, and your guarantee wording.' },
       { id:'qa3', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
         text:'Is there anything in your offer that most prospects overlook or underestimate — something that makes it better than it sounds on paper?',
@@ -1437,7 +1437,7 @@
       }
       if (q.id === 'q8') {
         const rev = (researchData?.googleReviews || [])[0];
-        if (rev) return `I found your Google reviews. Which feels most like what you'd want new members to read? "${rev.text?.substring(0, 70)}..." — or describe which type feels right.`;
+        if (rev) return `When you read through your Google reviews, which ones make you the happiest? What do they say? "${rev.text?.substring(0, 70)}..."`;
         return 'Which of your Google reviews do you feel best represents your gym to new members?';
       }
       return '—';
@@ -2222,7 +2222,7 @@
       neitherBtn.disabled = false;
 
       const intro = phase === 'section2'
-        ? "Based on what you told me about your members — two hooks."
+        ? "Based on what you told me about your members I made you a couple of hooks."
         : "Two angles from your edge. One from your differentiator. One from the objection.";
       await speak(intro, speakEl);
       if (navVersion !== preNav) return;
@@ -2560,7 +2560,7 @@
       setProgress('processing');
       updateStatusPip('active', 'Generating your system');
       showState('state-speaking');
-      await speak("Your marketing system is configured. Every question answered. I am going to build your ad now — based on everything you have told me.", document.getElementById('speaking-text'));
+      await speak("Your marketing system is configured. Every question answered. I am going to build the contents of your ad based on everything you have told me.", document.getElementById('speaking-text'));
       await sleep(400);
       await triggerCompletion();
     }
