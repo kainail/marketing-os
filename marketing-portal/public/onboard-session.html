@@ -1751,6 +1751,37 @@
       ta.value = text;
       ta.focus();
       document.getElementById('submit-btn').disabled = false;
+
+      // Path B tile click is always a complete answer — skip evaluation, advance directly
+      const q = QUESTIONS[interviewState.currentQIndex];
+      if (q && ['qb2','qb3','qb4','qb5','qb6'].includes(q.id)) {
+        submitTileAnswer(text);
+      }
+    }
+
+    const _pathBAcks = ['Got it.', 'Perfect.', 'Good.', 'Done.'];
+    let _pathBAckIdx = 0;
+
+    async function submitTileAnswer(text) {
+      if (interviewState.submitting) return;
+      const q = QUESTIONS[interviewState.currentQIndex];
+      stopAudio();
+      interviewState.submitting = true;
+      const btn = document.getElementById('submit-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+      const submitNav = navVersion;
+      interviewState.answers[q.id] = text;
+      saveAnswers().catch(() => {});
+
+      const ack = _pathBAcks[_pathBAckIdx % _pathBAcks.length];
+      _pathBAckIdx++;
+      await speak(ack, document.getElementById('iv-question'));
+
+      if (navVersion !== submitNav) { interviewState.submitting = false; return; }
+      interviewState.submitting = false;
+      resetAnswerArea();
+      await advanceInterview();
     }
 
     function hideSuggestions() {
