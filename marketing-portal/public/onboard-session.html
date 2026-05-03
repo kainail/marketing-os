@@ -225,17 +225,14 @@
     .oa-field-highlighted .oa-field-value { color: #e8eaf0; background: rgba(124,58,237,0.1); border-radius: 6px; padding: 4px 8px; border: 1px solid rgba(124,58,237,0.2); display: inline-block; }
     .oa-loading { width: 100%; max-width: 500px; text-align: center; padding: 16px 0; }
     .oa-loading-text { font-size: 13px; color: rgba(232,234,240,0.35); letter-spacing: 0.3px; animation: shimmer 2.5s ease-in-out infinite; }
-    .oa-iterations { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
-    .oa-iter-card { background: rgba(124,58,237,0.06); border: 1px solid rgba(124,58,237,0.16); border-radius: 12px; padding: 16px 18px; }
-    .oa-iter-tag { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #a78bfa; margin-bottom: 12px; }
-    .oa-iter-reason { font-size: 12px; color: rgba(232,234,240,0.45); margin-top: 10px; font-style: italic; line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; }
-    .oa-choices { flex-shrink: 0; width: 100%; padding: 12px 0 8px; }
-    .oa-choices-label { font-size: 12px; color: rgba(232,234,240,0.4); margin-bottom: 10px; text-align: center; }
-    .oa-choice-row { display: flex; gap: 8px; justify-content: center; max-width: 500px; margin: 0 auto; }
-    .oa-choice-tile { flex: 1; background: rgba(99,102,241,0.07); border: 1px solid rgba(99,102,241,0.16); border-radius: 10px; padding: 12px 10px; cursor: pointer; transition: background 0.15s, border-color 0.15s; text-align: center; }
-    .oa-choice-tile:hover { background: rgba(99,102,241,0.14); border-color: rgba(99,102,241,0.32); }
-    .oa-choice-tile.selected { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.5); }
-    .oa-choice-name { font-size: 13px; font-weight: 600; color: rgba(232,234,240,0.85); }
+    .oa-iter-tiles { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 10px; padding-bottom: 16px; }
+    .oa-iter-tile { background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.15); border-radius: 12px; padding: 16px 18px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+    .oa-iter-tile:hover { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.3); }
+    .oa-iter-tile.selected { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.55); }
+    .oa-iter-tile.keep-original { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.1); }
+    .oa-iter-tile.keep-original:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18); }
+    .oa-iter-title { font-size: 14px; font-weight: 600; color: rgba(232,234,240,0.9); margin-bottom: 5px; }
+    .oa-iter-change { font-size: 12px; color: rgba(232,234,240,0.45); line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -354,26 +351,7 @@
             <div class="oa-loading hidden" id="oa-loading">
               <div class="oa-loading-text">Scoring against Hormozi value equation...</div>
             </div>
-            <div class="oa-iterations hidden" id="oa-iterations">
-              <div class="oa-iter-card" id="oa-iter-a">
-                <div class="oa-iter-tag">Iteration A</div>
-                <div id="oa-iter-a-fields"></div>
-                <div class="oa-iter-reason" id="oa-iter-a-reason"></div>
-              </div>
-              <div class="oa-iter-card" id="oa-iter-b">
-                <div class="oa-iter-tag">Iteration B</div>
-                <div id="oa-iter-b-fields"></div>
-                <div class="oa-iter-reason" id="oa-iter-b-reason"></div>
-              </div>
-            </div>
-          </div>
-          <div class="oa-choices hidden" id="oa-choices">
-            <div class="oa-choices-label">Pick one to write to your marketing system:</div>
-            <div class="oa-choice-row" id="oa-choice-row">
-              <div class="oa-choice-tile" data-choice="original"><div class="oa-choice-name">Keep original</div></div>
-              <div class="oa-choice-tile" data-choice="a"><div class="oa-choice-name">Iteration A</div></div>
-              <div class="oa-choice-tile" data-choice="b"><div class="oa-choice-name">Iteration B</div></div>
-            </div>
+            <div class="oa-iter-tiles hidden" id="oa-iter-tiles"></div>
           </div>
         </div>
 
@@ -1274,7 +1252,8 @@
       answers: {},
       completedSections: new Set(),
       submitting: false,
-      section1Path: null,  // 'A' = has existing offer, 'B' = building offer with AHRI
+      section1Path: null,         // 'A' = has existing offer, 'B' = building with AHRI
+      sectionIntroSpoken: false,  // true after runOfferAnalysis speaks the section 2 transition
     };
 
     // ─── Path-aware navigation helpers ───────────────────────────────────────
@@ -1514,10 +1493,11 @@
         // Section completed — write KB + speak section transition
         await writeSectionKB(q.section);
         interviewState.completedSections.add(q.section);
-        if (SECTION_INTRO[nextSection]) {
+        if (SECTION_INTRO[nextSection] && !interviewState.sectionIntroSpoken) {
           await speak(SECTION_INTRO[nextSection], document.getElementById('iv-question'));
           await sleep(400);
         }
+        interviewState.sectionIntroSpoken = false;
       }
 
       if (nextIdx < 0) {
@@ -1798,37 +1778,37 @@
     let _offerChoiceResolve = null;
 
     function setupOfferChoiceDelegation() {
-      const row = document.getElementById('oa-choice-row');
-      if (!row) return;
-      row.addEventListener('click', function(e) {
-        const tile = e.target.closest('[data-choice]');
+      const tilesContainer = document.getElementById('oa-iter-tiles');
+      if (!tilesContainer) return;
+      tilesContainer.addEventListener('click', function(e) {
+        const tile = e.target.closest('[data-offer]');
         if (!tile || !_offerChoiceResolve) return;
-        const choice = tile.dataset.choice;
-        document.querySelectorAll('.oa-choice-tile').forEach(t => t.classList.remove('selected'));
+        let offer;
+        try { offer = JSON.parse(tile.dataset.offer); } catch { return; }
+        document.querySelectorAll('.oa-iter-tile').forEach(t => t.classList.remove('selected'));
         tile.classList.add('selected');
         const r = _offerChoiceResolve;
         _offerChoiceResolve = null;
-        r(choice);
+        r(offer);
       });
     }
 
-    function renderOfferFields(containerId, offerData, highlightField) {
+    function renderOfferFields(containerId, offerData) {
       const el = document.getElementById(containerId);
       if (!el || !offerData) return;
       const fields = [
-        { key: 'duration',      label: 'Trial duration',    value: offerData.duration },
-        { key: 'price',         label: 'Entry price',       value: offerData.price },
-        { key: 'inclusions',    label: "What's included",   value: offerData.inclusions },
-        { key: 'guarantee',     label: 'Guarantee',         value: offerData.guarantee },
-        { key: 'differentiator',label: 'Core differentiator',value: offerData.differentiator },
+        { label: 'Trial duration',     value: offerData.duration },
+        { label: 'Entry price',        value: offerData.price },
+        { label: "What's included",    value: offerData.included },
+        { label: 'Guarantee',          value: offerData.guarantee },
+        { label: 'Core differentiator',value: offerData.differentiator },
       ];
-      el.innerHTML = fields.map(f => {
-        const isHighlighted = highlightField === f.key;
-        return `<div class="oa-field-row${isHighlighted ? ' oa-field-highlighted' : ''}">
+      el.innerHTML = fields.map(f =>
+        `<div class="oa-field-row">
           <div class="oa-field-label">${esc(f.label)}</div>
           <div class="oa-field-value">${esc(f.value || '—')}</div>
-        </div>`;
-      }).join('');
+        </div>`
+      ).join('');
     }
 
     async function runOfferAnalysis() {
@@ -1837,8 +1817,7 @@
 
       document.getElementById('oa-assembled').classList.add('hidden');
       document.getElementById('oa-loading').classList.add('hidden');
-      document.getElementById('oa-iterations').classList.add('hidden');
-      document.getElementById('oa-choices').classList.add('hidden');
+      document.getElementById('oa-iter-tiles').classList.add('hidden');
       const speakEl = document.getElementById('oa-speak');
       if (speakEl) speakEl.innerHTML = '';
 
@@ -1847,9 +1826,14 @@
 
       // Show assembled offer from current answers immediately
       const a = interviewState.answers;
-      renderOfferFields('oa-assembled-fields', {
-        duration: a.qb2, price: a.qb3, inclusions: a.qb4, guarantee: a.qb5, differentiator: a.qb6,
-      });
+      const originalOffer = {
+        duration: a.qb2 || '21 days',
+        price: a.qb3 || '$0',
+        included: a.qb4 || 'Unlimited classes',
+        guarantee: a.qb5 || 'Satisfaction guarantee',
+        differentiator: a.qb6 || 'Personalized coaching',
+      };
+      renderOfferFields('oa-assembled-fields', originalOffer);
       document.getElementById('oa-assembled').classList.remove('hidden');
       await sleep(400);
       document.getElementById('oa-loading').classList.remove('hidden');
@@ -1868,48 +1852,57 @@
       if (navVersion !== thisNav) return;
       document.getElementById('oa-loading').classList.add('hidden');
 
-      if (!analysisData || (!analysisData.iterationA && !analysisData.iterationB)) {
-        // No analysis returned — show only "Keep original" and move on
-        document.getElementById('oa-choices').classList.remove('hidden');
-        await new Promise(resolve => { _offerChoiceResolve = resolve; });
-        return;
+      // Build iteration tiles — 3 iterations + keep original
+      const iterations = analysisData?.iterations || [];
+      const tilesContainer = document.getElementById('oa-iter-tiles');
+      tilesContainer.innerHTML = '';
+
+      if (iterations.length > 0) {
+        // Speak AHRI's analysis before showing tiles
+        await speak(analysisData.ahriAnalysis || "I found a few dimensions I can strengthen.", speakEl);
+        if (navVersion !== thisNav) return;
+
+        iterations.forEach(iter => {
+          const tile = document.createElement('div');
+          tile.className = 'oa-iter-tile';
+          tile.dataset.offer = JSON.stringify(iter.offer);
+          tile.innerHTML = `<div class="oa-iter-title">${esc(iter.title)}</div><div class="oa-iter-change">${esc(iter.change)}</div>`;
+          tilesContainer.appendChild(tile);
+        });
       }
 
-      // Speak AHRI's analysis
-      await speak(analysisData.ahriAnalysis || "I found one dimension I can strengthen.", speakEl);
+      // Keep original tile — always present
+      const keepTile = document.createElement('div');
+      keepTile.className = 'oa-iter-tile keep-original';
+      keepTile.dataset.offer = JSON.stringify(originalOffer);
+      keepTile.innerHTML = `<div class="oa-iter-title">Keep my original</div><div class="oa-iter-change">Use the offer exactly as you built it.</div>`;
+      tilesContainer.appendChild(keepTile);
+      document.getElementById('oa-iter-tiles').classList.remove('hidden');
+
+      // Wait for owner to pick an iteration
+      const chosenOffer = await new Promise(resolve => { _offerChoiceResolve = resolve; });
       if (navVersion !== thisNav) return;
 
-      // Render iteration cards
-      const iterA = analysisData.iterationA;
-      const iterB = analysisData.iterationB;
-      if (iterA) {
-        renderOfferFields('oa-iter-a-fields', iterA, iterA.highlight);
-        const reasonEl = document.getElementById('oa-iter-a-reason');
-        if (reasonEl) reasonEl.textContent = iterA.reason || '';
-      }
-      if (iterB) {
-        renderOfferFields('oa-iter-b-fields', iterB, iterB.highlight);
-        const reasonEl = document.getElementById('oa-iter-b-reason');
-        if (reasonEl) reasonEl.textContent = iterB.reason || '';
-      }
-      document.getElementById('oa-iterations').classList.remove('hidden');
+      // Persist to R2
+      try {
+        await fetch(`/api/onboarding/sessions/${sessionId}/select-offer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ offer: chosenOffer }),
+        });
+      } catch {}
 
-      // Show choice tiles and wait for selection
-      document.getElementById('oa-choices').classList.remove('hidden');
-      const choice = await new Promise(resolve => { _offerChoiceResolve = resolve; });
+      // Update local answers with chosen offer
+      if (chosenOffer.duration)       interviewState.answers.qb2 = chosenOffer.duration;
+      if (chosenOffer.price)          interviewState.answers.qb3 = chosenOffer.price;
+      if (chosenOffer.included)       interviewState.answers.qb4 = chosenOffer.included;
+      if (chosenOffer.guarantee)      interviewState.answers.qb5 = chosenOffer.guarantee;
+      if (chosenOffer.differentiator) interviewState.answers.qb6 = chosenOffer.differentiator;
+      saveAnswers().catch(() => {});
 
-      if (navVersion !== thisNav) return;
-
-      // Write chosen iteration back to answers
-      const chosen = choice === 'a' ? iterA : choice === 'b' ? iterB : null;
-      if (chosen) {
-        if (chosen.duration)       interviewState.answers.qb2 = chosen.duration;
-        if (chosen.price)          interviewState.answers.qb3 = chosen.price;
-        if (chosen.inclusions)     interviewState.answers.qb4 = chosen.inclusions;
-        if (chosen.guarantee)      interviewState.answers.qb5 = chosen.guarantee;
-        if (chosen.differentiator) interviewState.answers.qb6 = chosen.differentiator;
-        saveAnswers().catch(() => {});
-      }
+      // Speak transition to Section 2 — suppress the duplicate section intro in advanceInterview
+      await speak("Perfect. Your offer is locked in. Now let me learn more about who you are built for.", speakEl);
+      interviewState.sectionIntroSpoken = true;
     }
 
     // ─── Finish interview ─────────────────────────────────────────────────────

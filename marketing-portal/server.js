@@ -2844,11 +2844,9 @@ app.post('/api/onboarding/sessions/:sessionId/question-suggestions', async (req,
 /** Generate 3 market-specific suggestion tiles for a question using Claude Haiku. */
 async function generateQuestionSuggestions(questionId, questionText, section, session, research) {
   // Path B questions and intro tiles use specialized research-based generation
-  if (['qb2','qb3','qb4','qb5','pathb-intro'].includes(questionId)) {
+  if (['qb2','qb3','qb4','qb5','qb6'].includes(questionId)) {
     return generatePathBTiles(questionId, session, research);
   }
-  // qb6 is open voice/text — no tiles
-  if (questionId === 'qb6') return [];
 
   const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
   if (!apiKey) return [];
@@ -2901,29 +2899,92 @@ Respond ONLY with a JSON array, no other text:
   }
 }
 
-/** Generate research-specific tiles for Path B offer-building questions. */
+/** Generate 3 market-specific tiles for Path B offer-building questions using Claude Haiku. */
 async function generatePathBTiles(questionId, session, research) {
   const city = session.city || 'your city';
+  const gymName = session.gymName || 'this gym';
   const competitors = (research?.competitors || []).slice(0, 3);
   const competitorNames = competitors.map(c => c.name).filter(Boolean).join(', ') || 'local gyms';
   const primaryGap = (research?.marketGaps || [])[0] || 'personalized coaching and accountability';
-
-  // Estimate competitor price range from research
+  const reviewExcerpts = (research?.googleReviews || [])
+    .filter(r => r.text?.length > 20).slice(0, 3)
+    .map(r => `"${r.text.substring(0, 80)}"`).join(' | ') || '';
   const competitorPrices = competitors
     .map(c => parseFloat(c.price || c.membershipPrice || c.monthly_price || 0))
     .filter(p => p > 0);
   const avgCompPrice = competitorPrices.length > 0
     ? Math.round(competitorPrices.reduce((a, b) => a + b, 0) / competitorPrices.length)
     : 49;
+  const compPriceCtx = competitorPrices.length > 0
+    ? `Competitors charge ~$${avgCompPrice}/mo (${competitorNames}).`
+    : `No competitor pricing found — estimate ~$49/mo for ${city}.`;
 
-  if (questionId === 'qb2') {
-    return [
-      { text: '14-day trial', subtext: 'Shorter window — lowest commitment barrier, great for skeptical leads' },
-      { text: '21-day trial', subtext: `Most common in ${city} — long enough to feel real results` },
-      { text: '30-day trial', subtext: 'Full month — highest perceived value, easiest to justify the price' },
-    ];
+  const PROMPTS = {
+    qb2: `Generate exactly 3 trial duration options for a gym called ${gymName} in ${city}.
+Market: ${compPriceCtx} Market gap nobody is filling: "${primaryGap}".
+The 3 options MUST be 14 days, 21 days, and 30 days — in that order.
+For each: write a 1-sentence rationale that is specific to this market, these competitors, and this gap.
+Output ONLY a JSON array, no other text:
+[{"text":"14-day trial","subtext":"[market-specific rationale]"},{"text":"21-day trial","subtext":"[market-specific rationale]"},{"text":"30-day trial","subtext":"[market-specific rationale]"}]`,
+
+    qb3: `Generate exactly 3 entry price options for a trial at ${gymName} in ${city}.
+${compPriceCtx}
+Position each price option explicitly against competitor pricing.
+Prices must be specific dollar amounts. Go from low barrier to recommended.
+Output ONLY a JSON array, no other text:
+[{"text":"$X for the trial","subtext":"[competitor context and positioning — mention competitor names and prices]"},...]`,
+
+    qb4: `Generate exactly 3 trial inclusion packages for ${gymName} in ${city}.
+Market gap: "${primaryGap}". Competitors: ${competitorNames}.
+Option 1: unlimited classes only (basic, no friction). Option 2: unlimited classes + one coached orientation session. Option 3: unlimited classes + weekly coach check-ins throughout the trial.
+For each: explain exactly what the member experiences day-to-day and how it fills the gap.
+Output ONLY a JSON array, no other text:
+[{"text":"[what's included — specific wording]","subtext":"[day-to-day member experience + how it fills the gap]"},...]`,
+
+    qb5: `Generate exactly 3 guarantee options for ${gymName} in ${city}.
+Market gap: "${primaryGap}". Member reviews: ${reviewExcerpts || 'not available'}.
+Option 1: satisfaction guarantee (full refund if not happy). Option 2: attendance-based (show up X times per week or full refund). Option 3: results-based (feel measurably stronger or get a free extra month of coaching).
+Write guarantee language that directly addresses what the reviews show members worry about.
+Output ONLY a JSON array, no other text:
+[{"text":"[exact guarantee wording]","subtext":"[why this addresses this market's specific fear]"},...]`,
+
+    qb6: `Generate exactly 3 core differentiator options for ${gymName} in ${city}.
+Market gap (what NO competitor currently says): "${primaryGap}". Competitors: ${competitorNames}. Member reviews: ${reviewExcerpts || 'not available'}.
+Each option must be something SPECIFIC that fills the gap competitors leave open — drawn from the gap data and reviews.
+Write in first-person owner voice (e.g. "We do X that nobody else does").
+Output ONLY a JSON array, no other text:
+[{"text":"[differentiator in first-person owner voice]","subtext":"[which competitor gap this fills and why it converts]"},...]`,
+  };
+
+  const prompt = PROMPTS[questionId];
+  if (!prompt) return [];
+
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (apiKey) {
+    try {
+      const Anthropic = require('@anthropic-ai/sdk');
+      const client = new Anthropic({ apiKey });
+      const msg = await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 700,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length >= 1) return parsed.slice(0, 3);
+    } catch (err) {
+      console.error(`[pathb-tiles] ${questionId} generation failed:`, err.message);
+    }
   }
+  return pathBFallback(questionId, city, avgCompPrice, competitorNames, primaryGap);
+}
 
+function pathBFallback(questionId, city, avgCompPrice, competitorNames, primaryGap) {
+  if (questionId === 'qb2') return [
+    { text: '14-day trial', subtext: 'Lowest commitment barrier — easy yes for skeptical leads' },
+    { text: '21-day trial', subtext: `Most common in ${city} — long enough to feel real results` },
+    { text: '30-day trial', subtext: 'Full month — highest perceived value, easiest to justify the price' },
+  ];
   if (questionId === 'qb3') {
     const low = Math.max(1, Math.round(avgCompPrice * 0.04));
     const mid = Math.round(avgCompPrice * 0.3);
@@ -2931,79 +2992,148 @@ async function generatePathBTiles(questionId, session, research) {
     return [
       { text: `$${low} for the trial`, subtext: `Lowest barrier — competitors in ${city} charge ~$${avgCompPrice}/mo so this feels nearly free` },
       { text: `$${mid} for the trial`, subtext: 'Filters for committed leads — attracts members with skin in the game' },
-      { text: `$${rec} for the trial`, subtext: `Recommended — roughly half your monthly rate, feels fair and funds the trial` },
+      { text: `$${rec} for the trial`, subtext: 'Recommended — roughly half your monthly rate, feels fair and funds the trial' },
     ];
   }
-
-  if (questionId === 'qb4') {
-    return [
-      { text: 'Unlimited group classes during the trial', subtext: 'Simplest offer — no friction, easy yes' },
-      { text: `Unlimited classes + one initial orientation session`, subtext: `Fills your market gap — ${competitorNames} don't offer coached onboarding` },
-      { text: 'Unlimited classes + weekly coach check-in during the trial', subtext: 'Highest value — personalized, impossible to replicate at a big box gym' },
-    ];
-  }
-
-  if (questionId === 'qb5') {
-    return [
-      { text: 'Full refund if not completely satisfied after the trial', subtext: 'Satisfaction guarantee — removes all risk, simplest to explain' },
-      { text: 'Come at least 3 times a week — if you don\'t feel a difference, full refund', subtext: 'Attendance-based — rewards commitment, protects you from non-starters' },
-      { text: 'Complete the trial and if you don\'t see measurable progress, we coach you free until you do', subtext: 'Results-based — strongest perceived value, best closing tool' },
-    ];
-  }
-
-  if (questionId === 'pathb-intro') {
-    // 3 complete offer templates — try LLM first, fall back to defaults
-    const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
-    if (apiKey) {
-      try {
-        const Anthropic = require('@anthropic-ai/sdk');
-        const client = new Anthropic({ apiKey });
-        const prompt = `Generate 3 proven front-end gym offer templates for a gym in ${city}.
-Market context: competitors are ${competitorNames}, average monthly rate ~$${avgCompPrice}, biggest gap nobody is filling: "${primaryGap}".
-Use the Hormozi Grand Slam Offer framework: maximize Dream Outcome × Perceived Likelihood, minimize Time Delay × Effort.
-Each template: a short catchy offer name + one line explaining what makes it compelling.
-Output ONLY a JSON array, no other text:
-[{"text":"Offer name (e.g. 21-Day New You Challenge — $1)","subtext":"What's included and why it converts"},...]`;
-        const msg = await client.messages.create({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 350,
-          messages: [{ role: 'user', content: prompt }],
-        });
-        const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(0, 3);
-      } catch {}
-    }
-    return [
-      { text: `21-Day New Member Challenge — $1`, subtext: `Unlimited access for 21 days + orientation session. Fills the gap ${competitorNames} leave open.` },
-      { text: `30-Day Trial — $${Math.round(avgCompPrice * 0.5)}`, subtext: `Full month + weekly coach check-in. Positions against "${primaryGap}".` },
-      { text: '14-Day Fast Start — Free', subtext: 'Highest volume of leads — no credit card. Qualify for membership at the end.' },
-    ];
-  }
-
+  if (questionId === 'qb4') return [
+    { text: 'Unlimited group classes during the trial', subtext: 'Simplest offer — no friction, easy yes' },
+    { text: 'Unlimited classes + one orientation session on day one', subtext: `Fills the gap ${competitorNames} leave open` },
+    { text: 'Unlimited classes + weekly coach check-in during the trial', subtext: 'Highest value — impossible to replicate at any big-box gym' },
+  ];
+  if (questionId === 'qb5') return [
+    { text: 'Full refund if not completely satisfied after the trial', subtext: 'Satisfaction guarantee — removes all risk, simplest to explain' },
+    { text: "Show up at least 3 times a week — if you don't feel a difference, full refund", subtext: 'Attendance-based — rewards commitment, filters out non-starters' },
+    { text: 'Complete the trial — if you are not measurably stronger, we coach you free until you are', subtext: 'Results-based — strongest closing tool, highest perceived value' },
+  ];
+  if (questionId === 'qb6') return [
+    { text: `We give every new member a dedicated coach for their first 30 days — ${competitorNames} do not do this`, subtext: `Fills market gap: "${primaryGap.substring(0, 60)}"` },
+    { text: 'Every member gets a personalized training plan on day one — not a generic class schedule', subtext: 'What reviews show members want but cannot find elsewhere in the market' },
+    { text: 'Our coaches know every member by name and adjust their program weekly — you are never just a number here', subtext: 'Personal accountability impossible at any big-box gym' },
+  ];
   return [];
 }
 
-// POST /api/onboarding/sessions/:sessionId/synthesize-offer — plain-language offer summary for Path B confirmation
+// POST /api/onboarding/sessions/:sessionId/synthesize-offer — legacy route, kept for compatibility
 app.post('/api/onboarding/sessions/:sessionId/synthesize-offer', async (req, res) => {
+  res.status(410).json({ error: 'Replaced by /analyze-offer' });
+});
+
+// POST /api/onboarding/sessions/:sessionId/analyze-offer — Hormozi analysis + 3 iterations
+app.post('/api/onboarding/sessions/:sessionId/analyze-offer', async (req, res) => {
   const { sessionId } = req.params;
   const { answers } = req.body;
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
   const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
   if (!session) return res.status(404).json({ error: 'Session not found' });
+  const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
 
-  const gymName = session.gymName || 'your gym';
-  const durationRaw = answers?.qb2 || '21 days';
-  const days = (durationRaw.match(/(\d+)/) || ['','21'])[1];
-  const price = answers?.qb3 ? ` for ${answers.qb3}` : '';
-  const inclusions = answers?.qb4 || 'access to all classes';
-  const guarantee = answers?.qb5 || 'satisfaction guarantee';
-  const differentiator = answers?.qb6 || 'personalized attention you cannot get at a big box gym';
+  const city = session.city || 'your city';
+  const gymName = session.gymName || 'this gym';
+  const primaryGap = (research?.marketGaps || [])[0] || 'personalized coaching';
+  const reviewExcerpts = (research?.googleReviews || [])
+    .filter(r => r.text?.length > 20).slice(0, 2)
+    .map(r => `"${r.text.substring(0, 100)}"`).join(' | ') || 'not available';
 
-  const offerName = `${days}-Day Challenge`;
-  const summary = `Here is the offer we just built for ${gymName}. The ${offerName}${price}. What is included: ${inclusions}. The guarantee: ${guarantee}. And the one thing that sets it apart from every gym nearby: ${differentiator}. Does this feel right?`;
+  const original = {
+    duration: answers?.qb2 || '21 days',
+    price: answers?.qb3 || '$0 down',
+    included: answers?.qb4 || 'Unlimited classes',
+    guarantee: answers?.qb5 || 'Full refund if not satisfied',
+    differentiator: answers?.qb6 || 'Personalized coaching',
+  };
 
-  res.json({ summary, offerName, duration: durationRaw, price: answers?.qb3 || '', inclusions, guarantee, differentiator });
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+
+    const prompt = `You are AHRI, an AI marketing strategist. Analyze this gym offer using the Hormozi value equation and generate 3 stronger iterations.
+
+GYM: ${gymName}, ${city}
+MARKET GAP (what nobody in this market is saying): "${primaryGap}"
+MEMBER REVIEWS: ${reviewExcerpts}
+
+ASSEMBLED OFFER:
+- Trial duration: ${original.duration}
+- Entry price: ${original.price}
+- What's included: ${original.included}
+- Guarantee: ${original.guarantee}
+- Core differentiator: ${original.differentiator}
+
+HORMOZI VALUE EQUATION: Value = (Dream Outcome × Perceived Likelihood) / (Time Delay × Effort & Sacrifice)
+
+Score each dimension 1-10 for this offer as written.
+Identify the weakest dimensions.
+Generate THREE complete offer iterations — each makes a different improvement.
+Each iteration changes ONE or TWO fields from the original. All other fields stay identical.
+Title each iteration with a short label naming what was changed (e.g. "Iteration A — Stronger guarantee").
+
+Return ONLY this JSON (no markdown, no explanation):
+{
+  "ahriAnalysis": "2 sentences max: what is weakest and what it costs in conversions — reference the market gap or review data",
+  "iterations": [
+    {
+      "title": "Iteration A — [short label naming the change]",
+      "change": "One sentence: what changed and why, referencing the market data above",
+      "offer": {
+        "duration": "same as original OR improved value",
+        "price": "same as original OR improved value",
+        "included": "same as original OR improved value",
+        "guarantee": "same as original OR improved value",
+        "differentiator": "same as original OR improved value"
+      }
+    },
+    {
+      "title": "Iteration B — [short label]",
+      "change": "One sentence",
+      "offer": { "duration": "...", "price": "...", "included": "...", "guarantee": "...", "differentiator": "..." }
+    },
+    {
+      "title": "Iteration C — [short label]",
+      "change": "One sentence",
+      "offer": { "duration": "...", "price": "...", "included": "...", "guarantee": "...", "differentiator": "..." }
+    }
+  ]
+}`;
+
+    const msg = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1400,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+    const analysis = JSON.parse(raw);
+    res.json({ original, ahriAnalysis: analysis.ahriAnalysis, iterations: analysis.iterations || [] });
+  } catch (err) {
+    console.error('[analyze-offer] failed:', err.message);
+    res.status(500).json({ error: 'Analysis failed', detail: err.message });
+  }
+});
+
+// POST /api/onboarding/sessions/:sessionId/select-offer — persist the chosen offer iteration to R2
+app.post('/api/onboarding/sessions/:sessionId/select-offer', async (req, res) => {
+  const { sessionId } = req.params;
+  const { offer } = req.body;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  if (!offer || typeof offer !== 'object') return res.status(400).json({ error: 'offer required' });
+  try {
+    const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    session.answers = session.answers || {};
+    if (offer.duration)       session.answers.qb2 = offer.duration;
+    if (offer.price)          session.answers.qb3 = offer.price;
+    if (offer.included)       session.answers.qb4 = offer.included;
+    if (offer.guarantee)      session.answers.qb5 = offer.guarantee;
+    if (offer.differentiator) session.answers.qb6 = offer.differentiator;
+    await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+    await r2PutShared(`onboarding/sessions/${sessionId}/selected-offer.json`, { offer, selectedAt: new Date().toISOString() });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[select-offer] failed:', err.message);
+    res.status(500).json({ error: 'Failed to persist offer', detail: err.message });
+  }
 });
 
 // PATCH /api/onboarding/sessions/:sessionId/answers — persist answers to R2 (no auth — UUID secured)
