@@ -74,6 +74,10 @@
     .begin-btn:active { transform: translateY(0); }
     .begin-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
+    /* ─── State: transition (briefing → interview gear-shift) ───── */
+    #state-transition { justify-content: center; flex: 1; }
+    .transition-text { font-size: 30px; font-weight: 300; color: rgba(232,234,240,0.95); max-width: 560px; line-height: 1.7; text-align: center; letter-spacing: -0.2px; }
+
     /* ─── State 3: speaking ──────────────────────────────────────── */
     .speaking-who { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #7c3aed; margin-bottom: 22px; display: flex; align-items: center; gap: 8px; justify-content: center; }
     .speaking-who-dot { width: 6px; height: 6px; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 8px rgba(124,58,237,0.6); animation: pip-pulse 1.2s ease-in-out infinite; }
@@ -385,6 +389,11 @@
             <button class="continue-btn" id="continue-btn" onclick="onContinueClick()">Continue →</button>
             <button class="skip-act-btn" id="skip-act-btn" onclick="skipAct()">Skip</button>
           </div>
+        </div>
+
+        <!-- State: transition — briefing complete, interview about to begin -->
+        <div class="state-pane hidden" id="state-transition">
+          <p class="transition-text" id="transition-text"></p>
         </div>
 
         <!-- State 4: hook selection (mid-interview preview) -->
@@ -864,10 +873,9 @@
       await sleep(3000);
       await awaitContinue();
 
-      document.getElementById('act-nav-row').style.display = 'none';
-      setActLabel('');
+      showState('state-transition');
       setProgress('q1');
-      await speak("I would love to ask you some questions about your gym now. Everything I just showed you came from public data alone. What you tell me next is what makes this specific to you — and it is what turns market intelligence into ads that actually convert. Let's build your first ad.", speakEl);
+      await speak("What I just showed you came from public data alone — your competitors, your reviews, your market. Now I want to learn about your gym directly from you. Together we are going to build your first ad, define who you are speaking to, and find the angle that nobody in your market is using. Let's start by talking about your offer.", document.getElementById('transition-text'));
       briefingStarted = false;
       await sleep(1500);
       await startInterview();
@@ -1163,7 +1171,7 @@
       actAdvanceNow = false;
       actTextRevealed = false;
       cancelWordReveal();
-      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-interview', 'state-offer-analysis', 'state-complete']
+      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-transition', 'state-hook-reveal', 'state-interview', 'state-offer-analysis', 'state-complete']
         .forEach(s => document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
       const row = document.getElementById('act-nav-row');
