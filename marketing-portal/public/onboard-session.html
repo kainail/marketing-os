@@ -1420,6 +1420,8 @@
     }
 
     // ─── Submit answer ────────────────────────────────────────────────────────
+    let isTileSelection = false; // set true before submitAnswer() for tile clicks — bypasses eval
+
     async function submitAnswer() {
       if (interviewState.submitting) return;
       const q = QUESTIONS[interviewState.currentQIndex];
@@ -1432,9 +1434,22 @@
       btn.disabled = true;
       btn.textContent = 'Thinking...';
 
-      const submitNav = navVersion; // capture nav at submit time
+      const submitNav = navVersion;
       interviewState.answers[q.id] = transcript;
       saveAnswers().catch(() => {});
+
+      // Tile selection is always sufficient — skip evaluation entirely
+      if (isTileSelection) {
+        isTileSelection = false;
+        const ack = _pathBAcks[_pathBAckIdx % _pathBAcks.length];
+        _pathBAckIdx++;
+        await speak(ack, document.getElementById('iv-question'));
+        if (navVersion !== submitNav) { interviewState.submitting = false; return; }
+        interviewState.submitting = false;
+        resetAnswerArea();
+        await advanceInterview();
+        return;
+      }
 
       try {
         const evalRes = await fetch(`/api/onboarding/sessions/${sessionId}/answer`, {
@@ -1744,6 +1759,9 @@
       });
     }
 
+    const _pathBAcks = ['Got it.', 'Perfect.', 'Good.', 'Done.'];
+    let _pathBAckIdx = 0;
+
     function selectTile(text, cardEl) {
       document.querySelectorAll('.suggestion-card').forEach(c => c.classList.remove('selected'));
       cardEl.classList.add('selected');
@@ -1751,37 +1769,9 @@
       ta.value = text;
       ta.focus();
       document.getElementById('submit-btn').disabled = false;
-
-      // Path B tile click is always a complete answer — skip evaluation, advance directly
-      const q = QUESTIONS[interviewState.currentQIndex];
-      if (q && ['qb2','qb3','qb4','qb5','qb6'].includes(q.id)) {
-        submitTileAnswer(text);
-      }
-    }
-
-    const _pathBAcks = ['Got it.', 'Perfect.', 'Good.', 'Done.'];
-    let _pathBAckIdx = 0;
-
-    async function submitTileAnswer(text) {
-      if (interviewState.submitting) return;
-      const q = QUESTIONS[interviewState.currentQIndex];
-      stopAudio();
-      interviewState.submitting = true;
-      const btn = document.getElementById('submit-btn');
-      if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
-
-      const submitNav = navVersion;
-      interviewState.answers[q.id] = text;
-      saveAnswers().catch(() => {});
-
-      const ack = _pathBAcks[_pathBAckIdx % _pathBAcks.length];
-      _pathBAckIdx++;
-      await speak(ack, document.getElementById('iv-question'));
-
-      if (navVersion !== submitNav) { interviewState.submitting = false; return; }
-      interviewState.submitting = false;
-      resetAnswerArea();
-      await advanceInterview();
+      // Tile click is always a complete answer everywhere in the interview
+      isTileSelection = true;
+      submitAnswer();
     }
 
     function hideSuggestions() {
