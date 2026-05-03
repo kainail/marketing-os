@@ -1428,12 +1428,28 @@
     function buildQuestionText(q) {
       if (q.text) return q.text;
       const city = session?.city || 'your city';
-      if (q.id === 'q5') {
-        const gap = (researchData?.marketGaps || [])[0] || 'personalized coaching';
-        return `Based on what I found in your market, nobody in ${city} is talking about ${gap}. What do you do specifically that fills that gap? Walk me through what someone experiences in their first 30 days with you that they could not get anywhere else.`;
-      }
-      if (q.id === 'q7') {
-        return `Is there anything happening in ${city} right now — events, school calendar, local news — that your ideal member is thinking about?`;
+      if (q.id === 'q5' || q.id === 'q7') {
+        const rawGap = (researchData?.marketGaps || [])[0] || 'personalized coaching';
+        let gap = rawGap.trim();
+        // Strip any leading "Nobody / No one / None of..." opener that would duplicate
+        // the question's own framing — e.g. "Nobody in Avon is talking about X" → "X"
+        if (/^(?:nobody|no one|no gym|none of)\b/i.test(gap)) {
+          const afterAbout = gap.match(/\babout\s+(.+)$/i);
+          const afterVerb  = gap.match(/(?:\bis\b|\bare\b|\bwas\b|\bwere\b|\bdoes\b|\bdo\b)\s+(?:\w+ing\s+)?(.+)$/i);
+          if (afterAbout) gap = afterAbout[1].trim();
+          else if (afterVerb) gap = afterVerb[1].trim();
+        }
+        // Capitalise first letter if now lowercase after stripping
+        if (gap.length > 0 && gap[0] >= 'a' && gap[0] <= 'z') {
+          gap = gap.charAt(0).toUpperCase() + gap.slice(1);
+        }
+        // Strip trailing punctuation so we control the sentence separator
+        gap = gap.replace(/[.!?]+$/, '').trim();
+        const prefix = `In your market, ${gap}.`;
+        if (q.id === 'q5') {
+          return `${prefix} What do you do specifically that fills that gap? Walk me through what someone experiences in their first 30 days with you that they could not get anywhere else.`;
+        }
+        return `${prefix} Is there anything happening in ${city} right now — events, school calendar, local news — that your ideal member is thinking about?`;
       }
       if (q.id === 'q8') {
         return 'When you read through your Google reviews, which ones make you the happiest? What do they say?';
