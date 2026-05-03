@@ -1493,9 +1493,10 @@
         await runPathBIntro();
       }
 
-      // After qb6 or qa5: run Hormozi analysis and let owner pick original or iteration
+      // After qb6 or qa5: run Hormozi analysis — selectIteration() drives the rest from here
       if (q.id === 'qb6' || q.id === 'qa5') {
         await runOfferAnalysis();
+        return;
       }
 
       const nextIdx = nextValidIdx(interviewState.currentQIndex);
@@ -1796,21 +1797,69 @@
       showState('state-interview');
     }
 
-    let _offerChoiceResolve = null;
+    /** Handle iteration tile selection — writes offer, speaks transition, advances to Section 2. */
+    async function selectIteration(tileEl, offer) {
+      console.log('[Iteration] Selected offer:', offer);
+      if (!offer) return;
+
+      // Mark tile selected
+      document.querySelectorAll('.oa-iter-tile').forEach(t => t.classList.remove('selected'));
+      if (tileEl) tileEl.classList.add('selected');
+
+      const speakEl = document.getElementById('oa-speak');
+
+      // Persist to R2 — error logged but never blocks the interview advance
+      try {
+        await fetch(`/api/onboarding/sessions/${sessionId}/select-offer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ offer }),
+        });
+      } catch (err) {
+        console.error('[Iteration] R2 write failed, advancing anyway:', err.message);
+      }
+
+      // Update local answers
+      if (offer.duration)       interviewState.answers.qb2 = offer.duration;
+      if (offer.price)          interviewState.answers.qb3 = offer.price;
+      if (offer.included)       interviewState.answers.qb4 = offer.included;
+      if (offer.guarantee)      interviewState.answers.qb5 = offer.guarantee;
+      if (offer.differentiator) interviewState.answers.qb6 = offer.differentiator;
+      saveAnswers().catch(() => {});
+
+      // Write section KB and mark complete (fire-and-forget)
+      const currentQ = QUESTIONS[interviewState.currentQIndex];
+      writeSectionKB(currentQ.section).catch(() => {});
+      interviewState.completedSections.add(currentQ.section);
+
+      // Speak transition to Section 2
+      await speak("Perfect. Your offer is locked in. Now let me learn more about who you are built for.", speakEl);
+
+      // Clear iteration tiles before advancing
+      const tilesContainer = document.getElementById('oa-iter-tiles');
+      if (tilesContainer) { tilesContainer.innerHTML = ''; tilesContainer.classList.add('hidden'); }
+      document.getElementById('oa-assembled')?.classList.add('hidden');
+
+      // Transition to interview state — Section 2 begins
+      interviewState.sectionIntroSpoken = true;
+      showState('state-interview');
+      const nextIdx = nextValidIdx(interviewState.currentQIndex);
+      if (nextIdx >= 0) {
+        await askQuestion(nextIdx);
+      } else {
+        await finishInterview();
+      }
+    }
 
     function setupOfferChoiceDelegation() {
       const tilesContainer = document.getElementById('oa-iter-tiles');
       if (!tilesContainer) return;
       tilesContainer.addEventListener('click', function(e) {
         const tile = e.target.closest('[data-offer]');
-        if (!tile || !_offerChoiceResolve) return;
+        if (!tile) return;
         let offer;
         try { offer = JSON.parse(tile.dataset.offer); } catch { return; }
-        document.querySelectorAll('.oa-iter-tile').forEach(t => t.classList.remove('selected'));
-        tile.classList.add('selected');
-        const r = _offerChoiceResolve;
-        _offerChoiceResolve = null;
-        r(offer);
+        selectIteration(tile, offer);
       });
     }
 
@@ -1851,10 +1900,9 @@
       if (navVersion !== thisNav) return;
 
       const a = interviewState.answers;
+      let originalOffer;
 
       // Path B: show assembled offer immediately from structured answers
-      // Path A: show loading first — need API to extract structured offer from free-form
-      let originalOffer;
       if (!isPathA) {
         originalOffer = {
           duration: a.qb2 || '21 days',
@@ -1869,7 +1917,7 @@
       }
       document.getElementById('oa-loading').classList.remove('hidden');
 
-      // Call analyze-offer
+      // Call analyze-offer API
       let analysisData = null;
       try {
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/analyze-offer`, {
@@ -1878,7 +1926,9 @@
           body: JSON.stringify({ answers: a }),
         });
         if (res.ok) analysisData = await res.json();
-      } catch {}
+      } catch (err) {
+        console.error('[runOfferAnalysis] API call failed:', err.message);
+      }
 
       if (navVersion !== thisNav) return;
       document.getElementById('oa-loading').classList.add('hidden');
@@ -1894,24 +1944,11 @@
         await sleep(400);
       }
 
-      // Path A allAbove7 shortcut — offer is already strong, skip iteration tiles
+      // Path A allAbove7 shortcut — offer is already strong, route through selectIteration
       if (isPathA && analysisData?.allAbove7) {
         await speak("Your offer is already well structured. I am writing it exactly as you described.", speakEl);
         if (navVersion !== thisNav) return;
-        if (originalOffer.duration)       interviewState.answers.qb2 = originalOffer.duration;
-        if (originalOffer.price)          interviewState.answers.qb3 = originalOffer.price;
-        if (originalOffer.included)       interviewState.answers.qb4 = originalOffer.included;
-        if (originalOffer.guarantee)      interviewState.answers.qb5 = originalOffer.guarantee;
-        if (originalOffer.differentiator) interviewState.answers.qb6 = originalOffer.differentiator;
-        try {
-          await fetch(`/api/onboarding/sessions/${sessionId}/select-offer`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ offer: originalOffer }),
-          });
-        } catch {}
-        saveAnswers().catch(() => {});
-        await speak("Perfect. Your offer is locked in. Now let me learn more about who you are built for.", speakEl);
-        interviewState.sectionIntroSpoken = true;
+        await selectIteration(null, originalOffer);
         return;
       }
 
@@ -1923,7 +1960,6 @@
       if (iterations.length > 0) {
         await speak(analysisData.ahriAnalysis || "I found a few dimensions I can strengthen.", speakEl);
         if (navVersion !== thisNav) return;
-
         iterations.forEach(iter => {
           const tile = document.createElement('div');
           tile.className = 'oa-iter-tile';
@@ -1940,31 +1976,7 @@
       keepTile.innerHTML = `<div class="oa-iter-title">Keep my original</div><div class="oa-iter-change">Use the offer exactly as you built it.</div>`;
       tilesContainer.appendChild(keepTile);
       document.getElementById('oa-iter-tiles').classList.remove('hidden');
-
-      // Wait for owner to pick an iteration
-      const chosenOffer = await new Promise(resolve => { _offerChoiceResolve = resolve; });
-      if (navVersion !== thisNav) return;
-
-      // Persist to R2
-      try {
-        await fetch(`/api/onboarding/sessions/${sessionId}/select-offer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ offer: chosenOffer }),
-        });
-      } catch {}
-
-      // Update local answers with chosen offer
-      if (chosenOffer.duration)       interviewState.answers.qb2 = chosenOffer.duration;
-      if (chosenOffer.price)          interviewState.answers.qb3 = chosenOffer.price;
-      if (chosenOffer.included)       interviewState.answers.qb4 = chosenOffer.included;
-      if (chosenOffer.guarantee)      interviewState.answers.qb5 = chosenOffer.guarantee;
-      if (chosenOffer.differentiator) interviewState.answers.qb6 = chosenOffer.differentiator;
-      saveAnswers().catch(() => {});
-
-      // Speak transition to Section 2 — suppress the duplicate section intro in advanceInterview
-      await speak("Perfect. Your offer is locked in. Now let me learn more about who you are built for.", speakEl);
-      interviewState.sectionIntroSpoken = true;
+      // selectIteration() drives the rest from here — advanceInterview returned early
     }
 
     // ─── Finish interview ─────────────────────────────────────────────────────
