@@ -1324,11 +1324,11 @@
     const QUESTIONS = [
       // Section 1 — The Offer
       { id:'q1', section:1, sectionName:'The Offer', kbFile:'brain-state',
-        text:'Do you currently have a front-end offer — something specific you use to get new members in the door? It could be a free trial, a challenge, a first-month promotion, anything at all. If yes, tell me about it. If not, that is completely fine — we will build one together right now.',
+        text:'Do you currently have a front-end offer to get new members in the door?',
         probe:'Just to confirm — do you have a specific offer with a price and terms already, or is this something we need to build together?' },
       // Section 1 — Path A (four focused questions, server extracts all 5 offer fields)
       { id:'qa2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
-        text:'What promotions are you running right now? Tell me what they pay, what they get, how long it runs, what happens if it does not work, and the guarantee if you have one. Be as specific as you can.',
+        text:'Tell me about it — what do they pay, what do they get, how long does it run, and do you have a guarantee?',
         probe:'Give me the exact numbers — price, duration, what is included day to day, and your guarantee wording.' },
       { id:'qa3', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
         text:'Is there anything in your offer that most prospects overlook or underestimate — something that makes it better than it sounds on paper?',
@@ -2336,7 +2336,7 @@
       console.log('[PathB] Intro starting');
       showState('state-speaking');
       setActLabel('Section 1 — Building Your Offer');
-      const introText = "No problem at all — this is one of the most valuable things we will do today. I am going to help you build your offer right now using what I already know about your market. I will ask you five quick questions — pick from market-matched options or type your own answer for each one.";
+      const introText = "No problem — let us build one together.";
       await speak(introText, document.getElementById('speaking-text'));
       await sleep(800);
       // Switch back to interview state — tiles render into suggestion-cards-container
