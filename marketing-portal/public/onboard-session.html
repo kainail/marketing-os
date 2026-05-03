@@ -1059,7 +1059,13 @@
       const normalized = normalizeTTS(text);
       console.log('[speak] →', normalized.substring(0, 70));
       setWaveformActive(true);
-      if (displayEl) { cancelWordReveal(); displayEl.innerHTML = ''; }
+      // Clear previous content and any lingering fade state before starting
+      if (displayEl) {
+        cancelWordReveal();
+        displayEl.style.opacity = '';
+        displayEl.style.transition = '';
+        displayEl.innerHTML = '';
+      }
       try {
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/tts`, {
           method: 'POST',
@@ -1094,12 +1100,34 @@
               }
             };
             audio.onended = () => {
-              cancelWordReveal();
+              // Do NOT call cancelWordReveal() here. The rAF loop will finish revealing
+              // any remaining words naturally in the next frame (audio.currentTime is at
+              // the end, so all remaining timestamps are satisfied immediately).
               audioPlaying = false;
               currentAudio = null;
-              currentAudioResolve = null;
               URL.revokeObjectURL(url);
-              resolve();
+              if (displayEl) {
+                // Linger 1.5s so the owner can finish reading, then fade 300ms, then resolve.
+                // If stopAudio() fires during the linger it resolves early via currentAudioResolve —
+                // the setTimeout checks against the captured resolver to avoid double-resolve.
+                const capturedResolve = resolve;
+                setTimeout(() => {
+                  if (currentAudioResolve === capturedResolve) {
+                    displayEl.style.transition = 'opacity 300ms ease';
+                    displayEl.style.opacity = '0';
+                    setTimeout(() => {
+                      displayEl.style.opacity = '';
+                      displayEl.style.transition = '';
+                      currentAudioResolve = null;
+                      capturedResolve();
+                    }, 300);
+                  }
+                  // If currentAudioResolve !== capturedResolve, stopAudio() already resolved.
+                }, 1500);
+              } else {
+                currentAudioResolve = null;
+                resolve();
+              }
             };
             audio.onerror = (e) => {
               console.warn('[speak] audio error:', e);
@@ -1120,18 +1148,40 @@
             });
           });
         } else if (res.status === 503) {
+          // TTS unavailable — show text and wait estimated duration + linger
           if (displayEl) showTextInstant(text, displayEl);
           const sentences = (normalized.match(/[.!?]+/g) || []).length || 1;
           await sleep(Math.max(1400, sentences * 1600));
+          if (displayEl) {
+            displayEl.style.transition = 'opacity 300ms ease';
+            displayEl.style.opacity = '0';
+            await sleep(300);
+            displayEl.style.opacity = '';
+            displayEl.style.transition = '';
+          }
         } else {
           console.warn('[speak] TTS endpoint returned', res.status);
           if (displayEl) showTextInstant(text, displayEl);
           await sleep(1200);
+          if (displayEl) {
+            displayEl.style.transition = 'opacity 300ms ease';
+            displayEl.style.opacity = '0';
+            await sleep(300);
+            displayEl.style.opacity = '';
+            displayEl.style.transition = '';
+          }
         }
       } catch (err) {
         console.warn('[speak] fetch error:', err?.message);
         if (displayEl) showTextInstant(text, displayEl);
         await sleep(1200);
+        if (displayEl) {
+          displayEl.style.transition = 'opacity 300ms ease';
+          displayEl.style.opacity = '0';
+          await sleep(300);
+          displayEl.style.opacity = '';
+          displayEl.style.transition = '';
+        }
       }
       setWaveformActive(false);
     }
