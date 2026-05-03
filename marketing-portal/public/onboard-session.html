@@ -493,7 +493,7 @@
                 <div class="cr-pos-value" id="cr-pos-gap"></div>
               </div>
               <div class="cr-pos-item">
-                <div class="cr-pos-label">Your Offer</div>
+                <div class="cr-pos-label">Your Position</div>
                 <div class="cr-pos-value" id="cr-pos-offer"></div>
               </div>
             </div>
@@ -1336,7 +1336,7 @@
       completedSections: new Set(),
       submitting: false,
       section1Path: null,         // 'A' = has existing offer, 'B' = building with AHRI
-      sectionIntroSpoken: false,  // true after runOfferAnalysis speaks the section 2 transition
+      sectionIntroSpoken: false,  // true after offer-end acknowledgment speaks the section 2 intro
     };
 
     // ─── Path-aware navigation helpers ───────────────────────────────────────
@@ -1626,9 +1626,28 @@
         await runPathBIntro();
       }
 
-      // After tile builder (qb2) or last Path A question (qa4): run offer analysis
+      // After tile builder (qb2) or last Path A question (qa4): write KB and advance directly to Section 2
       if (q.id === 'qb2' || q.id === 'qa4') {
-        await runOfferAnalysis();
+        if (interviewState.section1Path === 'B') {
+          const pathBOffer = {
+            duration:       interviewState.answers.qb2 || '21 days',
+            price:          interviewState.answers.qb3 || '$0',
+            included:       interviewState.answers.qb4 || 'Unlimited classes',
+            guarantee:      interviewState.answers.qb5 || 'Satisfaction guarantee',
+            differentiator: interviewState.answers.qb6 || (researchData?.marketGaps || [])[0] || 'Personalized coaching',
+          };
+          commitOffer(pathBOffer);
+        }
+        writeSectionKB(1).catch(() => {});
+        interviewState.completedSections.add(1);
+        showState('state-interview');
+        const offerAck = interviewState.section1Path === 'B'
+          ? "Good — your offer is set. Now let me learn about the people you are built for."
+          : "Good. I have everything I need about your offer. Now let me learn about your members.";
+        await speak(offerAck, document.getElementById('iv-question'));
+        interviewState.sectionIntroSpoken = true;
+        const nextIdxOffer = nextValidIdx(interviewState.currentQIndex);
+        if (nextIdxOffer >= 0) { await askQuestion(nextIdxOffer); } else { await finishInterview(); }
         return;
       }
 
@@ -1636,11 +1655,11 @@
       const nextSection = nextIdx >= 0 ? QUESTIONS[nextIdx].section : null;
 
       if (nextSection !== null && nextSection !== q.section) {
-        // Section completed — write KB, show live preview hooks for sections 2+3, speak transition
+        // Section completed — write KB, show live preview hooks for section 2 only, speak transition
         await writeSectionKB(q.section);
         interviewState.completedSections.add(q.section);
-        if (q.section === 2 || q.section === 3) {
-          await showLivePreviewHooks(q.section === 2 ? 'section2' : 'section3');
+        if (q.section === 2) {
+          await showLivePreviewHooks('section2');
         }
         if (SECTION_INTRO[nextSection] && !interviewState.sectionIntroSpoken) {
           showState('state-interview');
@@ -2585,11 +2604,16 @@
       if (navVersion !== revNav) return;
       await sleep(400);
 
-      // Act 2: Market position
+      // Act 2: Market position — no offer details here
       document.getElementById('cr-pos-gap').textContent = marketGap || 'Personalized accountability';
-      document.getElementById('cr-pos-offer').textContent = offerSummary || 'Configured this session';
+      const positionStatement = offerMechanism
+        ? offerMechanism.substring(0, 90)
+        : (marketGap ? `Addressing what others won't: ${marketGap.substring(0, 55)}` : 'Your unique angle in this market');
+      document.getElementById('cr-pos-offer').textContent = positionStatement;
       crReveal('cr-position');
-      await speak(`Your market gap is ${marketGap || 'personalized coaching'}. Your offer closes it.`, speakEl);
+      await speak(marketGap
+        ? `Here is your market position. Nobody in your market is talking about ${marketGap}. That is where we play.`
+        : 'Here is your market position. You have a clear opening in your market that nobody else is filling.', speakEl);
       if (navVersion !== revNav) return;
       await sleep(400);
 
@@ -2636,27 +2660,36 @@
 
       if (navVersion !== revNav) return;
 
-      // Act 5: Offer analysis
+      // Act 5: Offer analysis — THE ONLY PLACE THE OFFER APPEARS
       await sleep(1500);
       crReveal('cr-offer');
       await speak("Now let me show you what your offer looks like — and see if I can make it stronger.", speakEl);
       if (navVersion !== revNav) return;
 
-      // Read back the current offer components
-      const readbackParts = [];
-      if (offerDuration) readbackParts.push(offerDuration);
-      if (offerPrice) readbackParts.push(offerPrice);
-      if (offerIncluded) readbackParts.push(`includes ${offerIncluded.substring(0, 70)}`);
-      if (offerGuarantee) readbackParts.push(`with a ${offerGuarantee.substring(0, 60)} guarantee`);
-      if (offerMechanism) readbackParts.push(offerMechanism.substring(0, 80));
-      if (readbackParts.length > 0) {
-        const readbackText = `Your offer: ${readbackParts.join(', ')}.`;
-        document.getElementById('cr-offer-readback').textContent = readbackText;
-        await speak(readbackText, speakEl);
+      // Structured field-by-field display — each field fades in as AHRI speaks it
+      const offerReadbackEl = document.getElementById('cr-offer-readback');
+      offerReadbackEl.innerHTML = '';
+      const offerDiff = interviewState.answers.qa3 || interviewState.answers.qb6 || offerMechanism || '';
+      const offerFieldsDisplay = [
+        { label: 'Trial duration',      value: offerDuration },
+        { label: 'Entry price',         value: offerPrice },
+        { label: "What's included",     value: offerIncluded },
+        { label: 'Guarantee',           value: offerGuarantee },
+        { label: 'Core differentiator', value: offerDiff },
+      ];
+      for (const field of offerFieldsDisplay) {
+        if (!field.value || field.value === '[not captured]') continue;
+        if (navVersion !== revNav) return;
+        const row = document.createElement('div');
+        row.style.cssText = 'margin-bottom:14px;opacity:0;transition:opacity 0.4s ease;';
+        row.innerHTML = `<div style="font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.32);margin-bottom:3px;">${esc(field.label)}</div><div style="font-size:14px;color:rgba(232,234,240,0.82);line-height:1.45;">${esc(field.value)}</div>`;
+        offerReadbackEl.appendChild(row);
+        requestAnimationFrame(() => requestAnimationFrame(() => { row.style.opacity = '1'; }));
+        await speak(`${field.label}: ${field.value}`, speakEl);
         if (navVersion !== revNav) return;
       }
 
-      await speak("Let me run this through my offer framework and see if there is a stronger version.", speakEl);
+      await speak("Let me run this through my offer framework.", speakEl);
       if (navVersion !== revNav) return;
       setProgress('processing');
 
