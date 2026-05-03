@@ -6,8 +6,9 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const cron = require('node-cron');
-const { r2Get, r2Put, r2List, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists } = require('./lib/r2');
-const { requireAuth, requireAdmin, requireLocation, loginLimiter } = require('./lib/auth');
+const { r2Get, r2Put, r2List, r2ListShared, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists } = require('./lib/r2');
+const { requireAuth, requireAdmin, requireLocation, generateToken, hashPassword, comparePassword, loginLimiter } = require('./lib/auth');
+const { getUsers, saveUsers, invalidate: invalidateUserCache } = require('./lib/userCache');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -642,6 +643,7 @@ app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 
 // ── Blanket API auth — public exceptions listed explicitly ─────────────────
 const AHRI_PUBLIC_API = [
   '/api/auth/validate',
+  '/api/auth/login',
   '/api/leads/submit',
   '/api/manus/callback',
   '/api/status',
@@ -680,6 +682,22 @@ app.get('/api/auth/validate', (req, res) => {
   } catch {
     res.status(401).json({ valid: false });
   }
+});
+
+// POST /api/auth/login — local auth for onboarding-created gym owners.
+// Returns 404 if email not in local store so login.html can fall back to OPS Dashboard.
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  let users;
+  try { users = await getUsers(); } catch { return res.status(503).json({ error: 'User database unavailable' }); }
+  const user = users.find(u => u.email === email.toLowerCase().trim());
+  if (!user) return res.status(404).json({ error: 'Not found locally' });
+  const valid = await comparePassword(password, user.passwordHash);
+  if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+  const { passwordHash, resetToken, resetTokenExpiry, ...safeUser } = user;
+  const token = generateToken(safeUser);
+  res.json({ token, user: safeUser });
 });
 
 app.get('/api/status', (req, res) => {
@@ -4032,6 +4050,84 @@ app.get('/api/onboarding/sessions/:sessionId/kb-preview/:fileKey', async (req, r
   res.json({ fileKey, lines: text.split('\n').slice(0, 10) });
 });
 
+/** Create or update a gym owner account at session complete. Returns { userId, tempPassword }. */
+async function createOnboardingAccount(session, sessionId) {
+  const { ownerName, ownerEmail, gymName, city } = session;
+  if (!ownerEmail || !ownerEmail.includes('@')) throw new Error('No valid owner email');
+  const email = ownerEmail.toLowerCase().trim();
+  const gymId = sessionId;
+
+  // 8-char temp password — uppercase, lowercase, digits; no ambiguous chars (0/O, 1/l/I)
+  const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = crypto.randomBytes(8);
+  let tempPassword = '';
+  for (const b of bytes) tempPassword += CHARS[b % CHARS.length];
+  const passwordHash = await hashPassword(tempPassword);
+
+  let users = await getUsers();
+  const existingIdx = users.findIndex(u => u.email === email);
+
+  if (existingIdx >= 0) {
+    const u = users[existingIdx];
+    u.sessionId = sessionId;
+    u.gymId = gymId;
+    u.gymName = gymName;
+    u.city = city;
+    u.status = 'demo';
+    u.onboardedAt = new Date().toISOString();
+    u.activatedAt = null;
+    if (u.role === 'owner') u.passwordHash = passwordHash;
+    await saveUsers(users);
+    const userId = u.id;
+    await r2PutShared(`onboarding/sessions/${sessionId}/credentials.json`, {
+      email, tempPassword, generatedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+    });
+    return { userId, tempPassword };
+  }
+
+  const userId = crypto.randomUUID();
+  users.push({
+    id: userId,
+    name: ownerName,
+    email,
+    passwordHash,
+    role: 'owner',
+    locations: [gymId],
+    permissions: { hasAHRI: true, hasOPS: false },
+    status: 'demo',
+    sessionId,
+    gymId,
+    gymName,
+    city,
+    onboardedAt: new Date().toISOString(),
+    activatedAt: null,
+  });
+  await saveUsers(users);
+  await r2PutShared(`onboarding/sessions/${sessionId}/credentials.json`, {
+    email, tempPassword, generatedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+  });
+  return { userId, tempPassword };
+}
+
+/** Middleware: re-reads user status from R2 on every request. Blocks demo users on mutation routes. */
+async function checkDemoStatus(req, res, next) {
+  if (!req.user || req.user.role === 'admin') return next();
+  try {
+    const users = await getUsers();
+    const live = users.find(u => u.id === req.user.userId);
+    if (!live) return res.status(401).json({ error: 'Account not found' });
+    if (live.status === 'demo') {
+      return res.status(403).json({ error: 'Your account is in demo mode. Contact your GymSuite AI representative to activate full access.' });
+    }
+    next();
+  } catch (err) {
+    console.error('[checkDemoStatus]', err.message);
+    next(); // fail open — don't block if R2 is down
+  }
+}
+
 // POST /api/onboarding/sessions/:sessionId/complete — generate final hooks, mark done, email Kai
 app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
   const { sessionId } = req.params;
@@ -4065,10 +4161,19 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
     session.completed_at = new Date().toISOString();
     await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
 
+    let accountCreated = false;
+    try {
+      await createOnboardingAccount(session, sessionId);
+      accountCreated = true;
+      console.log(`[onboarding] account created for ${session.ownerEmail}`);
+    } catch (err) {
+      console.error('[onboarding] account creation failed (non-fatal):', err.message);
+    }
+
     await sendKaiNotification(session, sessionId, hooks, brainState);
     scheduleOwnerEmail(session, sessionId, hooks);
     console.log(`[onboarding] session ${sessionId} complete — ${hooks.length} hooks, ${posts.length} posts`);
-    res.json({ success: true, hooks, posts });
+    res.json({ success: true, hooks, posts, accountCreated });
   } catch (err) {
     console.error('[onboarding] complete failed:', err.message);
     res.status(500).json({ error: err.message });
@@ -4266,16 +4371,20 @@ async function sendOwnerEmail(session, sessionId, hooks) {
           <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">Everything we built today is waiting for you inside your dashboard.</p>
         </td></tr>
 
-        <tr><td style="padding-bottom:20px;">
-          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">Your avatar. Your hooks. Your market intelligence. Your first campaign brief. All of it — specific to ${esc(gym)} and ${esc(city)}.</p>
-        </td></tr>
-
-        <tr><td style="padding-bottom:32px;">
-          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">I have one more set of questions that will make everything significantly more powerful. It takes about 10 minutes and you can do it on your phone whenever you have a free moment.</p>
+        <tr><td style="padding-bottom:28px;">
+          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">Your avatar. Your hooks. Your market intelligence. Your first campaign brief — all of it specific to ${esc(gym)} in ${esc(city)}.</p>
         </td></tr>
 
         <tr><td style="padding-bottom:36px;">
-          <a href="${soloLink}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:10px;letter-spacing:0.2px;">Continue the conversation →</a>
+          <a href="${baseUrl}/login" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:10px;letter-spacing:0.2px;">Log into your dashboard →</a>
+        </td></tr>
+
+        <tr><td style="padding-bottom:32px;">
+          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">I have one more set of questions that will make everything significantly more powerful. It takes about 10 minutes and you can do it whenever you have a free moment:</p>
+        </td></tr>
+
+        <tr><td style="padding-bottom:36px;">
+          <a href="${soloLink}" style="display:inline-block;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.4);color:#a78bfa;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:10px;letter-spacing:0.2px;">Complete your profile →</a>
         </td></tr>
 
         <tr><td style="border-top:1px solid rgba(255,255,255,0.07);padding-top:24px;padding-bottom:28px;">
@@ -4334,6 +4443,196 @@ app.get('/api/onboarding/sessions/:sessionId/portal-data', async (req, res) => {
       compliance: compliance || null,
     },
   });
+});
+
+// GET /api/onboarding/sessions/:sessionId/credentials — serve temp credentials to the CTA screen (UUID-secured, 24hr TTL)
+app.get('/api/onboarding/sessions/:sessionId/credentials', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const cred = await r2GetShared(`onboarding/sessions/${sessionId}/credentials.json`);
+  if (!cred) return res.status(404).json({ error: 'Credentials not found' });
+  if (new Date(cred.expiresAt) < new Date()) return res.status(410).json({ error: 'Credentials expired' });
+  res.json({ email: cred.email, tempPassword: cred.tempPassword });
+});
+
+// GET /api/portal/session-data — load session data for logged-in gym owner using JWT sessionId
+app.get('/api/portal/session-data', requireAuth, async (req, res) => {
+  const { sessionId, role } = req.user;
+  if (role === 'admin') return res.status(400).json({ error: 'Admin must use /api/onboarding/sessions/:id/portal-data' });
+  if (!sessionId) return res.status(400).json({ error: 'No sessionId linked to this account — contact support' });
+
+  const [session, research, hooksData, confirmedHooks, selectedOffer, contentPosts, brainState, avatar] = await Promise.all([
+    r2GetShared(`onboarding/sessions/${sessionId}/session.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/hooks.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/selected-offer.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/content-posts.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/brain-state/current-state.md`),
+    r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/lifestyle-avatar.md`),
+  ]);
+
+  if (!session) return res.status(404).json({ error: 'Session data not found' });
+
+  // Re-read live status from user store (not JWT) so admin toggles take effect immediately
+  const users = await getUsers().catch(() => []);
+  const liveUser = users.find(u => u.id === req.user.userId);
+  const status = liveUser?.status || req.user.status || 'demo';
+
+  res.json({
+    status,
+    session,
+    research: research || null,
+    hooks: hooksData?.hooks || [],
+    confirmedHooks: confirmedHooks || null,
+    selectedOffer: selectedOffer?.offer || null,
+    contentPosts: contentPosts?.posts || [],
+    brainState: brainState || null,
+    avatar: avatar || null,
+  });
+});
+
+// GET /api/admin/users — list onboarding-created gym owners (admin only)
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+  const users = await getUsers().catch(() => []);
+  const owners = users
+    .filter(u => u.role === 'owner')
+    // eslint-disable-next-line no-unused-vars
+    .map(({ passwordHash, resetToken, resetTokenExpiry, ...safe }) => safe);
+  res.json({ users: owners });
+});
+
+// PATCH /api/admin/users/:userId/access — toggle active/demo status (admin only)
+app.patch('/api/admin/users/:userId/access', requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const { active } = req.body || {};
+  if (typeof active !== 'boolean') return res.status(400).json({ error: 'active (boolean) required' });
+
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx < 0) return res.status(404).json({ error: 'User not found' });
+
+  const user = users[idx];
+  user.status = active ? 'active' : 'demo';
+  user.activatedAt = active ? new Date().toISOString() : null;
+  await saveUsers(users);
+
+  if (active) {
+    sendActivationEmail(user).catch(err =>
+      console.error('[access-toggle] activation email failed:', err.message)
+    );
+  }
+
+  // eslint-disable-next-line no-unused-vars
+  const { passwordHash, resetToken, resetTokenExpiry, ...safeUser } = user;
+  res.json({ success: true, user: safeUser });
+});
+
+/** Send activation email when Kai grants full access. */
+async function sendActivationEmail(user) {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) { console.warn('[activation-email] RESEND_API_KEY not set — skipping'); return; }
+  const firstName = (user.name || 'there').split(' ')[0];
+  const baseUrl = process.env.BASE_URL || 'https://marketing-os-production-2b85.up.railway.app';
+  const loginLink = `${baseUrl}/login`;
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const checkItems = [
+    'Campaign launch and management', 'Content approval and scheduling',
+    'Lead tracking and GHL integration', 'Jarvis nightly call reports',
+    'Weekly funnel reports with voice summary', 'Vision AI health scoring',
+    'Full Manus intelligence task suite',
+  ];
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0D0F14;font-family:'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0D0F14;"><tr><td align="center" style="padding:48px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+      <tr><td style="padding-bottom:36px;"><table cellpadding="0" cellspacing="0"><tr>
+        <td style="width:8px;height:8px;background:#7c3aed;border-radius:50%;vertical-align:middle;"></td>
+        <td style="padding-left:8px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.35);vertical-align:middle;">AHRI — GymSuite AI</td>
+      </tr></table></td></tr>
+      <tr><td style="padding-bottom:16px;"><p style="margin:0;font-size:15px;color:rgba(232,234,240,0.9);line-height:1.7;">${esc(firstName)} —</p></td></tr>
+      <tr><td style="padding-bottom:20px;"><p style="margin:0;font-size:16px;font-weight:600;color:#fff;line-height:1.7;">Your account is fully active.</p></td></tr>
+      <tr><td style="padding-bottom:24px;"><p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">Everything we built together is now live and running. Here is what just unlocked:</p></td></tr>
+      <tr><td style="padding-bottom:28px;"><table cellpadding="0" cellspacing="0" style="width:100%;">${checkItems.map(item =>
+        `<tr><td style="padding:5px 0;"><table cellpadding="0" cellspacing="0"><tr>
+          <td style="color:#7c3aed;font-size:15px;padding-right:10px;vertical-align:top;">✓</td>
+          <td style="font-size:14px;color:rgba(232,234,240,0.72);">${esc(item)}</td>
+        </tr></table></td></tr>`).join('')}</table></td></tr>
+      <tr><td style="padding-bottom:20px;"><p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">Your first campaign goes live today.</p></td></tr>
+      <tr><td style="padding-bottom:36px;"><a href="${loginLink}" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:10px;letter-spacing:0.2px;">Open my dashboard →</a></td></tr>
+      <tr><td>
+        <p style="margin:0 0 5px;font-size:14px;color:rgba(232,234,240,0.65);font-weight:600;">— AHRI</p>
+        <p style="margin:0;font-size:11px;color:rgba(232,234,240,0.28);letter-spacing:0.5px;text-transform:uppercase;">Your GymSuite AI Marketing Brain</p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+  const axios = require('axios');
+  await axios.post('https://api.resend.com/emails', {
+    from: 'AHRI <onboarding@resend.dev>',
+    to: [user.email],
+    subject: `Your GymSuite AI account is now live, ${firstName}`,
+    html,
+  }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
+  console.log(`[activation-email] sent → ${user.email}`);
+}
+
+// DELETE /api/admin/users/:userId — permanently delete account and R2 session data (admin only)
+app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const { confirm } = req.body || {};
+  if (confirm !== 'DELETE') return res.status(400).json({ error: 'Body must include confirm: "DELETE"' });
+
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx < 0) return res.status(404).json({ error: 'User not found' });
+
+  const user = users[idx];
+  const { sessionId } = user;
+
+  // Remove from user store first
+  users.splice(idx, 1);
+  await saveUsers(users);
+
+  // Append to permanent audit log before destroying data
+  try {
+    const existing = await r2GetShared('admin/deleted-accounts.json') || [];
+    const log = Array.isArray(existing) ? existing : [];
+    log.push({
+      userId, ownerName: user.name, ownerEmail: user.email,
+      gymName: user.gymName || '', sessionId: sessionId || null,
+      deletedAt: new Date().toISOString(), deletedBy: req.user.email,
+    });
+    await r2PutShared('admin/deleted-accounts.json', log);
+  } catch (auditErr) {
+    console.error('[delete-user] audit log failed:', auditErr.message);
+  }
+
+  // Delete all R2 session data (best-effort)
+  const r2Errors = [];
+  if (sessionId) {
+    try {
+      const keys = await r2ListShared(`onboarding/sessions/${sessionId}/`);
+      await Promise.allSettled(keys.map(k => r2DeleteShared(k.replace(/^shared\//, ''))));
+    } catch (listErr) {
+      r2Errors.push(listErr.message);
+    }
+  }
+
+  if (r2Errors.length > 0) {
+    console.error(`[delete-user] R2 cleanup errors for ${sessionId}:`, r2Errors);
+    return res.status(207).json({
+      success: true,
+      warning: `Account deleted but some R2 cleanup failed — session ID: ${sessionId}`,
+      r2Errors,
+    });
+  }
+
+  res.json({ success: true, deletedUser: { name: user.name, email: user.email } });
 });
 
 // SPA fallback

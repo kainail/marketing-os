@@ -175,4 +175,15 @@ async function r2Exists(locationId, filePath) {
   }
 }
 
-module.exports = { r2Get, r2Put, r2List, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists };
+async function r2ListShared(prefix) {
+  const fullPrefix = buildSharedKey(prefix);
+  try {
+    const res = await getClient().send(new ListObjectsV2Command({ Bucket: R2_BUCKET, Prefix: fullPrefix }));
+    return (res.Contents || []).map(obj => obj.Key);
+  } catch (err) {
+    console.error(`[R2] r2ListShared failed for prefix=${fullPrefix}:`, err.message);
+    return [];
+  }
+}
+
+module.exports = { r2Get, r2Put, r2List, r2ListShared, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists };

@@ -77,6 +77,9 @@
   <div class="nav-item" onclick="navigate('archive')" data-section="archive">
     <span class="nav-icon">📁</span> Campaign Archive
   </div>
+  <div class="nav-item admin-only" onclick="navigate('account-access')" data-section="account-access" style="display:none">
+    <span class="nav-icon">👥</span> Account Access
+  </div>
 </nav>
 
 <!-- Main Content -->
@@ -306,6 +309,15 @@
     <div id="archive-list"></div>
   </div>
 
+  <!-- Section: Account Access (admin only) -->
+  <div id="section-account-access" class="section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div class="section-title" style="margin-bottom:0">ACCOUNT ACCESS</div>
+    </div>
+    <p class="text-muted mb-24">Gym owners created through onboarding. Toggle full access after payment confirmed.</p>
+    <div id="account-access-list"><div class="text-muted">Loading accounts...</div></div>
+  </div>
+
 </main>
 
 <!-- AHRI Panel -->
@@ -469,6 +481,7 @@ function navigate(section) {
     case 'nurture': loadNurture(); break;
     case 'manus': loadManusTasks(); break;
     case 'archive': loadArchive(); break;
+    case 'account-access': loadAccountAccess(); break;
   }
 }
 
@@ -2072,11 +2085,298 @@ function parseJwt(token) {
     }
   }
 
+  // Show admin-only nav items
+  if (user.role === 'admin') {
+    document.querySelectorAll('.admin-only').forEach(el => { el.style.display = ''; });
+  }
+
   // Multi-tab logout
   window.addEventListener('storage', e => {
     if (e.key === 'gymsuite_token' && !e.newValue) window.location.href = '/login';
   });
+
+  // Gym owners: load session data and apply demo locks
+  if (user.role === 'owner') {
+    loadOwnerPortalData();
+  }
 })();
+
+// ── Owner portal data ────────────────────────────────────────────────────────
+let ownerPortalData = null;
+
+async function loadOwnerPortalData() {
+  try {
+    const token = localStorage.getItem('gymsuite_token');
+    const res = await fetch('/api/portal/session-data', {
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!res.ok) return;
+    ownerPortalData = await res.json();
+    populateOwnerOverview(ownerPortalData);
+    applyDemoLocks(ownerPortalData.status);
+  } catch (err) {
+    console.error('[owner-portal] load failed:', err);
+  }
+}
+
+function populateOwnerOverview(data) {
+  if (!data || !data.session) return;
+  const { session, hooks, selectedOffer, brainState, avatar, research, contentPosts } = data;
+
+  // Gym name in header
+  const locSelect = document.getElementById('location-select');
+  if (locSelect) {
+    locSelect.innerHTML = `<option>${session.gymName || 'Your Gym'} — ${session.city || ''}</option>`;
+  }
+
+  // Overview brief card
+  const briefEl = document.getElementById('overview-brief');
+  if (briefEl) {
+    const avatarFirst = avatar ? avatar.split('\n').filter(l => l.trim() && !l.startsWith('#')).slice(0, 2).join(' ').substring(0, 200) : '';
+    const gap = (research?.marketGaps || [])[0] || research?.market_gap || '';
+    const offerName = selectedOffer?.name || selectedOffer?.duration ? `${selectedOffer.duration} Trial` : 'Your Offer';
+    briefEl.innerHTML = `
+      <div style="padding:20px 24px">
+        <div style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.32);margin-bottom:12px">YOUR SYSTEM</div>
+        ${avatarFirst ? `<p style="font-size:14px;color:rgba(232,234,240,0.7);line-height:1.6;margin:0 0 12px">${avatarFirst}</p>` : ''}
+        ${gap ? `<div style="margin-bottom:8px"><span style="font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:rgba(232,234,240,0.28)">MARKET POSITION — </span><span style="font-size:13px;color:rgba(232,234,240,0.65)">${gap}</span></div>` : ''}
+        <div style="display:inline-block;margin-top:8px;padding:4px 10px;border-radius:20px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.25);font-size:11px;font-weight:600;color:#f59e0b">
+          Setup in progress — live within 72 hours
+        </div>
+      </div>`;
+  }
+
+  // Hook library
+  if (Array.isArray(hooks) && hooks.length > 0) {
+    const hookLibraryEl = document.getElementById('hooks-list');
+    if (hookLibraryEl) {
+      hookLibraryEl.innerHTML = hooks.map((h, i) => `
+        <div class="card mb-12" style="padding:16px 20px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:rgba(232,234,240,0.0);margin-bottom:4px;display:none">${i + 1}</div>
+              <div style="font-size:14px;color:rgba(232,234,240,0.85);line-height:1.5">${h.hook || h}</div>
+              ${h.framework ? `<div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(232,234,240,0.28);margin-top:6px">${h.framework}</div>` : ''}
+            </div>
+            <div style="font-size:11px;color:rgba(232,234,240,0.3);white-space:nowrap;padding-top:2px">Pending</div>
+          </div>
+        </div>`).join('');
+    }
+  }
+
+  // Content calendar — first 3 posts
+  if (Array.isArray(contentPosts) && contentPosts.length > 0) {
+    const calEl = document.getElementById('calendar-grid');
+    if (calEl) {
+      const now = new Date();
+      const posts = contentPosts.slice(0, 3).map((p, i) => {
+        const d = new Date(now.getTime() + (i * 2 + 3) * 24 * 3600 * 1000);
+        const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return `<div class="card mb-12" style="padding:16px 20px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+            <div style="flex:1">
+              <div style="font-size:13px;color:rgba(232,234,240,0.75);line-height:1.5">${p.content || p.caption || p.text || 'Content post'}</div>
+              ${p.platform ? `<div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(232,234,240,0.28);margin-top:6px">${p.platform}</div>` : ''}
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:11px;color:rgba(232,234,240,0.4)">${dateStr}</div>
+              <div style="font-size:10px;color:rgba(245,158,11,0.7);margin-top:3px">Pending</div>
+            </div>
+          </div>
+        </div>`;
+      });
+      calEl.insertAdjacentHTML('afterbegin', posts.join(''));
+    }
+  }
+
+  // Demo performance metrics banner
+  const perfEl = document.getElementById('section-performance');
+  if (perfEl) {
+    const banner = document.createElement('div');
+    banner.style.cssText = 'background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:rgba(245,158,11,0.8)';
+    banner.textContent = 'These are projected metrics based on your market. Real data populates when your campaign goes live.';
+    perfEl.insertBefore(banner, perfEl.firstChild);
+  }
+}
+
+// ── Demo locks ───────────────────────────────────────────────────────────────
+function applyDemoLocks(status) {
+  if (status === 'active') {
+    document.querySelectorAll('.demo-locked').forEach(el => {
+      el.classList.remove('demo-locked');
+      el.style.pointerEvents = '';
+      el.style.opacity = '';
+    });
+    document.querySelectorAll('.demo-lock-icon').forEach(el => el.remove());
+    return;
+  }
+
+  // status === 'demo': lock action elements in specific sections
+  const LOCK_SECTIONS = ['section-queue', 'section-manus', 'section-hooks', 'section-calendar', 'section-nurture', 'section-journey'];
+  const LOCK_SELECTORS = 'button:not(.nav-btn), input[type="checkbox"], input[type="radio"], select';
+  const TIP = 'This feature activates once your account is set up. Setup begins within 24 hours of confirming your subscription.';
+
+  LOCK_SECTIONS.forEach(secId => {
+    const sec = document.getElementById(secId);
+    if (!sec) return;
+
+    // Add lock icon to section header
+    const title = sec.querySelector('.section-title');
+    if (title && !title.querySelector('.demo-lock-icon')) {
+      const icon = document.createElement('span');
+      icon.className = 'demo-lock-icon';
+      icon.title = TIP;
+      icon.style.cssText = 'margin-left:8px;font-size:12px;cursor:default;opacity:0.5';
+      icon.textContent = '🔒';
+      title.appendChild(icon);
+    }
+
+    // Lock action elements — content stays readable
+    sec.querySelectorAll(LOCK_SELECTORS).forEach(el => {
+      el.classList.add('demo-locked');
+      el.style.pointerEvents = 'none';
+      el.style.opacity = '0.4';
+      el.title = TIP;
+    });
+  });
+}
+
+// ── Account Access (admin) ────────────────────────────────────────────────────
+async function loadAccountAccess() {
+  const listEl = document.getElementById('account-access-list');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="text-muted">Loading...</div>';
+
+  const data = await api('/api/admin/users');
+  if (!data || !data.users) { listEl.innerHTML = '<div class="text-muted">Failed to load accounts.</div>'; return; }
+  const users = data.users;
+
+  if (users.length === 0) {
+    listEl.innerHTML = '<div class="text-muted">No onboarding accounts yet.</div>';
+    return;
+  }
+
+  listEl.innerHTML = `
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.07)">
+          <th style="text-align:left;padding:8px 12px;font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:rgba(232,234,240,0.32)">Owner</th>
+          <th style="text-align:left;padding:8px 12px;font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:rgba(232,234,240,0.32)">Gym</th>
+          <th style="text-align:left;padding:8px 12px;font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:rgba(232,234,240,0.32)">Status</th>
+          <th style="text-align:left;padding:8px 12px;font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:rgba(232,234,240,0.32)">Onboarded</th>
+          <th style="text-align:left;padding:8px 12px;font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:rgba(232,234,240,0.32)">Full Access</th>
+          <th style="text-align:left;padding:8px 12px;font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:rgba(232,234,240,0.32)">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="account-access-tbody">
+        ${users.map(u => renderAccountRow(u)).join('')}
+      </tbody>
+    </table>
+    </div>`;
+}
+
+function renderAccountRow(u) {
+  const statusBadge = u.status === 'active'
+    ? '<span style="display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);font-size:11px;font-weight:600;color:#10b981">Active</span>'
+    : '<span style="display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);font-size:11px;font-weight:600;color:#f59e0b">Demo</span>';
+  const onboardedDate = u.onboardedAt ? new Date(u.onboardedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  const checked = u.status === 'active' ? 'checked' : '';
+  return `<tr id="acc-row-${u.id}" style="border-bottom:1px solid rgba(255,255,255,0.04)">
+    <td style="padding:12px 12px">
+      <div style="font-weight:500;color:rgba(232,234,240,0.85)">${u.name || '—'}</div>
+      <div style="font-size:11px;color:rgba(232,234,240,0.35);margin-top:1px">${u.email}</div>
+    </td>
+    <td style="padding:12px 12px;color:rgba(232,234,240,0.65)">${u.gymName || '—'}<span style="font-size:11px;color:rgba(232,234,240,0.3);margin-left:5px">${u.city || ''}</span></td>
+    <td style="padding:12px 12px">${statusBadge}</td>
+    <td style="padding:12px 12px;color:rgba(232,234,240,0.4);font-size:12px">${onboardedDate}</td>
+    <td style="padding:12px 12px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="toggle-${u.id}" ${checked} onchange="toggleUserAccess('${u.id}', this)" style="width:16px;height:16px;cursor:pointer;accent-color:#7c3aed">
+        <span style="font-size:12px;color:rgba(232,234,240,0.4)" id="toggle-label-${u.id}">${u.status === 'active' ? 'Active' : 'Demo'}</span>
+      </label>
+    </td>
+    <td style="padding:12px 12px">
+      <a href="/dashboard" target="_blank" onclick="viewOwnerPortal(event,'${u.sessionId || ''}')" style="font-size:12px;color:#6366f1;text-decoration:none;margin-right:12px">View portal</a>
+      <button onclick="promptDeleteAccount('${u.id}','${(u.name||'').replace(/'/g,"\\'")}','${u.email}')" style="font-size:12px;background:none;border:1px solid rgba(244,63,94,0.3);border-radius:6px;padding:3px 8px;color:rgba(244,63,94,0.6);cursor:pointer;font-family:inherit">Delete</button>
+    </td>
+  </tr>
+  <tr id="acc-row-${u.id}-confirm" style="display:none">
+    <td colspan="6" style="padding:12px 12px">
+      <div style="background:rgba(244,63,94,0.06);border:1px solid rgba(244,63,94,0.2);border-radius:8px;padding:14px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px;color:rgba(232,234,240,0.7)">This will permanently delete <strong>${u.name||u.email}</strong>'s account and all session data. Type DELETE to confirm.</span>
+        <input id="del-confirm-${u.id}" type="text" placeholder="Type DELETE" style="background:rgba(255,255,255,0.05);border:1px solid rgba(244,63,94,0.3);border-radius:6px;padding:6px 10px;color:#e8eaf0;font-family:inherit;font-size:13px;width:120px">
+        <button onclick="confirmDeleteAccount('${u.id}')" style="background:rgba(244,63,94,0.8);border:none;border-radius:6px;padding:7px 14px;color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Confirm</button>
+        <button onclick="cancelDeleteAccount('${u.id}')" style="background:none;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:7px 14px;color:rgba(232,234,240,0.5);font-family:inherit;font-size:13px;cursor:pointer">Cancel</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+async function toggleUserAccess(userId, checkbox) {
+  const active = checkbox.checked;
+  const labelEl = document.getElementById('toggle-label-' + userId);
+  checkbox.disabled = true;
+  if (labelEl) labelEl.textContent = '…';
+
+  const res = await api('/api/admin/users/' + userId + '/access', {
+    method: 'PATCH', body: JSON.stringify({ active }),
+  });
+
+  checkbox.disabled = false;
+  if (res && res.success) {
+    if (labelEl) labelEl.textContent = active ? 'Active' : 'Demo';
+    toast(active ? 'Access granted — activation email sent' : 'Access revoked', active ? 'success' : 'info');
+    // Refresh row badge
+    const row = document.getElementById('acc-row-' + userId);
+    if (row) {
+      const badgeCell = row.querySelectorAll('td')[2];
+      if (badgeCell) badgeCell.innerHTML = active
+        ? '<span style="display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);font-size:11px;font-weight:600;color:#10b981">Active</span>'
+        : '<span style="display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);font-size:11px;font-weight:600;color:#f59e0b">Demo</span>';
+    }
+  } else {
+    checkbox.checked = !active; // revert
+    if (labelEl) labelEl.textContent = !active ? 'Active' : 'Demo';
+    toast('Failed to update access', 'error');
+  }
+}
+
+function viewOwnerPortal(e, sessionId) {
+  e.preventDefault();
+  // Just open the dashboard — in a real flow, we'd impersonate or provide a direct link
+  window.open('/dashboard', '_blank');
+}
+
+function promptDeleteAccount(userId, name, email) {
+  document.getElementById('acc-row-' + userId + '-confirm').style.display = '';
+}
+
+function cancelDeleteAccount(userId) {
+  document.getElementById('acc-row-' + userId + '-confirm').style.display = 'none';
+  const inp = document.getElementById('del-confirm-' + userId);
+  if (inp) inp.value = '';
+}
+
+async function confirmDeleteAccount(userId) {
+  const inp = document.getElementById('del-confirm-' + userId);
+  if (!inp || inp.value !== 'DELETE') { toast('Type DELETE exactly to confirm', 'warning'); return; }
+
+  const res = await api('/api/admin/users/' + userId, {
+    method: 'DELETE', body: JSON.stringify({ confirm: 'DELETE' }),
+  });
+
+  if (res && res.success) {
+    const row = document.getElementById('acc-row-' + userId);
+    const confirmRow = document.getElementById('acc-row-' + userId + '-confirm');
+    if (row) row.remove();
+    if (confirmRow) confirmRow.remove();
+    toast(`${res.deletedUser?.name || 'Account'} has been permanently deleted`, 'success');
+    if (res.warning) toast(res.warning, 'warning');
+  } else {
+    toast('Deletion failed — check console', 'error');
+  }
+}
 
 function switchToOPS() {
   const token = localStorage.getItem('gymsuite_token');

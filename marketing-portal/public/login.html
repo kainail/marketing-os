@@ -118,7 +118,26 @@
       const email = document.getElementById('email').value.trim().toLowerCase();
       const password = document.getElementById('password').value;
       try {
-        // AHRI always defers to OPS Dashboard for token issuance
+        // Try local AHRI user store first (onboarding-created gym owners)
+        const localRes = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        if (localRes.ok) {
+          const data = await localRes.json();
+          localStorage.setItem('gymsuite_token', data.token);
+          window.location.href = '/dashboard';
+          return;
+        }
+        if (localRes.status === 401) {
+          // User exists locally but password is wrong — don't fall through
+          const data = await localRes.json();
+          showError(data.error || 'Invalid credentials');
+          return;
+        }
+        // 404 = not a local user; fall through to OPS Dashboard (admins, Bloomington, Eaton)
+
         const res = await fetch(OPS_URL + '/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

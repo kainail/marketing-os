@@ -175,10 +175,17 @@
     .cr-offer-tile-score { font-size: 10px; color: #a78bfa; font-weight: 600; letter-spacing: 0.5px; }
     .cr-offer-continue { width: 100%; margin-top: 12px; opacity: 0; transition: opacity 0.4s; }
     .cr-offer-continue.cr-visible { opacity: 1; }
-    .cr-cta-row { width: 100%; max-width: 500px; padding-top: 8px; opacity: 0; transition: opacity 0.5s; }
+    .cr-cta-row { width: 100%; max-width: 560px; padding-top: 8px; opacity: 0; transition: opacity 0.5s; }
     .cr-cta-row.cr-visible { opacity: 1; }
-    .complete-cta { display: inline-flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 13px 28px; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(232,234,240,0.7); cursor: pointer; transition: background 0.15s; text-decoration: none; }
-    .complete-cta:hover { background: rgba(255,255,255,0.08); }
+    .cr-credentials-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 24px 28px; margin-bottom: 20px; }
+    .cr-cred-title { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.32); margin-bottom: 20px; }
+    .cr-cred-row { margin-bottom: 16px; }
+    .cr-cred-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 4px; }
+    .cr-cred-value { font-size: 15px; color: rgba(232,234,240,0.9); line-height: 1.4; }
+    .cr-cred-value.mono { font-family: 'Courier New', Courier, monospace; font-size: 17px; font-weight: 600; color: #a78bfa; letter-spacing: 1px; }
+    .cr-cred-note { font-size: 11px; color: rgba(232,234,240,0.3); margin-top: 14px; }
+    .complete-cta { display: inline-flex; align-items: center; gap: 10px; background: #6366f1; border: none; border-radius: 12px; padding: 13px 28px; font-family: inherit; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; transition: background 0.15s; text-decoration: none; }
+    .complete-cta:hover { background: #4f46e5; }
 
     /* ─── Interview progress strip ───────────────────────────────── */
     .iv-progress { width: 100%; flex-shrink: 0; margin-bottom: 14px; padding: 0 2px; position: relative; z-index: 2; }
@@ -532,7 +539,23 @@
           </div>
 
           <div class="cr-cta-row hidden" id="cr-cta">
-            <a id="complete-portal-link" class="complete-cta" href="#" target="_blank">View your marketing portal →</a>
+            <div class="cr-credentials-box" id="cr-credentials-box">
+              <div class="cr-cred-title">Your GymSuite AI Portal</div>
+              <div class="cr-cred-row">
+                <div class="cr-cred-label">Login URL</div>
+                <div class="cr-cred-value" id="cr-cred-url">marketing-os-production-2b85.up.railway.app/login</div>
+              </div>
+              <div class="cr-cred-row">
+                <div class="cr-cred-label">Email</div>
+                <div class="cr-cred-value" id="cr-cred-email">—</div>
+              </div>
+              <div class="cr-cred-row">
+                <div class="cr-cred-label">Temporary password</div>
+                <div class="cr-cred-value mono" id="cr-cred-password">—</div>
+              </div>
+              <div class="cr-cred-note">Change your password after first login.</div>
+            </div>
+            <a id="complete-portal-link" class="complete-cta" href="/login" target="_blank">Open my dashboard →</a>
           </div>
         </div>
 
@@ -2781,10 +2804,17 @@
       if (navVersion !== revNav) return;
       await sleep(600);
 
-      // CTA
-      document.getElementById('complete-portal-link').href = `/onboard/portal/${sessionId}`;
+      // CTA — fetch credentials and show portal login details
+      try {
+        const credRes = await fetch(`/api/onboarding/sessions/${sessionId}/credentials`);
+        if (credRes.ok) {
+          const cred = await credRes.json();
+          if (cred.email) document.getElementById('cr-cred-email').textContent = cred.email;
+          if (cred.tempPassword) document.getElementById('cr-cred-password').textContent = cred.tempPassword;
+        }
+      } catch (_) { /* credentials display is best-effort */ }
       crReveal('cr-cta');
-      await speak("That's your system. Your portal has everything — your avatar, your offer, and your hooks. We build the first campaign brief from here.", speakEl);
+      await speak("Your dashboard is ready. Here are your login details — save these now.", speakEl);
     }
 
     function crFillOfferFields(containerId, iter) {
