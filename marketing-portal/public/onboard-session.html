@@ -1221,7 +1221,8 @@
             displayEl.style.transition = '';
           }
         } else {
-          console.warn('[speak] TTS endpoint returned', res.status);
+          const errBody = await res.text().catch(() => '');
+          console.warn('[speak] TTS endpoint returned', res.status, errBody.substring(0, 200));
           if (displayEl) showTextInstant(text, displayEl);
           await sleep(1200);
           if (displayEl) {
