@@ -2840,11 +2840,6 @@
           body: JSON.stringify({ iteration: selectedIter }),
         }).catch(() => {});
 
-        // Market-connected ack (pre-generated per iteration)
-        if (selectedIter.ackIfSelected) {
-          await speak(selectedIter.ackIfSelected, speakEl);
-          if (navVersion !== revNav) return;
-        }
       }
 
       if (navVersion !== revNav) return;
