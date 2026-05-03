@@ -2726,7 +2726,7 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
         const Anthropic = require('@anthropic-ai/sdk');
         const client = new Anthropic({ apiKey });
         const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
-        acknowledgment = await generateAcknowledgment(questionId, transcript, session, research, client, answers);
+        acknowledgment = await generateAcknowledgment(questionId, transcript, session, research, client, answers, sessionId);
       } catch {}
     }
     return res.json({ sufficient: true, acknowledgment });
@@ -2770,7 +2770,7 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
         const Anthropic = require('@anthropic-ai/sdk');
         const client = new Anthropic({ apiKey });
         const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
-        acknowledgment = await generateAcknowledgment(questionId, transcript, session, research, client, answers);
+        acknowledgment = await generateAcknowledgment(questionId, transcript, session, research, client, answers, sessionId);
       } catch {}
     }
     return res.json({ sufficient: true, acknowledgment });
@@ -2798,7 +2798,7 @@ Is this answer specific enough to extract the required data, or does it need a f
 Respond JSON only: {"sufficient": boolean, "probeQuestion": "one follow-up question or null"}`
         }]
       }),
-      generateAcknowledgment(questionId, transcript, session, research, client, answers).catch(() => null),
+      generateAcknowledgment(questionId, transcript, session, research, client, answers, sessionId).catch(() => null),
     ]);
     const raw = evalMsg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
     const result = JSON.parse(raw);
@@ -2849,56 +2849,107 @@ async function generateAnswerSuggestions(questionId, session, research) {
 }
 
 /** Generate a market-connected acknowledgment after a sufficient answer. Uses Claude Haiku. */
-async function generateAcknowledgment(questionId, transcript, session, research, client, answers) {
+async function generateAcknowledgment(questionId, transcript, session, research, client, answers, sessionId) {
   const gymName = session.gymName || 'your gym';
   const city = session.city || 'your city';
 
-  const comps = (research?.competitors || []).slice(0, 5);
-  const activeComps = comps.filter(c => (c.adCount || 0) > 0);
-  const gap = (research?.marketGaps || [])[0] || '';
-  const gaps = (research?.marketGaps || []).slice(0, 3).join('; ');
-  const reviews = (research?.googleReviews || []).slice(0, 4).map(r => r.text?.substring(0, 100)).filter(Boolean).join(' | ');
-  const compAds = activeComps.map(c => `${c.name} (${c.adCount} ads, themes: ${(c.adThemes || []).join(', ')})`).join('; ');
-  const answeredSoFar = Object.entries(answers || {}).slice(0, 8).map(([k, v]) => `${k}: ${String(v).substring(0, 80)}`).join('\n');
+  // ── Build discrete reference pool from research data ─────────────────────
+  const refPool = [];
+  (research?.competitors || []).filter(c => (c.adCount || 0) > 0).forEach(c => {
+    refPool.push(c.name);
+    (c.adThemes || []).slice(0, 2).forEach(t => refPool.push(`${c.name}: ${t}`));
+  });
+  (research?.marketGaps || []).forEach(g => { if (g) refPool.push(g.substring(0, 80)); });
+  (research?.googleReviews || []).slice(0, 5).forEach(r => {
+    if (r.text && r.text.length > 15) refPool.push(r.text.substring(0, 60));
+  });
 
-  const prompt = `You are AHRI — a marketing intelligence system that spent weeks researching ${gymName} in ${city} before this interview. You know this market deeply.
+  // ── Filter out already-used references ───────────────────────────────────
+  const usedRefs = Array.isArray(session.usedReferences) ? session.usedReferences : [];
+  const available = refPool.filter(ref =>
+    !usedRefs.some(used =>
+      ref.toLowerCase().includes(used.toLowerCase()) ||
+      used.toLowerCase().includes(ref.toLowerCase())
+    )
+  );
+  const hasResearch = available.length > 0;
+  const usedList = usedRefs.length > 0 ? usedRefs.join('; ') : 'none yet';
+  const availableList = available.slice(0, 8).map((r, i) => `${i + 1}. ${r}`).join('\n');
 
-The gym owner just answered a question. Here is the exchange:
-QUESTION TOPIC: ${Q_PURPOSE[questionId] || 'their gym context'}
-OWNER'S ANSWER: "${transcript.substring(0, 300)}"
+  const researchPrompt = `You are AHRI, a voice-based marketing intelligence system. You are speaking live with the owner of ${gymName} in ${city}.
 
-YOUR MARKET RESEARCH ON THIS GYM:
-Competitors running ads: ${compAds || 'none found'}
-Market gap nobody is addressing: ${gap || 'not identified'}
-All market gaps: ${gaps || 'not identified'}
-Member reviews: ${reviews || 'none'}
+The owner just answered a question on this topic: ${Q_PURPOSE[questionId] || 'their gym context'}
+Their exact answer: "${transcript.substring(0, 300)}"
 
-OTHER ANSWERS THE OWNER HAS GIVEN SO FAR:
-${answeredSoFar || 'none yet — this is the first answer'}
+YOUR RULES — violating any one of these fails:
 
-Write a single response of exactly 1-2 sentences. This response connects what the owner just said to something specific in your market research — a specific competitor name, exact review language, or the market gap. It must make the owner think "how does she know that?"
+RULE 1 — OWNER ANSWER IS ALWAYS THE PRIMARY SUBJECT:
+Your response must open by reflecting something specific from what the owner just said. Use their actual words or phrase back their exact meaning. The first sentence is about their answer — not your research.
 
-STRICT RULES — any violation fails:
-- Must reference at least one specific data point from the research (competitor name, review phrase, market gap wording, ad theme, ad count)
-- Must NEVER start with: I, Got, Perfect, Great, Interesting, That, Thanks, Awesome, Excellent, Noted
-- Must NEVER be generic — every word must be specific to this gym and this market
-- Must sound like natural spoken speech — no bullet points, no formal language, no hedging
-- Ends with a confident statement that leans forward toward what comes next
-- 1-2 sentences only — never more
-- Do not ask any questions. Do not end with a question. End with a confident statement that leans forward toward what comes next.
+RULE 2 — RESEARCH DATA AMPLIFIES (never leads):
+After referencing the owner's answer, connect it to EXACTLY ONE data point from this list:
+${availableList}
+
+These data points have already been used this session — do not reference any of them again: ${usedList}
+
+RULE 3 — FORWARD LEAN:
+End with a statement that creates forward momentum toward the next question. Not a question. Not generic. Must feel like AHRI already knows what comes next and has something specific prepared.
+
+RULE 4 — VOICE RULES:
+- Never start with: I, Got, Perfect, Great, That, Interesting, Thanks, Awesome, Excellent
+- Maximum 2 sentences total
+- Conversational and precise — spoken word, not written prose
+- Zero generic filler phrases
+
+Output only the 1-2 sentence response. No quotes. No preamble.`;
+
+  const fallbackPrompt = `You are AHRI, a voice-based marketing intelligence system. You are speaking live with the owner of ${gymName} in ${city}.
+
+The owner just answered a question on this topic: ${Q_PURPOSE[questionId] || 'their gym context'}
+Their exact answer: "${transcript.substring(0, 300)}"
+
+All available market research data points have already been used earlier in this session. Do not reference any research.
+
+YOUR RULES — violating any one of these fails:
+
+RULE 1 — OWNER'S WORDS ARE YOUR ONLY SOURCE:
+Quote or closely paraphrase something specific from the owner's answer above. Their words are your entire source material — no research, no outside context.
+
+RULE 2 — FORWARD LEAN:
+End with a statement that creates forward momentum toward the next question. Not a question. Must feel like AHRI already has something specific in mind.
+
+RULE 3 — VOICE RULES:
+- Never start with: I, Got, Perfect, Great, That, Interesting, Thanks, Awesome, Excellent
+- Maximum 2 sentences total
+- Conversational and precise — spoken word, not written prose
+- Zero generic filler phrases
 
 Output only the 1-2 sentence response. No quotes. No preamble.`;
 
   const msg = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 250,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{ role: 'user', content: hasResearch ? researchPrompt : fallbackPrompt }],
   });
   let ack = msg.content[0].text.trim().replace(/^["']|["']$/g, '');
 
-  // Safety net: if Haiku still produced a question, strip from the last '?' onward and close with a period
+  // Safety net: strip any question that slipped through
   if (ack.includes('?')) {
     ack = ack.substring(0, ack.lastIndexOf('?')).trimEnd().replace(/[,;:\s]+$/, '') + '.';
+  }
+
+  // ── Update usedReferences in session and persist to R2 ───────────────────
+  if (sessionId && hasResearch) {
+    try {
+      const ackLower = ack.toLowerCase();
+      const usedInAck = available.filter(ref => ackLower.includes(ref.split(':')[0].toLowerCase().trim()));
+      if (usedInAck.length > 0) {
+        session.usedReferences = [...usedRefs, ...usedInAck];
+        await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+      }
+    } catch (e) {
+      console.error('[generateAcknowledgment] usedRefs persist failed:', e.message);
+    }
   }
 
   return ack;
