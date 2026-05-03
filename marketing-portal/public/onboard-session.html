@@ -1752,11 +1752,11 @@
     }
 
     async function goToPrevQuestion() {
+      stopAudio();
       const prevIdx = prevValidIdx(interviewState.currentQIndex);
       if (prevIdx < 0) return;
 
       console.log('[nav] goToPrevQuestion → idx', prevIdx);
-      stopAudio();
       navVersion++;   // invalidate any ongoing askQuestion continuation
       interviewState.submitting = false;
       interviewState.probeCount = 0;
