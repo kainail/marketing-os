@@ -3435,7 +3435,7 @@ app.post('/api/onboarding/sessions/:sessionId/kb-section', async (req, res) => {
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
   if (!section || !answers) return res.status(400).json({ error: 'section and answers required' });
 
-  const SECTION_FILEKEY = { 1:'brain-state', 2:'lifestyle-avatar', 3:'brain-state', 4:'objections', 5:'lifestyle-avatar', 6:'compliance', 7:'compliance', 8:'brain-state' };
+  const SECTION_FILEKEY = { 1:'brain-state', 2:'lifestyle-avatar', 3:'objections', 4:'brain-state' };
   const KB_FILE_PATHS = {
     'brain-state':      'knowledge-base/brain-state/current-state.md',
     'lifestyle-avatar': 'knowledge-base/fitness/lifestyle-avatar.md',
@@ -3493,24 +3493,21 @@ async function generateCanonicalKBFile(fileKey, answers, session, research, clie
 SECTION 1 — THE OFFER
 Q1 (has offer / branch question): ${a.q1 || '[not captured]'}
 
-Path A (owner had existing offer):
-  QA2 (offer details — price, duration, inclusions, guarantee): ${a.qa2 || '[not captured]'}
-  QA3 (surprise element in offer): ${a.qa3 || '[not captured]'}
-  QA4 (guarantee — word for word): ${a.qa4 || '[not captured]'}
-  QA5 (next cohort / spots): ${a.qa5 || '[not captured]'}
+Path A (owner described existing offer in one answer):
+  QA2 (full offer — price, duration, inclusions, guarantee): ${a.qa2 || '[not captured]'}
 
-Path B (offer built with AHRI):
+Path B (offer built with AHRI — tile selections):
   QB2 (trial duration): ${a.qb2 || '[not captured]'}
   QB3 (entry price): ${a.qb3 || '[not captured]'}
   QB4 (trial inclusions): ${a.qb4 || '[not captured]'}
   QB5 (guarantee structure): ${a.qb5 || '[not captured]'}
   QB6 (unique differentiator vs big box): ${a.qb6 || '[not captured]'}
 
-SECTIONS 3 AND 8
-Q7 (differentiator/first 30 days): ${a.q7 || '[not captured]'}
-Q8 (what they'd lose if gym closed): ${a.q8 || '[not captured]'}
-Q18 (local events/seasonal context): ${a.q18 || '[not captured]'}
-Q19 (best Google reviews): ${a.q19 || '[not captured]'}
+SECTIONS 3 AND 4
+Q5 (differentiator / first 30 days): ${a.q5 || '[not captured]'}
+Q6 (main objection + response): ${a.q6 || '[not captured]'}
+Q7 (local events / seasonal context): ${a.q7 || '[not captured]'}
+Q8 (best Google reviews): ${a.q8 || '[not captured]'}
 Market gap identified: ${gap || '[not captured]'}
 Franchise type: ${franchise}
 
@@ -3522,11 +3519,8 @@ Name: [derive from Path A (qa2) or Path B (qb2 duration → e.g. "21-Day Challen
 Price: [from qa2 or qb3]
 Duration: [from qa2 or qb2]
 Included: [from qa2 or qb4]
-Guarantee: [from qa4 or qb5 — exact wording]
-Surprise element: [from qa3 or qb6 or [not captured]]
+Guarantee: [from qa2 or qb5 — exact wording]
 Post-trial price: [from qa2 or [not captured]]
-Cohort start: [from qa5 or [not captured]]
-Spots remaining: [from qa5 or [not captured]]
 
 ## Active Avatar
 Primary: lifestyle member
@@ -3542,65 +3536,61 @@ Top competitor: [from research or [not captured]]
 [not captured — generated after interview complete]
 
 ## Mechanism
-[one sentence: the specific differentiator from q7, q8, or qb6]
+[one sentence: the specific differentiator from q5 or qb6]
 
 ## Seasonal Context
-[from q18 or infer from current month]`,
+[from q7 or infer from current month]`,
 
     'lifestyle-avatar': `Write a lifestyle avatar file for ${gym} in ${city}. Use exact words from answers. Output only the file — no preamble.
 
-Q4 (ideal member before joining): ${a.q4 || '[not captured]'}
-Q5 (trigger moment): ${a.q5 || '[not captured]'}
-Q6 (life 60 days after joining): ${a.q6 || '[not captured]'}
-Q8 (what they'd lose if gym closed): ${a.q8 || '[not captured]'}
-Q13 (exact words members said): ${a.q13 || '[not captured]'}
+Q3 (ideal member — full picture: before, trigger moment, life after): ${a.q3 || '[not captured]'}
+Q4 (exact words members said — fears and what changed their mind): ${a.q4 || '[not captured]'}
 Google reviews: ${(research?.googleReviews || []).slice(0, 3).map(r => r.text || r).join(' | ') || '[not captured]'}
 
 # Lifestyle Avatar — ${gym}
 # Generated: ${date}
 
 ## Who They Are
-[narrative from q4 — 2-3 sentences in their voice]
-Age range: [from q4]
-Day in the life: [from q5]
+[narrative from q3 — 2-3 sentences in their voice, extract the "before" picture]
+Age range: [infer from q3]
+Day in the life: [extract trigger moment from q3]
 
 ## The Moment
-[triggering situation from q5 — one sentence]
+[triggering situation from q3 — the moment they decided to do something]
 
 ## Previous Failures
-[infer from q4 or [not captured]]
+[infer from q3 or [not captured]]
 
 ## Dream Outcome
-[from q6]
+[extract from q3 — what changed 60 days after joining]
 
 ## VoC Phrases (exact words)
-[from q13 — each phrase on its own line with a dash]
-[1-2 Google review quotes]
+[from q4 — each fear/phrase on its own line with a dash]
+[1-2 Google review quotes that best represent the member voice]
 
-## What Makes Them Different
-[from q8]`,
+## What Changed Their Mind
+[from q4 — what overcame their hesitation]`,
 
     'objections': `Write an objection vault for ${gym}. Use EXACT words — do not paraphrase. Output only the file — no preamble.
 
-Q9 (most common objection): ${a.q9 || '[not captured]'}
-Q10 (response that works): ${a.q10 || '[not captured]'}
-Q11 (second objection): ${a.q11 || '[not captured]'}
-Q12 (third objection): ${a.q12 || '[not captured]'}
+Q5 (differentiator — what makes the gym unique in the market): ${a.q5 || '[not captured]'}
+Q6 (main objection in their exact words + what changes their mind): ${a.q6 || '[not captured]'}
+Market gap: ${gap || '[not captured]'}
 
 # Objection Vault — ${gym}
 # Generated: ${date}
 
-## Objection 1 (most common)
-Their exact words: "${a.q9 || '[not captured]'}"
-Response that works: "${a.q10 || '[not captured]'}"
+## Primary Objection
+Their exact words: [extract the objection from q6]
+Response that works: [extract the response from q6]
 
-## Objection 2
-Their exact words: "${a.q11 || '[not captured]'}"
-Response that works: [infer an effective response from this objection]
+## Differentiator Reframe
+What makes them different: [one sentence from q5]
+How to use it against hesitation: [how the differentiator answers the primary objection]
 
-## Objection 3
-Their exact words: "${a.q12 || '[not captured]'}"
-Response that works: [infer an effective response from this objection]`,
+## Market Gap Angle
+Gap nobody else fills: ${gap || '[not captured]'}
+How to turn it into a yes: [one sentence connecting the gap to the offer]`,
 
     'compliance': `Write a compliance and brand voice file for ${gym}. Use exact words. Output only the file — no preamble.
 

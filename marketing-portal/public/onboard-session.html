@@ -320,13 +320,9 @@
             <div class="section-dot" id="sdot-2"></div>
             <div class="section-dot" id="sdot-3"></div>
             <div class="section-dot" id="sdot-4"></div>
-            <div class="section-dot" id="sdot-5"></div>
-            <div class="section-dot" id="sdot-6"></div>
-            <div class="section-dot" id="sdot-7"></div>
-            <div class="section-dot" id="sdot-8"></div>
           </div>
           <div class="iv-section-tag" id="iv-section-tag">The Offer</div>
-          <div class="iv-q-label" id="iv-q-label">Question 1 of 19</div>
+          <div class="iv-q-label" id="iv-q-label">Question 1</div>
           <p class="iv-question" id="iv-question">—</p>
           <div class="iv-controls">
             <button class="iv-back-btn" id="prev-btn" onclick="goToPrevQuestion()" disabled title="Go back to previous question">←</button>
@@ -1047,26 +1043,17 @@
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    // ─── Interview question bank — branching Section 1, then sections 2-8 ──────
+    // ─── Interview question bank — 8 questions across 4 sections ───────────────
     const QUESTIONS = [
-      // Section 1 — The Offer (branch question — always asked first)
+      // Section 1 — The Offer
       { id:'q1', section:1, sectionName:'The Offer', kbFile:'brain-state',
         text:'Do you currently have a front-end offer — something specific you use to get new members in the door? It could be a free trial, a challenge, a first-month promotion, anything at all. If yes, tell me about it. If not, that is completely fine — we will build one together right now.',
         probe:'Just to confirm — do you have a specific offer with a price and terms already, or is this something we need to build together?' },
-      // Section 1 — Path A (they already have an offer)
+      // Section 1 — Path A (one comprehensive question, Haiku extracts all components)
       { id:'qa2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
-        text:'Walk me through exactly what is included, what they pay, and what happens if it does not work for them. Be as specific as you can — price, duration, what they get day by day.',
-        probe:'Give me the exact numbers — price, how many days or weeks, and the exact guarantee wording.' },
-      { id:'qa3', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
-        text:'What is the one thing in your offer that makes people say — wait, that is included? The thing you never talk about enough.',
-        probe:'Think about the last time someone was surprised by what you include. What was it?' },
-      { id:'qa4', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
-        text:'What is your guarantee — word for word? If you do not have one yet we will create one.',
-        probe:'Say it exactly as you would say it to a prospect — word for word.' },
-      { id:'qa5', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
-        text:'When does your next group or cohort start and how many spots are available?',
-        probe:'What is the next date you are filling spots for and exactly how many are available?' },
-      // Section 1 — Path B (building the offer with AHRI)
+        text:'Walk me through everything about your offer — what they pay, what they get, how long it runs, what happens if it does not work, and the guarantee if you have one. Be as specific as you can.',
+        probe:'Give me the exact numbers — price, duration, what is included day to day, and your guarantee wording.' },
+      // Section 1 — Path B (tile builder — single screen per Step 3; current 5-step flow preserved)
       { id:'qb2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
         text:'How long do you want the trial period to be — 14 days, 21 days, or 30 days? Pick what feels right for your gym.',
         probe:'Which of those three would work best for how your gym runs?' },
@@ -1074,69 +1061,35 @@
         text:'What should the entry price be? Based on your market I would suggest one of these — but you know your members best.',
         probe:'Which price point feels right — or what would you change?' },
       { id:'qb4', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
-        text:'What is included during the trial? I found that the biggest gap in your market is that nobody offers coached onboarding. Here are three ways to structure what you include.',
+        text:'What is included during the trial? Here are three ways to structure what you include based on what is missing in your market.',
         probe:'Which of those structures fits how you already run your gym?' },
       { id:'qb5', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
         text:'Every strong offer has a guarantee that removes the risk of saying yes. Here are three guarantee structures that work well for gyms like yours.',
         probe:'Which guarantee style fits your gym?' },
       { id:'qb6', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
-        text:'What is the one thing about your gym that a new member would never get at Planet Fitness or any big box gym nearby? This becomes the core of your offer.',
+        text:'What is the one thing about your gym that a new member would never get at any big box gym nearby? This becomes the core of your offer.',
         probe:'What is the thing — not just the workouts — that you do differently from the big chains?' },
-      // Section 2 — The Avatar
-      { id:'q4', section:2, sectionName:'The Avatar', kbFile:'lifestyle-avatar',
-        text:'Tell me about the last person who joined and made you think — this is exactly who we\'re built for. What was their life like before they walked in?',
-        probe:'Paint the picture more specifically — what were they doing day to day, what wasn\'t working for them?' },
-      { id:'q5', section:2, sectionName:'The Avatar', kbFile:'lifestyle-avatar',
-        text:'What\'s the specific moment — the situation — when your ideal member finally decides to do something? For some gyms it\'s when they can\'t keep up with their kids. For others it\'s the doctor visit. What\'s yours?',
-        probe:'Describe that moment as specifically as you can — what did they feel, what did they decide?' },
-      { id:'q6', section:2, sectionName:'The Avatar', kbFile:'lifestyle-avatar',
-        text:'What does their life look like 60 days after joining? Not fitness improvements — what actually changes day to day?',
-        probe:'Think about a specific member — what\'s different about their week now versus before they joined?' },
-      // Section 3 — The Differentiator (q7 text built from research)
-      { id:'q7', section:3, sectionName:'The Differentiator', kbFile:'brain-state',
+      // Section 2 — Your Members
+      { id:'q3', section:2, sectionName:'Your Members', kbFile:'lifestyle-avatar',
+        text:"Tell me about the person you are built for. Think of the last member who joined and made you say — this is exactly who we want. What was their life like before they walked in, what made them finally decide to do something, and what changed for them after?",
+        probe:"Paint the full picture — what were they struggling with before, the moment they decided, and what is different now." },
+      { id:'q4', section:2, sectionName:'Your Members', kbFile:'lifestyle-avatar',
+        text:"What do your members actually say — in their own words — about why they almost did not come in? What were they afraid of, and what changed their mind?",
+        probe:"Think of something a member said word for word — right before they joined or in the first week." },
+      // Section 3 — Your Edge
+      { id:'q5', section:3, sectionName:'Your Edge', kbFile:'brain-state',
         text:null,
-        probe:'Walk me through what actually happens — what does day one look like, day seven, day thirty?' },
-      { id:'q8', section:3, sectionName:'The Differentiator', kbFile:'brain-state',
-        text:'What would a member lose if your gym closed tomorrow that they couldn\'t get anywhere else?',
-        probe:'What is the thing — not just the workouts — that can\'t be replaced?' },
-      // Section 4 — Objections
-      { id:'q9', section:4, sectionName:'Objections', kbFile:'objections',
-        text:'What\'s the most common reason someone doesn\'t sign up after hearing your offer? Say it exactly how they say it — in their words.',
-        probe:'What\'s the most common thing you hear — use their exact words if you can.' },
-      { id:'q10', section:4, sectionName:'Objections', kbFile:'objections',
-        text:'What do you say that changes their mind?',
-        probe:'What\'s the one thing you say that consistently gets them to say yes?' },
-      { id:'q11', section:4, sectionName:'Objections', kbFile:'objections',
-        text:'What\'s the second most common objection? Again — their exact words.',
-        probe:'What\'s the next thing you hear most often after that?' },
-      { id:'q12', section:4, sectionName:'Objections', kbFile:'objections',
-        text:'And the third objection — what else comes up regularly?',
-        probe:'One more — what\'s the third thing that slows people down?' },
-      // Section 5 — Member Voice
-      { id:'q13', section:5, sectionName:'Member Voice', kbFile:'lifestyle-avatar',
-        text:'Think of things members have actually said to you — word for word — about why they almost didn\'t come in. What do you hear?',
-        probe:'What do you hear from people right before they join — what were they afraid of, what almost stopped them?' },
-      // Section 6 — Manager Voice
-      { id:'q14', section:6, sectionName:'Manager Voice', kbFile:'compliance',
-        text:'How does your team naturally talk when they\'re on the phone with a prospect — not the pitch, just how they actually speak? Give me three words.',
-        probe:'Three words that describe how your best person sounds on a call.' },
-      { id:'q15', section:6, sectionName:'Manager Voice', kbFile:'compliance',
-        text:'What does your team always say that gets people to come in?',
-        probe:'What\'s the line that works consistently — that you\'ve heard them use?' },
-      { id:'q16', section:6, sectionName:'Manager Voice', kbFile:'compliance',
-        text:'What should messages from your gym never sound like? What\'s the wrong tone?',
-        probe:'What would feel off-brand — too pushy, too casual, too corporate?' },
-      // Section 7 — Compliance
-      { id:'q17', section:7, sectionName:'Compliance', kbFile:'compliance',
-        text:'Are there things you can\'t say or show in your advertising? Franchise rules, things that feel wrong for your gym, anything off-limits?',
-        probe:'Specific words, images, or claims your franchise restricts — or anything that just doesn\'t fit your brand?' },
-      // Section 8 — Local Context (q18/q19 text built dynamically)
-      { id:'q18', section:8, sectionName:'Local Context', kbFile:'brain-state',
+        probe:"Walk me through what actually happens — what does someone experience in the first 30 days that they could not get anywhere else?" },
+      { id:'q6', section:3, sectionName:'Your Edge', kbFile:'objections',
+        text:"What is the most common reason someone does not sign up after hearing your offer? Say it in their exact words. Then tell me — what do you say that changes their mind?",
+        probe:"Give me the objection in their exact words, then the line that consistently gets them to say yes." },
+      // Section 4 — Your Market
+      { id:'q7', section:4, sectionName:'Your Market', kbFile:'brain-state',
         text:null,
-        probe:'What local events, schedules, or news is on your members\' minds right now?' },
-      { id:'q19', section:8, sectionName:'Local Context', kbFile:'brain-state',
+        probe:"What local events, schedules, or news is on your members' minds right now?" },
+      { id:'q8', section:4, sectionName:'Your Market', kbFile:'brain-state',
         text:null,
-        probe:'Which of your Google reviews best represents what you\'d want a new member to read first?' },
+        probe:"Which of your Google reviews feels most like what you want new members to read first?" },
     ];
 
     // fileKey → element ID maps for right panel
@@ -1147,7 +1100,7 @@
     const KB_FILE_EL = { 'brain-state':'file-brain-state',  'lifestyle-avatar':'file-avatar',     'objections':'file-objections',    'compliance':'file-compliance' };
 
     // Section → KB file written after that section completes
-    const SECTION_WRITES = { 1:'brain-state', 2:'lifestyle-avatar', 3:'brain-state', 4:'objections', 5:'lifestyle-avatar', 6:'compliance', 7:'compliance', 8:'brain-state' };
+    const SECTION_WRITES = { 1:'brain-state', 2:'lifestyle-avatar', 3:'objections', 4:'brain-state' };
 
     // Track last section per fileKey for retry
     const lastSectionForFile = {};
@@ -1159,12 +1112,8 @@
     // Section transition speeches
     const SECTION_INTRO = {
       2: "Good. Now let's talk about who you're built for.",
-      3: "Now I want to understand your differentiator.",
-      4: "Let's get into objections — the exact words you hear.",
-      5: "Now I need the language your members actually use.",
-      6: "Let's talk about how your team sounds.",
-      7: "Quick compliance check.",
-      8: "Last section — local context.",
+      3: "Now I want to understand what makes you different.",
+      4: "Last section — a little local context.",
     };
 
     // ─── Interview state ──────────────────────────────────────────────────────
@@ -1208,14 +1157,14 @@
     function buildQuestionText(q) {
       if (q.text) return q.text;
       const city = session?.city || 'your city';
-      if (q.id === 'q7') {
+      if (q.id === 'q5') {
         const gap = (researchData?.marketGaps || [])[0] || 'personalized coaching';
-        return `Based on what I found in your market, nobody in ${city} is talking about ${gap}. What do you do specifically that fills that gap? Walk me through what happens in someone's first 30 days with you.`;
+        return `Based on what I found in your market, nobody in ${city} is talking about ${gap}. What do you do specifically that fills that gap? Walk me through what someone experiences in their first 30 days with you that they could not get anywhere else.`;
       }
-      if (q.id === 'q18') {
+      if (q.id === 'q7') {
         return `Is there anything happening in ${city} right now — events, school calendar, local news — that your ideal member is thinking about?`;
       }
-      if (q.id === 'q19') {
+      if (q.id === 'q8') {
         const rev = (researchData?.googleReviews || [])[0];
         if (rev) return `I found your Google reviews. Which feels most like what you'd want new members to read? "${rev.text?.substring(0, 70)}..." — or describe which type feels right.`;
         return 'Which of your Google reviews do you feel best represents your gym to new members?';
@@ -1258,7 +1207,7 @@
       interviewState.probeCount = 0;
 
       // Update section progress dots
-      for (let s = 1; s <= 8; s++) {
+      for (let s = 1; s <= 4; s++) {
         const dot = document.getElementById(`sdot-${s}`);
         if (!dot) continue;
         if (interviewState.completedSections.has(s)) dot.className = 'section-dot done';
@@ -1298,10 +1247,7 @@
         const tiles = (apiTiles?.length > 0) ? apiTiles : (HARDCODED_TILES[q.id] || []);
         if (tiles.length > 0) {
           showSuggestionTiles(tiles);
-          // Path A: speak inspiration hint after tiles appear
-          if (['qa2','qa3','qa4','qa5'].includes(q.id)) {
-            await speak("I have added a few ideas below in case you need inspiration — but feel free to answer in your own words.", document.getElementById('iv-question'));
-          }
+          // (Path A no longer uses inspiration tiles — no hint needed)
         }
       } catch {}
 
@@ -1407,8 +1353,8 @@
         await runPathBIntro();
       }
 
-      // After qb6 or qa5: run Hormozi analysis — selectIteration() drives the rest from here
-      if (q.id === 'qb6' || q.id === 'qa5') {
+      // After qb6 or qa2: run Hormozi analysis — selectIteration() drives the rest from here
+      if (q.id === 'qb6' || q.id === 'qa2') {
         await runOfferAnalysis();
         return;
       }
@@ -1617,7 +1563,7 @@
 
       const q = QUESTIONS[interviewState.currentQIndex];
       const isPathB = q && ['qb2','qb3','qb4','qb5','qb6'].includes(q.id);
-      const isPathA = q && ['qa2','qa3','qa4','qa5'].includes(q.id);
+      const isPathA = false; // Path A uses one open question — no inspiration tiles
       const label = wrap.querySelector('.suggestions-label');
       if (isPathB) {
         wrap.classList.add('pathb-mode');
@@ -1684,10 +1630,7 @@
       ta.focus();
       document.getElementById('submit-btn').disabled = false;
       isTileSelection = true;
-      // Path A inspiration tiles populate the textarea only — owner edits and submits manually
-      const q = QUESTIONS[interviewState.currentQIndex];
-      const isPathAInspiration = q && ['qa2','qa3','qa4','qa5'].includes(q.id);
-      if (!isPathAInspiration) submitAnswer();
+      submitAnswer();
     }
 
     function hideSuggestions() {
