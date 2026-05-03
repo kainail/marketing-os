@@ -1227,9 +1227,6 @@
       { id:'qa4', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
         text:'What is your guarantee — exactly as you would say it to a prospect who is on the fence? Give me the wording word for word.',
         probe:'Say it exactly as you say it — what do you promise if they are not satisfied?' },
-      { id:'qa5', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
-        text:'When is your next intake or cohort starting, and how many spots do you have available right now?',
-        probe:'Give me the number of spots and a date — even an approximate one works.' },
       // Section 1 — Path B (single-screen tile builder — 5 rows)
       { id:'qb2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
         text:'Let me walk you through this. For each row below, pick the option that fits your gym best — these are based on what I found in your market.',
@@ -1538,7 +1535,16 @@
           console.log('[interview] section1Path set to:', evalData.branch);
         }
 
-        if (!evalData.sufficient && interviewState.probeCount < 2 && q.probe) {
+        if (!evalData.sufficient && evalData.graceful) {
+          // Graceful fallback — owner doesn't have a guarantee or differentiator
+          // Speak acknowledgment first, then show context-specific tiles
+          interviewState.submitting = false;
+          btn.textContent = 'Submit answer';
+          resetAnswerArea();
+          await speak(evalData.acknowledgment, document.getElementById('iv-question'));
+          if (navVersion !== submitNav) return;
+          if (evalData.tiles?.length > 0) showSuggestionTiles(evalData.tiles);
+        } else if (!evalData.sufficient && interviewState.probeCount < 2 && q.probe) {
           interviewState.probeCount++;
           interviewState.submitting = false;
           btn.textContent = 'Submit answer';
@@ -1570,8 +1576,8 @@
         await runPathBIntro();
       }
 
-      // After tile builder (qb2) or last Path A question (qa5): run offer analysis
-      if (q.id === 'qb2' || q.id === 'qa5') {
+      // After tile builder (qb2) or last Path A question (qa4): run offer analysis
+      if (q.id === 'qb2' || q.id === 'qa4') {
         await runOfferAnalysis();
         return;
       }

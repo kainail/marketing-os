@@ -2652,7 +2652,6 @@ const Q_PURPOSE = {
   qa2: 'exact offer: price, duration in days or weeks, what is included, and any guarantee wording',
   qa3: 'a specific surprising or undervalued element in their existing offer',
   qa4: 'the exact guarantee wording word for word',
-  qa5: 'next group or cohort start date and exact number of spots available',
   // Path B
   qb2: 'desired trial period length in days',
   qb3: 'chosen entry price point for the trial',
@@ -2715,6 +2714,26 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
     return res.json({ sufficient: true, acknowledgment });
   }
 
+  // Graceful fallback for qa3/qa4 when the owner doesn't have the answer
+  // Broader detection than isWeak — catches "I don't have one", "nothing formal", under 8 words
+  const isGracefulQuestion = questionId === 'qa3' || questionId === 'qa4';
+  const gracefulPatterns = /\b(don.?t have|not sure|nothing really|nothing formal|nothing specific|never thought|not really|no real|no guarantee|no idea|regular gym|just a gym|haven.?t formalized|don.?t know|haven.?t thought|can.?t think)\b/i;
+  const isGracefulTrigger = isGracefulQuestion && (
+    words.length < 8 ||
+    gracefulPatterns.test(lower) ||
+    /^(no|nope|nothing|none|idk|pass|not sure|don.?t know|i don.?t know)[\.\s!?]*$/i.test(lower)
+  );
+  if (isGracefulTrigger) {
+    const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
+    const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+    const city = session.city || 'your city';
+    const acknowledgment = questionId === 'qa4'
+      ? "No worries at all — most gym owners have never formalized this. Let me give you a few options based on what you have told me about your offer, and we will pick the one that fits best."
+      : `That is actually really common — the best differentiators are often things owners do every day without realizing how rare they are. Based on what I found in your market, here are three things your gym likely does that nobody else in ${city} is advertising.`;
+    const tiles = await generateGracefulTiles(questionId, session, research, answers, apiKey);
+    return res.json({ sufficient: false, graceful: true, acknowledgment, tiles });
+  }
+
   // Detect weak answers — offer suggestion cards instead of probing
   const isWeak = words.length < 5 || /^(i don.?t know|not sure|no idea|pass|skip|um+|uh+|hmm+|idk)[\.\s!]*$/i.test(lower);
   if (isWeak) {
@@ -2724,7 +2743,7 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
   }
 
   // Questions where any >5 word answer is sufficient — no Claude eval needed
-  const acceptAnything = ['qa3','qa4','qa5','qb2','qb3','qb4','qb5','qb6','q9','q10','q11','q12','q13','q14','q15','q16','q17','q18','q19'];
+  const acceptAnything = ['qa3','qa4','qb2','qb3','qb4','qb5','qb6','q9','q10','q11','q12','q13','q14','q15','q16','q17','q18','q19'];
   const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
   if (acceptAnything.includes(questionId) || words.length >= 20) {
     let acknowledgment = null;
@@ -2859,6 +2878,90 @@ Output only the 1-2 sentence response. No quotes. No preamble.`;
   return msg.content[0].text.trim().replace(/^["']|["']$/g, '');
 }
 
+/** Generate context-specific tiles when an owner doesn't have a guarantee (qa4) or differentiator (qa3). */
+async function generateGracefulTiles(questionId, session, research, answers, apiKey) {
+  const gymName = session.gymName || 'this gym';
+  const city = session.city || 'your city';
+  const gap = (research?.marketGaps || [])[0] || 'personalized coaching';
+  const reviewExcerpts = (research?.googleReviews || [])
+    .filter(r => r.text?.length > 20).slice(0, 3)
+    .map(r => `"${r.text.substring(0, 90)}"`).join(' | ') || '';
+  const competitorAdThemes = (research?.competitors || [])
+    .filter(c => (c.adThemes || []).length > 0).slice(0, 3)
+    .map(c => `${c.name}: ${(c.adThemes || []).slice(0, 2).join(', ')}`).join('; ') || 'generic fitness promotions';
+  const offerContext = answers?.qa2 || '[offer not described yet]';
+
+  const fallbackQa4 = [
+    { text: "If you are not completely satisfied after your trial, I will give you a full refund — no questions, no forms, just a message to me directly.", subtext: 'Satisfaction guarantee — removes all risk' },
+    { text: "Show up at least 3 times per week during the trial. If you don't feel measurably stronger and more energized by the end, I will refund every dollar you paid.", subtext: 'Attendance-based — rewards commitment, filters non-starters' },
+    { text: "Complete the full trial. If you are not noticeably stronger and do not feel like this is the right place for you, we will coach you free for another 30 days — or refund you completely.", subtext: 'Results-based — strongest closing tool in the market' },
+  ];
+  const fallbackQa3 = [
+    { text: `Every new member gets a personal coach assigned on day one who checks in with them before every session — something nobody advertising in ${city} is doing.`, subtext: `Fills the gap: "${gap.substring(0, 55)}"` },
+    { text: 'On day one they get a full movement assessment, a personalized program, and their coach maps out exactly what they will do for the next 30 days — not a generic class schedule.', subtext: 'Personalization at scale — impossible at big-box gyms' },
+    { text: 'Every member gets a progress review at day 7, day 14, and day 21. Most gyms do this once a year — we do it three times during the trial alone.', subtext: 'Accountability members say they cannot find elsewhere' },
+  ];
+
+  let prompt;
+  if (questionId === 'qa4') {
+    prompt = `Generate 3 guarantee structures for ${gymName} in ${city}. Make them specific to this owner's actual offer.
+
+OFFER THEY DESCRIBED: ${offerContext}
+MARKET GAP: ${gap}
+MEMBER REVIEWS: ${reviewExcerpts || 'not available'}
+
+Extract trial duration and price from the offer description and build each guarantee around those exact details.
+If they mentioned 30 days, attendance-based guarantee should reference 30 days.
+If they mentioned coaching, results guarantee should reference coaching outcomes.
+The exact price should appear in refund language when relevant.
+
+Option 1: Satisfaction guarantee (simple, removes all hesitation)
+Option 2: Attendance-based (they show up X times — rewards commitment, filters non-starters)
+Option 3: Results-based (references their specific included features — strongest closing tool)
+
+Write each as exact language the owner would say out loud to a hesitant prospect.
+
+Output ONLY JSON, no other text:
+[{"text":"[exact guarantee wording]","subtext":"[what fear this removes]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`;
+  } else {
+    // qa3 — differentiator
+    prompt = `A gym owner in ${city} cannot think of what makes their gym different. Based on the data below, generate 3 specific differentiator statements they probably already deliver but have never named.
+
+OFFER THEY DESCRIBED: ${offerContext}
+MARKET GAP NOBODY IN ${city.toUpperCase()} IS FILLING: ${gap}
+WHAT COMPETITORS ARE ADVERTISING: ${competitorAdThemes}
+MEMBER REVIEW EXCERPTS: ${reviewExcerpts || 'not available'}
+
+Rules:
+- Each tile must be specific to this gym based on the data above — not generic
+- Surface things the reviews suggest they do that competitors are not advertising
+- If reviews mention personal coaching, reference coaching
+- If market gap is accountability or transformation, surface that differentiator
+- First-person owner voice, 1-2 sentences each
+
+Output ONLY JSON, no other text:
+[{"text":"[differentiator in owner's voice]","subtext":"[why this is rare in ${city}]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`;
+  }
+
+  if (!apiKey) return questionId === 'qa4' ? fallbackQa4 : fallbackQa3;
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 600,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length >= 1) return parsed.slice(0, 3);
+  } catch (err) {
+    console.error(`[onboarding] generateGracefulTiles failed for ${questionId}:`, err.message);
+  }
+  return questionId === 'qa4' ? fallbackQa4 : fallbackQa3;
+}
+
 // POST /api/onboarding/sessions/:sessionId/question-suggestions — always-on 3 tiles per question (no auth — UUID secured)
 app.post('/api/onboarding/sessions/:sessionId/question-suggestions', async (req, res) => {
   const { sessionId } = req.params;
@@ -2884,7 +2987,7 @@ async function generateQuestionSuggestions(questionId, questionText, section, se
     return generatePathBTiles(questionId, session, research, pathBAnswers);
   }
   // Path A free-form questions get inspiration tiles
-  if (['qa2','qa3','qa4','qa5'].includes(questionId)) {
+  if (['qa2','qa3','qa4'].includes(questionId)) {
     return generatePathATiles(questionId, session, research);
   }
 
@@ -3142,15 +3245,6 @@ Write each as exact guarantee language the owner would say out loud.
 Output ONLY a JSON array, no other text:
 [{"text":"[exact guarantee language]","subtext":"[what fear this removes]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`,
 
-    qa5: `Generate 3 cohort framing statements for: "When does your next group or cohort start and how many spots are available?"
-
-GYM: ${gymName}, ${city}
-
-Cover: (1) specific date + limited spots, (2) monthly application-based with scarcity, (3) rolling weekly enrollment with limited openings.
-First-person owner voice. Numbers should feel real and create urgency.
-
-Output ONLY a JSON array, no other text:
-[{"text":"[cohort framing statement]","subtext":"[why this creates urgency]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`,
   };
 
   const prompt = PROMPTS[questionId];
@@ -3191,11 +3285,6 @@ function pathAFallback(questionId, city, gymName, competitorNames, primaryGap) {
     { text: "If you are not completely satisfied after your trial, I will give you a full refund — no questions, no forms, just a message to me directly.", subtext: 'Satisfaction guarantee — removes all risk' },
     { text: "Show up at least 3 times per week during the trial. If you don't feel measurably stronger and more energized by the end, I will refund every dollar you paid.", subtext: 'Attendance-based — rewards commitment, filters non-starters' },
     { text: "Complete the full trial. If you are not noticeably stronger and do not feel like this is the right place for you, we will coach you free for another 30 days — or refund you completely.", subtext: 'Results-based — strongest closing tool in the market' },
-  ];
-  if (questionId === 'qa5') return [
-    { text: 'We start a new group every Monday and we only take 6 people per group — next Monday we have 2 spots left.', subtext: 'Specific date + scarcity creates urgency' },
-    { text: 'We open 8 spots on the first of every month. This month we have 3 remaining — after that the next opening is the 1st.', subtext: 'Monthly cadence + application frame' },
-    { text: 'We run rolling groups of 4 — a new one starts every week. This week is full but next week we have 4 spots open.', subtext: 'Weekly availability + real number creates FOMO' },
   ];
   return [];
 }
@@ -3240,9 +3329,8 @@ MEMBER REVIEWS: ${reviewExcerpts}
 
 FREE-FORM ANSWERS:
 qa2 (what's included, price, guarantee): ${answers.qa2 || 'not answered'}
-qa3 (the one surprise element): ${answers.qa3 || 'not answered'}
+qa3 (the one surprise element / differentiator): ${answers.qa3 || 'not answered'}
 qa4 (guarantee — word for word): ${answers.qa4 || 'not answered'}
-qa5 (cohort timing and availability): ${answers.qa5 || 'not answered'}
 
 Step 1 — Extract these 5 structured fields from the answers above:
 - duration: the trial period or cohort length (e.g. "21 days", "30 days")
@@ -3521,6 +3609,8 @@ Q1 (has offer / branch question): ${a.q1 || '[not captured]'}
 
 Path A (owner described existing offer in one answer):
   QA2 (full offer — price, duration, inclusions, guarantee): ${a.qa2 || '[not captured]'}
+  QA3 (surprise element / standout differentiator): ${a.qa3 || '[not captured]'}
+  QA4 (guarantee — exact wording): ${a.qa4 || '[not captured]'}
 
 Path B (offer built with AHRI — tile selections):
   QB2 (trial duration): ${a.qb2 || '[not captured]'}
