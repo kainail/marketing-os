@@ -1666,6 +1666,7 @@
     }
 
     async function fetchSuggestions(q) {
+      console.log('[PathB] Fetching tiles for', q.id);
       try {
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/question-suggestions`, {
           method: 'POST',
@@ -1674,8 +1675,11 @@
         });
         if (!res.ok) return [];
         const data = await res.json();
-        return data.suggestions || [];
-      } catch {
+        const tiles = data.suggestions || [];
+        console.log('[PathB] Tiles received for', q.id, tiles);
+        return tiles;
+      } catch (err) {
+        console.warn('[PathB] fetchSuggestions error for', q.id, err?.message);
         return [];
       }
     }
@@ -1684,6 +1688,7 @@
       _currentSugTiles = tiles;
       const wrap = document.getElementById('suggestions-wrap');
       const container = document.getElementById('suggestion-cards-container');
+      console.log('[PathB] Container', container, 'wrap hidden?', wrap?.classList.contains('hidden'), 'parent state hidden?', container?.closest('.state-pane')?.classList.contains('hidden'));
       if (!wrap || !container) return;
       container.innerHTML = '';
       wrap.classList.remove('hidden');
@@ -1699,13 +1704,23 @@
         if (label) label.textContent = 'Tap a suggestion to fill your answer — edit or submit as is:';
       }
 
-      tiles.forEach((s, i) => {
-        const card = document.createElement('div');
-        card.className = 'suggestion-card';
-        card.dataset.tileIndex = String(i);
-        card.innerHTML = `<div class="sug-text">${esc(s.text)}</div>${s.subtext ? `<div class="sug-sub">${esc(s.subtext)}</div>` : ''}`;
-        container.appendChild(card);
-        setTimeout(() => card.classList.add('sug-visible'), 20 + i * 100);
+      console.log('[PathB] Injecting', tiles.length, 'tiles for', q?.id, 'isPathB:', isPathB);
+      tiles.forEach((tile, i) => {
+        const el = document.createElement('div');
+        if (isPathB) {
+          el.style.cssText = 'background:#2a2a3a; border:1px solid #534AB7; border-radius:8px; padding:16px; margin-bottom:12px; cursor:pointer; color:white; font-size:14px;';
+          el.dataset.tileIndex = String(i);
+          el.textContent = typeof tile === 'string' ? tile : tile.text || tile.label || JSON.stringify(tile);
+          container.appendChild(el);
+          console.log('[PathB] Tile', i, 'added to DOM');
+        } else {
+          el.className = 'suggestion-card';
+          el.dataset.tileIndex = String(i);
+          const s = tile;
+          el.innerHTML = `<div class="sug-text">${esc(s.text)}</div>${s.subtext ? `<div class="sug-sub">${esc(s.subtext)}</div>` : ''}`;
+          container.appendChild(el);
+          setTimeout(() => el.classList.add('sug-visible'), 20 + i * 100);
+        }
       });
     }
 
@@ -1721,6 +1736,12 @@
           if (tile) selectTile(tile.text, card);
         });
       }
+      // Debug: catch any tile click anywhere on document
+      document.addEventListener('click', function(e) {
+        const tile = e.target.closest('[data-tile-index]');
+        if (!tile) return;
+        console.log('[PathB] Tile clicked:', tile.dataset.tileIndex, tile.textContent.slice(0, 50));
+      });
     }
 
     function selectTile(text, cardEl) {
@@ -1742,11 +1763,15 @@
     // ─── Path B offer building helpers ───────────────────────────────────────
 
     async function runPathBIntro() {
+      console.log('[PathB] Intro starting');
       showState('state-speaking');
       setActLabel('Section 1 — Building Your Offer');
       const introText = "No problem at all — this is one of the most valuable things we will do today. I am going to help you build your offer right now using what I already know about your market. I will ask you five quick questions — pick from market-matched options or type your own answer for each one.";
       await speak(introText, document.getElementById('speaking-text'));
       await sleep(800);
+      // Switch back to interview state — tiles render into suggestion-cards-container
+      // which lives inside state-interview; if that pane is hidden, tiles are invisible
+      showState('state-interview');
     }
 
     let _offerChoiceResolve = null;
