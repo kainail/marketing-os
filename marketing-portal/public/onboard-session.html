@@ -151,6 +151,16 @@
     .complete-cta { display: inline-flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 13px 28px; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(232,234,240,0.7); cursor: pointer; transition: background 0.15s; text-decoration: none; }
     .complete-cta:hover { background: rgba(255,255,255,0.08); }
 
+    /* ─── Interview progress strip ───────────────────────────────── */
+    .iv-progress { width: 100%; flex-shrink: 0; margin-bottom: 14px; padding: 0 2px; position: relative; z-index: 2; }
+    .iv-progress-track { width: 100%; height: 3px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+    .iv-progress-fill { height: 100%; background: #7c3aed; border-radius: 3px; width: 0%; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1), background 0.5s ease; }
+    .iv-progress-fill.pulsing { animation: progress-pulse 1.8s ease-in-out infinite; }
+    .iv-progress-fill.done { background: #22c55e; }
+    @keyframes progress-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .iv-progress-label { font-size: 11px; color: rgba(232,234,240,0.3); margin-top: 7px; letter-spacing: 0.3px; transition: opacity 0.3s; min-height: 15px; }
+    .iv-progress-label.fading { opacity: 0; }
+
     /* ─── Intel section ───────────────────────────────────────────── */
     .intel-section { flex-shrink: 0; }
     .intel-header { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); padding: 12px 0 10px; border-top: 1px solid rgba(255,255,255,0.05); }
@@ -305,6 +315,14 @@
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
         <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+      </div>
+
+      <!-- Interview progress strip — hidden until interview starts -->
+      <div class="iv-progress hidden" id="iv-progress">
+        <div class="iv-progress-track">
+          <div class="iv-progress-fill" id="iv-progress-fill"></div>
+        </div>
+        <div class="iv-progress-label" id="iv-progress-label"></div>
       </div>
 
       <div class="state-area">
@@ -1238,8 +1256,50 @@
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
       startInterviewPoll();
+      showProgressStrip();
       if (resumeIdx > 0) await speak(`Welcome back. We're on question ${resumeIdx + 1}. Ready to continue?`, document.getElementById('iv-question'));
       await askQuestion(resumeIdx);
+    }
+
+    // ─── Interview progress indicator ─────────────────────────────────────────
+    const PROGRESS_STAGES = {
+      q1:         { pct: 4,  label: 'Getting started — about 12 minutes' },
+      qa2:        { pct: 13, label: 'Learning about your offer — about 10 minutes left' },
+      qb2:        { pct: 13, label: 'Learning about your offer — about 10 minutes left' },
+      q3:         { pct: 25, label: 'Getting to know your members — about 8 minutes left' },
+      q4:         { pct: 38, label: 'Almost halfway — about 6 minutes left' },
+      preview2:   { pct: 50, label: 'Building your first hook...' },
+      q5:         { pct: 57, label: 'Finding your edge — about 4 minutes left' },
+      q6:         { pct: 68, label: 'Almost there — about 3 minutes left' },
+      preview3:   { pct: 77, label: 'Sharpening your angles...' },
+      q7:         { pct: 82, label: 'Last section — about 2 minutes left' },
+      q8:         { pct: 91, label: 'Final question — almost done' },
+      processing: { pct: 94, label: 'Building your system now...' },
+      complete:   { pct: 100, label: 'Your system is ready' },
+    };
+
+    function showProgressStrip() {
+      document.getElementById('iv-progress').classList.remove('hidden');
+    }
+
+    function setProgress(stage) {
+      const s = PROGRESS_STAGES[stage];
+      if (!s) return;
+      const fill = document.getElementById('iv-progress-fill');
+      const label = document.getElementById('iv-progress-label');
+      if (!fill || !label) return;
+      fill.style.width = `${s.pct}%`;
+      if (stage === 'processing') {
+        fill.classList.add('pulsing');
+        fill.classList.remove('done');
+      } else if (stage === 'complete') {
+        fill.classList.remove('pulsing');
+        fill.classList.add('done');
+      } else {
+        fill.classList.remove('pulsing', 'done');
+      }
+      label.classList.add('fading');
+      setTimeout(() => { label.textContent = s.label; label.classList.remove('fading'); }, 300);
     }
 
     // ─── Start interview ──────────────────────────────────────────────────────
@@ -1248,6 +1308,7 @@
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
       startInterviewPoll();
+      showProgressStrip();
       await askQuestion(0);
     }
 
@@ -1257,6 +1318,7 @@
       const thisNav = ++navVersion;
       interviewState.currentQIndex = qIdx;
       interviewState.probeCount = 0;
+      setProgress(q.id);
 
       // Update section progress dots
       for (let s = 1; s <= 4; s++) {
@@ -1838,6 +1900,7 @@
     // ─── Live preview hooks (after sections 2 and 3) ─────────────────────────
 
     async function showLivePreviewHooks(phase) {
+      setProgress(phase === 'section2' ? 'preview2' : 'preview3');
       const preNav = navVersion;
       let hooks = [];
       try {
@@ -2088,6 +2151,7 @@
     // ─── Finish interview ─────────────────────────────────────────────────────
     async function finishInterview() {
       stopInterviewPoll();
+      setProgress('processing');
       updateStatusPip('active', 'Generating your system');
       showState('state-speaking');
       await speak("Your marketing system is configured. Every question answered. I am generating your final hooks now — based on everything you have told me.", document.getElementById('speaking-text'));
@@ -2118,6 +2182,7 @@
 
       showState('state-complete');
       updateStatusPip('active', 'Session complete');
+      setProgress('complete');
 
       const speakEl = document.getElementById('complete-speak-el');
 
