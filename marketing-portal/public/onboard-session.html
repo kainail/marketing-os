@@ -106,8 +106,8 @@
     .act-nav-row { display: none; align-items: center; justify-content: center; gap: 12px; flex-shrink: 0; padding: 16px 0 8px; }
     .continue-btn { display: none; align-items: center; gap: 8px; background: #6366f1; border: none; border-radius: 10px; padding: 12px 28px; font-family: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; box-shadow: 0 0 24px rgba(99,102,241,0.25); transition: background 0.15s, opacity 0.35s, transform 0.35s; }
     .continue-btn:hover { background: #4f46e5; }
-    .skip-act-btn { display: none; align-items: center; background: transparent; border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; padding: 11px 20px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.45); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
-    .skip-act-btn:hover { border-color: rgba(255,255,255,0.3); color: rgba(232,234,240,0.7); }
+    .skip-act-btn { display: none; align-items: center; gap: 6px; background: #7c3aed; border: none; border-radius: 10px; padding: 11px 20px; font-family: inherit; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; transition: background 0.15s; }
+    .skip-act-btn:hover { background: #6d28d9; }
 
     /* ─── Right panel ─────────────────────────────────────────────── */
     .right-panel { background: rgba(255,255,255,0.013); display: flex; flex-direction: column; padding: 24px; overflow-y: auto; gap: 10px; }
@@ -251,14 +251,20 @@
     .iv-back-btn:hover:not(:disabled) { border-color: rgba(255,255,255,0.8); color: #fff; box-shadow: 0 0 22px rgba(255,255,255,0.4), 0 0 6px rgba(255,255,255,0.55); }
     .iv-back-btn:disabled { opacity: 0.22; cursor: not-allowed; box-shadow: none; }
 
-    /* ─── Mute button — paired with skip, same style ────────────── */
-    .mute-act-btn { display: inline-flex; align-items: center; background: transparent; border: 1px solid rgba(255,255,255,0.16); border-radius: 10px; padding: 11px 20px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.45); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
-    .mute-act-btn:hover { border-color: rgba(255,255,255,0.3); color: rgba(232,234,240,0.7); }
-    .mute-act-btn.muted { color: rgba(232,234,240,0.3); border-color: rgba(255,255,255,0.1); }
+    /* ─── Mute buttons — solid purple in both zones ─────────────── */
+    .mute-act-btn { display: inline-flex; align-items: center; gap: 6px; background: #7c3aed; border: none; border-radius: 10px; padding: 11px 20px; font-family: inherit; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; transition: background 0.15s; }
+    .mute-act-btn:hover { background: #6d28d9; }
+    .mute-act-btn.muted { background: #5b21b6; }
+    .iv-btns-row { display: flex; gap: 8px; width: 100%; }
+    .iv-skip-btn { background: #7c3aed; border: none; border-radius: 10px; padding: 11px 16px; font-family: inherit; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
+    .iv-skip-btn:hover { background: #6d28d9; }
+    .iv-mute-btn { background: #7c3aed; border: none; border-radius: 10px; padding: 11px 16px; font-family: inherit; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
+    .iv-mute-btn:hover { background: #6d28d9; }
+    .iv-mute-btn.muted { background: #5b21b6; }
     .iv-submit { flex: 1; background: #6366f1; border: none; border-radius: 10px; padding: 11px 18px; font-family: inherit; font-size: 14px; font-weight: 700; color: #fff; cursor: pointer; transition: background 0.15s; }
     .iv-submit:hover:not(:disabled) { background: #4f46e5; }
     .iv-submit:disabled { opacity: 0.3; cursor: not-allowed; }
-    .answer-area { width: 100%; max-width: 500px; }
+    .answer-area { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 8px; }
     .answer-area textarea { width: 100%; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px 13px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.72); resize: none; outline: none; line-height: 1.5; min-height: 52px; transition: border-color 0.15s; }
     .answer-area textarea:focus { border-color: rgba(99,102,241,0.35); }
     #state-interview { justify-content: flex-start; padding: 6px 0 20px; overflow-y: auto; max-height: 100%; }
@@ -406,8 +412,8 @@
           </div>
           <div class="act-nav-row" id="act-nav-row">
             <button class="continue-btn" id="continue-btn" onclick="onContinueClick()">Continue →</button>
-            <button class="skip-act-btn" id="skip-act-btn" onclick="skipAct()">Skip</button>
-            <button class="mute-act-btn" id="mute-btn" onclick="toggleMute()" title="Toggle mute">🔊</button>
+            <button class="skip-act-btn" id="skip-act-btn" onclick="skipAct()">Skip →</button>
+            <button class="mute-act-btn" id="mute-btn" onclick="toggleMute()">🔊</button>
           </div>
         </div>
 
@@ -448,10 +454,14 @@
           <p class="iv-question" id="iv-question">—</p>
           <div class="iv-controls">
             <button class="iv-back-btn" id="prev-btn" onclick="goToPrevQuestion()" disabled title="Go back to previous question">←</button>
-            <button class="iv-submit" id="submit-btn" onclick="submitAnswer()" disabled>Submit answer</button>
           </div>
           <div class="answer-area">
             <textarea id="text-answer" placeholder="Type your answer here..." rows="2" oninput="onTextInput(this.value)"></textarea>
+            <div class="iv-btns-row">
+              <button class="iv-submit" id="submit-btn" onclick="submitAnswer()" disabled>Submit answer</button>
+              <button class="iv-skip-btn" id="iv-skip-btn" onclick="skipAct()">Skip →</button>
+              <button class="iv-mute-btn" id="iv-mute-btn" onclick="toggleMute()">🔊</button>
+            </div>
           </div>
           <div class="suggestions-wrap hidden" id="suggestions-wrap">
             <div class="suggestions-label">Or choose an option based on your market:</div>
@@ -650,11 +660,11 @@
 
     function toggleMute() {
       isMuted = !isMuted;
-      const btn = document.getElementById('mute-btn');
-      if (btn) {
-        btn.textContent = isMuted ? '🔇' : '🔊';
-        btn.classList.toggle('muted', isMuted);
-      }
+      const icon = isMuted ? '🔇' : '🔊';
+      ['mute-btn', 'iv-mute-btn'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.textContent = icon; btn.classList.toggle('muted', isMuted); }
+      });
       if (currentAudio) currentAudio.volume = isMuted ? 0 : 1;
     }
 
