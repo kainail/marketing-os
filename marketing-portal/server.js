@@ -2872,7 +2872,7 @@ Output only the 1-2 sentence response. No quotes. No preamble.`;
 
   const msg = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 80,
+    max_tokens: 250,
     messages: [{ role: 'user', content: prompt }],
   });
   return msg.content[0].text.trim().replace(/^["']|["']$/g, '');
