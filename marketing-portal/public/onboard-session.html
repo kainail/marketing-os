@@ -1593,6 +1593,7 @@
       if (nextIdx < 0) {
         await finishInterview();
       } else {
+        showState('state-interview');
         await askQuestion(nextIdx);
       }
     }
@@ -2076,31 +2077,44 @@
           cardA.onclick = null;
           cardB.onclick = null;
           document.getElementById('hrev-continue-btn').onclick = null;
-          resolve(chosen);
+
+          // 1. Stop any playing audio immediately
+          stopAudio();
+
+          // 2. Fade cards out — remove visible (slides back out via existing 0.4s transition)
+          cardA.classList.remove('visible');
+          cardB.classList.remove('visible');
+          continueEl.style.transition = 'opacity 0.3s';
+          continueEl.style.opacity = '0';
+          speakEl.style.transition = 'opacity 0.3s';
+          speakEl.style.opacity = '0';
+
+          // 3. Resolve after fade completes (350ms covers the 0.4s card animation)
+          setTimeout(() => resolve(chosen), 350);
         };
       });
 
       if (navVersion !== preNav) return;
 
-      // Hide selection UI + save confirmed hook (fire and forget)
-      continueEl.classList.add('hidden');
-      continueEl.classList.remove('visible');
+      // Save confirmed hook (fire and forget — don't await)
       fetch(`/api/onboarding/sessions/${sessionId}/confirm-hook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hook: selectedHook, phase }),
       }).catch(() => {});
 
-      // Ack — AHRI acknowledges the pick conversationally
-      const acks = [
-        "Good choice — that angle is completely uncontested in your market.",
-        "That one connects directly to what your members say in reviews.",
-        "Strong pick — that framing is harder to ignore.",
-        "Good — that one is specific enough that no other gym in your city can say it.",
-      ];
-      await speak(acks[Math.floor(Math.random() * acks.length)], speakEl);
-      // Returns here — caller immediately calls showState('state-interview') + speak(sectionIntro)
-      // No sleep, no card fade — transition is seamless
+      // Clean screen — no cards, no previous content, just the transition speech word by word
+      showState('state-transition');
+      const transEl = document.getElementById('transition-text');
+      transEl.textContent = '';
+
+      const transitionLine = phase === 'section2'
+        ? "Good — let me keep going. The next two questions are where we find your real edge."
+        : "Almost there — one more section and your system is complete.";
+      await speak(transitionLine, transEl);
+
+      // Signal advanceInterview to skip section intro — transition speech already covered it
+      interviewState.sectionIntroSpoken = true;
     }
 
     // ─── Path B offer building helpers ───────────────────────────────────────
