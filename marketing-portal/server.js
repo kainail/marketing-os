@@ -4223,9 +4223,12 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
 
     let accountCreated = false;
     try {
-      await createOnboardingAccount(session, sessionId);
+      const { tempPassword: credPassword } = await createOnboardingAccount(session, sessionId);
       accountCreated = true;
       console.log(`[onboarding] account created for ${session.ownerEmail}`);
+      sendCredentialsEmail(session, credPassword).catch(err =>
+        console.error('[onboarding] credentials email failed:', err.message)
+      );
     } catch (err) {
       console.error('[onboarding] account creation failed (non-fatal):', err.message);
     }
@@ -4471,6 +4474,86 @@ async function sendOwnerEmail(session, sessionId, hooks) {
     html,
   }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
   console.log(`[onboarding] owner email sent → ${ownerEmail} (session ${sessionId})`);
+}
+
+/** Send portal credentials immediately at session complete. Separate from the 5-min post-sale email. */
+async function sendCredentialsEmail(session, tempPassword) {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) { console.warn('[onboarding] RESEND_API_KEY not set — skipping credentials email'); return; }
+  const ownerEmail = session.ownerEmail;
+  if (!ownerEmail || !ownerEmail.includes('@')) return;
+  const firstName = (session.ownerName || 'there').split(' ')[0];
+  const loginUrl = 'https://marketing-os-production-2b85.up.railway.app/login';
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Your GymSuite AI Portal Access</title>
+</head>
+<body style="margin:0;padding:0;background:#0D0F14;font-family:'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0D0F14;">
+    <tr><td align="center" style="padding:48px 24px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+
+        <tr><td style="padding-bottom:36px;">
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="width:8px;height:8px;background:#7c3aed;border-radius:50%;vertical-align:middle;"></td>
+            <td style="padding-left:8px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.35);vertical-align:middle;">AHRI — GymSuite AI</td>
+          </tr></table>
+        </td></tr>
+
+        <tr><td style="padding-bottom:20px;">
+          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.9);line-height:1.7;">${esc(firstName)} —</p>
+        </td></tr>
+
+        <tr><td style="padding-bottom:28px;">
+          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">Your portal is live. Here are your login details — save these now.</p>
+        </td></tr>
+
+        <tr><td style="padding-bottom:28px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:14px;">
+            <tr><td style="padding:24px 28px 18px;">
+              <p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.28);">Login URL</p>
+              <a href="${loginUrl}" style="font-size:14px;color:#a78bfa;text-decoration:none;">${loginUrl}</a>
+            </td></tr>
+            <tr><td style="padding:0 28px 18px;">
+              <p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.28);">Email</p>
+              <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.9);">${esc(ownerEmail)}</p>
+            </td></tr>
+            <tr><td style="padding:0 28px 18px;">
+              <p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.28);">Temporary password</p>
+              <p style="margin:0;font-family:'Courier New',Courier,monospace;font-size:17px;font-weight:600;color:#a78bfa;letter-spacing:1px;">${esc(tempPassword)}</p>
+            </td></tr>
+            <tr><td style="padding:0 28px 20px;">
+              <p style="margin:0;font-size:11px;color:rgba(232,234,240,0.3);">Change your password after first login.</p>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <tr><td style="padding-bottom:36px;">
+          <a href="${loginUrl}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:10px;letter-spacing:0.2px;">Open my dashboard →</a>
+        </td></tr>
+
+        <tr><td style="border-top:1px solid rgba(255,255,255,0.07);padding-top:24px;">
+          <p style="margin:0 0 5px;font-size:14px;color:rgba(232,234,240,0.65);font-weight:600;">— AHRI</p>
+          <p style="margin:0;font-size:11px;color:rgba(232,234,240,0.28);letter-spacing:0.5px;text-transform:uppercase;">Your GymSuite AI Marketing Brain</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+  const axios = require('axios');
+  await axios.post('https://api.resend.com/emails', {
+    from: 'AHRI <notifications@gymsuite.ai>',
+    to: [ownerEmail],
+    subject: 'Your GymSuite AI Portal Access',
+    html,
+  }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
+  console.log(`[onboarding] credentials email sent → ${ownerEmail}`);
 }
 
 // GET /api/onboarding/sessions/:sessionId/portal-data — structured data for portal page
