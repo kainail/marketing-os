@@ -239,6 +239,31 @@
     .oa-iter-tile.keep-original:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.18); }
     .oa-iter-title { font-size: 14px; font-weight: 600; color: rgba(232,234,240,0.9); margin-bottom: 5px; }
     .oa-iter-change { font-size: 12px; color: rgba(232,234,240,0.45); line-height: 1.5; }
+
+    /* ─── Path B single-screen tile builder ───────────────────���──────── */
+    .tile-builder { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+    .tb-offer-box { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px; padding: 13px 15px; }
+    .tb-offer-box-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 10px; }
+    .tb-offer-field { display: flex; align-items: baseline; gap: 8px; font-size: 13px; margin-bottom: 6px; line-height: 1.4; }
+    .tb-offer-field:last-child { margin-bottom: 0; }
+    .tb-field-label { color: rgba(232,234,240,0.35); flex-shrink: 0; width: 82px; font-size: 11px; }
+    .tb-field-value { color: rgba(232,234,240,0.4); font-style: italic; }
+    .tb-field-value.filled { color: #a78bfa; font-style: normal; font-weight: 500; }
+    .tb-row { border-radius: 10px; transition: opacity 0.3s; }
+    .tb-row.tb-hidden { display: none; }
+    .tb-row-header { display: flex; align-items: center; gap: 8px; padding: 9px 13px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px 10px 0 0; }
+    .tb-row.tb-locked .tb-row-header { background: rgba(34,197,94,0.05); border-color: rgba(34,197,94,0.18); border-radius: 10px; }
+    .tb-row-label { font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(232,234,240,0.4); }
+    .tb-row-check { color: #22c55e; font-size: 13px; display: none; }
+    .tb-row.tb-locked .tb-row-check { display: inline; }
+    .tb-row-chosen { font-size: 13px; color: rgba(232,234,240,0.72); display: none; flex: 1; font-style: italic; }
+    .tb-row.tb-locked .tb-row-chosen { display: block; }
+    .tb-tiles-row { display: flex; gap: 7px; padding: 8px 0 2px; }
+    .tb-row.tb-locked .tb-tiles-row { display: none; }
+    .tb-tile { flex: 1; background: rgba(124,58,237,0.06); border: 1px solid rgba(124,58,237,0.16); border-radius: 9px; padding: 11px 9px; cursor: pointer; text-align: center; font-size: 13px; color: rgba(232,234,240,0.82); line-height: 1.4; transition: background 0.13s, border-color 0.13s, transform 0.1s; }
+    .tb-tile:hover { background: rgba(124,58,237,0.14); border-color: rgba(124,58,237,0.35); transform: translateY(-1px); }
+    .tb-tile.tb-tile-selected { background: rgba(124,58,237,0.22); border-color: #7c3aed; color: #e8eaf0; }
+    .tb-loading { text-align: center; padding: 10px 0; font-size: 12px; color: rgba(232,234,240,0.3); letter-spacing: 0.5px; animation: shimmer 2s ease-in-out infinite; }
   </style>
 </head>
 <body>
@@ -459,14 +484,8 @@
     const tilePromises = {};
     let _currentSugTiles = [];
 
-    // Hardcoded fallback tiles — shown when API returns nothing for these questions
-    const HARDCODED_TILES = {
-      'qb2': [
-        { text: '14 days — lower commitment, easier for hesitant prospects to say yes' },
-        { text: '21 days — enough time to build a habit without feeling overwhelming' },
-        { text: '30 days — the standard for coached programs, maximizes the chance of real results' },
-      ],
-    };
+    // Hardcoded fallback tiles — shown when API returns nothing
+    const HARDCODED_TILES = {};
 
     const preparingSteps = [
       { heading: 'AHRI is preparing<br/>your market intelligence', sub: 'Scanning competitor ads, reading your Google reviews, and identifying the gaps in your market that nobody else is filling.' },
@@ -1053,22 +1072,10 @@
       { id:'qa2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'A',
         text:'Walk me through everything about your offer — what they pay, what they get, how long it runs, what happens if it does not work, and the guarantee if you have one. Be as specific as you can.',
         probe:'Give me the exact numbers — price, duration, what is included day to day, and your guarantee wording.' },
-      // Section 1 — Path B (tile builder — single screen per Step 3; current 5-step flow preserved)
+      // Section 1 — Path B (single-screen tile builder — 4 rows)
       { id:'qb2', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
-        text:'How long do you want the trial period to be — 14 days, 21 days, or 30 days? Pick what feels right for your gym.',
-        probe:'Which of those three would work best for how your gym runs?' },
-      { id:'qb3', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
-        text:'What should the entry price be? Based on your market I would suggest one of these — but you know your members best.',
-        probe:'Which price point feels right — or what would you change?' },
-      { id:'qb4', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
-        text:'What is included during the trial? Here are three ways to structure what you include based on what is missing in your market.',
-        probe:'Which of those structures fits how you already run your gym?' },
-      { id:'qb5', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
-        text:'Every strong offer has a guarantee that removes the risk of saying yes. Here are three guarantee structures that work well for gyms like yours.',
-        probe:'Which guarantee style fits your gym?' },
-      { id:'qb6', section:1, sectionName:'The Offer', kbFile:'brain-state', path:'B',
-        text:'What is the one thing about your gym that a new member would never get at any big box gym nearby? This becomes the core of your offer.',
-        probe:'What is the thing — not just the workouts — that you do differently from the big chains?' },
+        text:'Let me walk you through this. For each row below, pick the option that fits your gym best — these are based on what I found in your market.',
+        probe:'' },
       // Section 2 — Your Members
       { id:'q3', section:2, sectionName:'Your Members', kbFile:'lifestyle-avatar',
         text:"Tell me about the person you are built for. Think of the last member who joined and made you say — this is exactly who we want. What was their life like before they walked in, what made them finally decide to do something, and what changed for them after?",
@@ -1231,10 +1238,20 @@
         delete interviewState.preFill[q.id];
       }
 
-      // Kick off tile generation in parallel with the question speech
-      prefetchTiles(q);
       console.log('[askQuestion] idx', qIdx, 'nav', thisNav, 'id:', q.id);
 
+      // Path B tile builder — single-screen special interaction
+      if (q.id === 'qb2') {
+        prefetchTileBuilderRows();
+        const qText = buildQuestionText(q);
+        await speak(qText, document.getElementById('iv-question'));
+        if (navVersion !== thisNav) return;
+        await runTileBuilder(thisNav);
+        return;
+      }
+
+      // Normal questions: kick off tile generation in parallel with the question speech
+      prefetchTiles(q);
       const qText = buildQuestionText(q);
       await speak(qText, document.getElementById('iv-question'));
 
@@ -1353,8 +1370,8 @@
         await runPathBIntro();
       }
 
-      // After qb6 or qa2: run Hormozi analysis — selectIteration() drives the rest from here
-      if (q.id === 'qb6' || q.id === 'qa2') {
+      // After qb2 (Path B tile builder) or qa2 (Path A): run Hormozi analysis
+      if (q.id === 'qb2' || q.id === 'qa2') {
         await runOfferAnalysis();
         return;
       }
@@ -1640,6 +1657,135 @@
       if (container) container.innerHTML = '';
     }
 
+    // ─── Path B single-screen tile builder ───────────────────────────────────
+
+    const TB_ROWS = [
+      { id:'qb2', label:'Trial duration',    fieldLabel:'Duration' },
+      { id:'qb3', label:'Entry price',        fieldLabel:'Price' },
+      { id:'qb4', label:"What's included",    fieldLabel:'Includes' },
+      { id:'qb5', label:'Your guarantee',     fieldLabel:'Guarantee' },
+    ];
+    const TB_FALLBACKS = {
+      qb2: ['14 days', '21 days', '30 days'],
+      qb3: ['$0 trial', '$27 trial', '$47 trial'],
+      qb4: ['Unlimited access + weekly coach check-in', 'Group classes + 1 personal training session', 'Full access + daily accountability text'],
+      qb5: ['Love it or your money back', 'Full refund if not satisfied after 7 days', 'Results in 30 days or it\'s free'],
+    };
+    const _tbTilePromises = {};
+
+    function prefetchTileBuilderRows() {
+      TB_ROWS.forEach(row => {
+        if (!_tbTilePromises[row.id]) {
+          _tbTilePromises[row.id] = fetchSuggestions({ id: row.id, section: 1, text: '' });
+        }
+      });
+    }
+
+    async function runTileBuilder(parentNav) {
+      const controlsEl = document.querySelector('.iv-controls');
+      const answerAreaEl = document.querySelector('.answer-area');
+      if (controlsEl) controlsEl.style.display = 'none';
+      if (answerAreaEl) answerAreaEl.style.display = 'none';
+
+      const wrap = document.createElement('div');
+      wrap.className = 'tile-builder';
+      wrap.id = 'tile-builder-wrap';
+
+      // Offer preview box
+      const offerBox = document.createElement('div');
+      offerBox.className = 'tb-offer-box';
+      offerBox.innerHTML = '<div class="tb-offer-box-label">Your offer so far</div>' +
+        TB_ROWS.map(row =>
+          `<div class="tb-offer-field"><span class="tb-field-label">${esc(row.fieldLabel)}</span><span class="tb-field-value" id="tb-val-${row.id}">—</span></div>`
+        ).join('');
+      wrap.appendChild(offerBox);
+
+      // Rows
+      TB_ROWS.forEach((row, i) => {
+        const rowEl = document.createElement('div');
+        rowEl.id = `tb-row-${row.id}`;
+        rowEl.className = 'tb-row' + (i === 0 ? '' : ' tb-hidden');
+
+        const header = document.createElement('div');
+        header.className = 'tb-row-header';
+        header.innerHTML = `<span class="tb-row-label">${esc(row.label)}</span><span class="tb-row-chosen" id="tb-chosen-${row.id}"></span><span class="tb-row-check">✓</span>`;
+        rowEl.appendChild(header);
+
+        const tilesRow = document.createElement('div');
+        tilesRow.className = 'tb-tiles-row';
+        tilesRow.id = `tb-tiles-${row.id}`;
+        tilesRow.innerHTML = '<div class="tb-loading">Loading options...</div>';
+        rowEl.appendChild(tilesRow);
+
+        wrap.appendChild(rowEl);
+      });
+
+      const ivQuestion = document.getElementById('iv-question');
+      if (ivQuestion?.parentNode) {
+        ivQuestion.parentNode.insertBefore(wrap, ivQuestion.nextSibling);
+      }
+
+      // Populate each row as its fetch resolves
+      TB_ROWS.forEach(row => {
+        const p = _tbTilePromises[row.id] || Promise.resolve([]);
+        p.then(tiles => {
+          if (navVersion !== parentNav) return;
+          renderTileBuilderRow(row.id, tiles);
+        }).catch(() => renderTileBuilderRow(row.id, []));
+      });
+    }
+
+    function renderTileBuilderRow(rowId, rawTiles) {
+      const container = document.getElementById(`tb-tiles-${rowId}`);
+      if (!container) return;
+      container.innerHTML = '';
+      const texts = rawTiles.length > 0
+        ? rawTiles.slice(0, 3).map(t => (typeof t === 'string' ? t : (t.text || JSON.stringify(t))))
+        : (TB_FALLBACKS[rowId] || ['Option A', 'Option B', 'Option C']);
+      texts.forEach(text => {
+        const tile = document.createElement('div');
+        tile.className = 'tb-tile';
+        tile.textContent = text;
+        tile.addEventListener('click', () => selectTileBuilderTile(rowId, text, tile));
+        container.appendChild(tile);
+      });
+    }
+
+    function selectTileBuilderTile(rowId, value, tileEl) {
+      const row = document.getElementById(`tb-row-${rowId}`);
+      if (!row) return;
+      row.querySelectorAll('.tb-tile').forEach(t => t.classList.remove('tb-tile-selected'));
+      tileEl.classList.add('tb-tile-selected');
+
+      interviewState.answers[rowId] = value;
+      saveAnswers().catch(() => {});
+
+      const valEl = document.getElementById(`tb-val-${rowId}`);
+      if (valEl) { valEl.textContent = value; valEl.classList.add('filled'); }
+      const chosenEl = document.getElementById(`tb-chosen-${rowId}`);
+      if (chosenEl) chosenEl.textContent = value;
+      row.classList.add('tb-locked');
+
+      const rowIdx = TB_ROWS.findIndex(r => r.id === rowId);
+      const nextRow = TB_ROWS[rowIdx + 1];
+      if (nextRow) {
+        const nextEl = document.getElementById(`tb-row-${nextRow.id}`);
+        if (nextEl) nextEl.classList.remove('tb-hidden');
+      } else {
+        completeTileBuilder();
+      }
+    }
+
+    async function completeTileBuilder() {
+      const controlsEl = document.querySelector('.iv-controls');
+      const answerAreaEl = document.querySelector('.answer-area');
+      if (controlsEl) controlsEl.style.display = '';
+      if (answerAreaEl) answerAreaEl.style.display = '';
+      const wrap = document.getElementById('tile-builder-wrap');
+      if (wrap) wrap.remove();
+      await advanceInterview();
+    }
+
     // ─── Path B offer building helpers ───────────────────────────────────────
 
     async function runPathBIntro() {
@@ -1676,12 +1822,11 @@
         console.error('[Iteration] R2 write failed, advancing anyway:', err.message);
       }
 
-      // Update local answers
-      if (offer.duration)       interviewState.answers.qb2 = offer.duration;
-      if (offer.price)          interviewState.answers.qb3 = offer.price;
-      if (offer.included)       interviewState.answers.qb4 = offer.included;
-      if (offer.guarantee)      interviewState.answers.qb5 = offer.guarantee;
-      if (offer.differentiator) interviewState.answers.qb6 = offer.differentiator;
+      // Update local answers from selected offer iteration
+      if (offer.duration)  interviewState.answers.qb2 = offer.duration;
+      if (offer.price)     interviewState.answers.qb3 = offer.price;
+      if (offer.included)  interviewState.answers.qb4 = offer.included;
+      if (offer.guarantee) interviewState.answers.qb5 = offer.guarantee;
       saveAnswers().catch(() => {});
 
       // Write section KB and mark complete (fire-and-forget)
@@ -1766,7 +1911,7 @@
           price: a.qb3 || '$0',
           included: a.qb4 || 'Unlimited classes',
           guarantee: a.qb5 || 'Satisfaction guarantee',
-          differentiator: a.qb6 || 'Personalized coaching',
+          differentiator: (researchData?.marketGaps || [])[0] || 'Personalized coaching',
         };
         renderOfferFields('oa-assembled-fields', originalOffer);
         document.getElementById('oa-assembled').classList.remove('hidden');
