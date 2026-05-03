@@ -749,6 +749,7 @@
 
       startInterviewPoll();
       showState('state-speaking');
+      showProgressStrip();
       const speakEl = document.getElementById('speaking-text');
 
       const r = researchData || {};
@@ -761,6 +762,7 @@
 
       // ── Act 1: Competitors ──────────────────────────────────────────────────
       renderActControls();
+      setProgress('act1');
       setActLabel('Act 1 of 4 — Competitors');
       const act1intro = comps.length > 0
         ? `Before we talk about your gym, let me show you what I already found. I looked at ${comps.length} competitor${comps.length !== 1 ? 's' : ''} in ${city} running ads right now.`
@@ -782,6 +784,7 @@
 
       // ── Act 2: What they're advertising ────────────────────────────────────
       renderActControls();
+      setProgress('act2');
       setActLabel("Act 2 of 4 — What They're Advertising");
       const allThemes = [...new Set(comps.flatMap(c => c.adThemes || []))].slice(0, 4);
       const act2text = allThemes.length > 0
@@ -794,6 +797,7 @@
 
       // ── Act 3: The gap ──────────────────────────────────────────────────────
       renderActControls();
+      setProgress('act3');
       setActLabel('Act 3 of 4 — The Gap');
       const gapText = gaps.length > 0
         ? `Here is what nobody is saying. ${gaps[0]}`
@@ -805,6 +809,7 @@
 
       // ── Act 4: Your members ─────────────────────────────────────────────────
       renderActControls();
+      setProgress('act4');
       setActLabel('Act 4 of 4 — Your Members');
       actFullText = ['Here are some of your reviews. Your members are already telling the story.',
         ...reviews.slice(0, 2).map(rv => `"${rv.text}"`),
@@ -818,10 +823,15 @@
       }
 
       await speak('This is the language we are going to use.', speakEl);
+      await sleep(3000);
+      await awaitContinue();
+
+      document.getElementById('act-nav-row').style.display = 'none';
       setActLabel('');
-      await sleep(600);
-      await speak("That is what I found about your market. Now I need to learn about your gym — because what I build next is specific to you, not just your market. Let's talk.", speakEl);
+      setProgress('q1');
+      await speak("I would love to ask you some questions about your gym now. Everything I just showed you came from public data alone. What you tell me next is what makes this specific to you — and it is what turns market intelligence into ads that actually convert. Let's build your first ad.", speakEl);
       briefingStarted = false;
+      await sleep(1500);
       await startInterview();
     }
 
@@ -1278,6 +1288,10 @@
 
     // ─── Interview progress indicator ─────────────────────────────────────────
     const PROGRESS_STAGES = {
+      act1:       { pct: 1,  label: 'Analyzing your market — about 16 minutes total' },
+      act2:       { pct: 2,  label: 'Reviewing competitor ads — about 14 minutes left' },
+      act3:       { pct: 3,  label: 'Finding your opportunity — about 13 minutes left' },
+      act4:       { pct: 3,  label: 'Reading your reviews — about 12 minutes left' },
       q1:         { pct: 4,  label: 'Getting started — about 12 minutes' },
       qa2:        { pct: 13, label: 'Learning about your offer — about 10 minutes left' },
       qb2:        { pct: 13, label: 'Learning about your offer — about 10 minutes left' },
