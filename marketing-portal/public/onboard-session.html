@@ -79,14 +79,20 @@
     .speaking-who-dot { width: 6px; height: 6px; border-radius: 50%; background: #7c3aed; box-shadow: 0 0 8px rgba(124,58,237,0.6); animation: pip-pulse 1.2s ease-in-out infinite; }
     .speaking-text { font-size: 28px; color: rgba(232,234,240,0.95); width: 100%; max-width: 600px; line-height: 1.6; font-weight: 400; text-align: center; background: none; border: none; border-radius: 0; padding: 0; overflow-wrap: break-word; word-break: break-word; white-space: normal; overflow-x: hidden; }
 
-    /* ─── State 4: hook reveal ───────────────────────────────────── */
-    .hook-counter { font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 28px; min-height: 16px; }
-    .hook-card-wrap { width: 100%; max-width: 500px; }
-    .hook-card { padding: 30px 34px; background: rgba(124,58,237,0.07); border: 1px solid rgba(124,58,237,0.18); border-radius: 16px; opacity: 0; transform: translateY(22px); transition: opacity 0.5s cubic-bezier(0.22,1,0.36,1), transform 0.5s cubic-bezier(0.22,1,0.36,1); box-shadow: 0 0 64px rgba(124,58,237,0.07); min-height: 90px; display: flex; flex-direction: column; justify-content: center; }
-    .hook-card.visible { opacity: 1; transform: translateY(0); }
-    .hook-text { font-size: 22px; font-weight: 700; line-height: 1.45; color: #e8eaf0; }
-    .hook-meta { margin-top: 12px; font-size: 11px; color: rgba(232,234,240,0.28); letter-spacing: 1px; text-transform: uppercase; }
-    .hook-intro-text { font-size: 17px; font-weight: 500; color: rgba(232,234,240,0.6); line-height: 1.65; }
+    /* ─── State 4: hook selection (mid-interview preview) ────────── */
+    #state-hook-reveal { justify-content: flex-start; padding-top: 8px; }
+    .hrev-speak { font-size: 15px; color: rgba(232,234,240,0.65); line-height: 1.65; margin-bottom: 22px; min-height: 22px; width: 100%; max-width: 500px; }
+    .hrev-cards { display: flex; gap: 10px; width: 100%; max-width: 500px; margin-bottom: 18px; }
+    .hrev-card { flex: 1; background: rgba(124,58,237,0.06); border: 1.5px solid rgba(124,58,237,0.15); border-radius: 12px; padding: 18px 14px 18px 14px; cursor: pointer; position: relative; opacity: 0; transform: translateY(14px); transition: opacity 0.4s ease, transform 0.4s ease, border-color 0.15s, background 0.15s; }
+    .hrev-card.visible { opacity: 1; transform: translateY(0); }
+    .hrev-card:hover:not(.dimmed) { background: rgba(124,58,237,0.11); border-color: rgba(124,58,237,0.3); }
+    .hrev-card.selected { background: rgba(124,58,237,0.15); border-color: #7c3aed; }
+    .hrev-card.dimmed { opacity: 0.22; pointer-events: none; }
+    .hrev-card-check { position: absolute; top: 8px; right: 10px; font-size: 11px; color: #7c3aed; font-weight: 700; opacity: 0; transition: opacity 0.2s; }
+    .hrev-card.selected .hrev-card-check { opacity: 1; }
+    .hrev-card-text { font-size: 13px; font-weight: 600; line-height: 1.55; color: rgba(232,234,240,0.85); }
+    .hrev-continue { width: 100%; max-width: 500px; padding-top: 4px; opacity: 0; transition: opacity 0.3s; }
+    .hrev-continue.visible { opacity: 1; }
 
     /* ─── Act label + continue / skip buttons ───────────────────── */
     .act-label { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.22); margin-bottom: 14px; min-height: 14px; }
@@ -365,12 +371,21 @@
           </div>
         </div>
 
-        <!-- State 4: hook reveal -->
+        <!-- State 4: hook selection (mid-interview preview) -->
         <div class="state-pane hidden" id="state-hook-reveal">
-          <div class="hook-counter" id="hook-counter"></div>
-          <div class="hook-speaking-text" id="hook-speaking-text"></div>
-          <div class="hook-card-wrap">
-            <div class="hook-card" id="hook-card"></div>
+          <div class="hrev-speak" id="hrev-speak"></div>
+          <div class="hrev-cards hidden" id="hrev-cards">
+            <div class="hrev-card" id="hrev-card-a">
+              <div class="hrev-card-check">✓</div>
+              <div class="hrev-card-text" id="hrev-card-a-text"></div>
+            </div>
+            <div class="hrev-card" id="hrev-card-b">
+              <div class="hrev-card-check">✓</div>
+              <div class="hrev-card-text" id="hrev-card-b-text"></div>
+            </div>
+          </div>
+          <div class="hrev-continue hidden" id="hrev-continue">
+            <button class="iv-submit" id="hrev-continue-btn">This one →</button>
           </div>
         </div>
 
@@ -1897,12 +1912,13 @@
       await advanceInterview();
     }
 
-    // ─── Live preview hooks (after sections 2 and 3) ─────────────────────────
+    // ─── Live preview hooks — 2-variant selection (after sections 2 and 3) ─────
 
     async function showLivePreviewHooks(phase) {
       setProgress(phase === 'section2' ? 'preview2' : 'preview3');
       const preNav = navVersion;
-      let hooks = [];
+
+      let variants = [];
       try {
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/live-preview-hook`, {
           method: 'POST',
@@ -1910,47 +1926,108 @@
           body: JSON.stringify({ phase, answers: interviewState.answers }),
         });
         if (res.ok) {
-          const data = await res.json();
-          hooks = data.hooks || [];
+          const d = await res.json();
+          variants = d.hooks || [];
         }
       } catch {}
 
-      if (navVersion !== preNav || hooks.length === 0) return;
+      if (navVersion !== preNav || variants.length < 2) return;
+
+      const hookA = typeof variants[0] === 'string' ? variants[0] : (variants[0].text || variants[0].hook || '');
+      const hookB = typeof variants[1] === 'string' ? variants[1] : (variants[1].text || variants[1].hook || '');
+      if (!hookA || !hookB) return;
 
       showState('state-hook-reveal');
-      const counter = document.getElementById('hook-counter');
-      const cardWrap = document.querySelector('.hook-card-wrap');
-      const hookSpeakEl = document.getElementById('hook-speaking-text');
-      counter.textContent = '';
-      if (cardWrap) cardWrap.innerHTML = '';
-      if (hookSpeakEl) { hookSpeakEl.style.opacity = '1'; hookSpeakEl.innerHTML = ''; }
 
+      const speakEl   = document.getElementById('hrev-speak');
+      const cardsEl   = document.getElementById('hrev-cards');
+      const cardA     = document.getElementById('hrev-card-a');
+      const cardB     = document.getElementById('hrev-card-b');
+      const continueEl = document.getElementById('hrev-continue');
+
+      // Reset
+      speakEl.innerHTML = '';
+      cardsEl.classList.add('hidden');
+      continueEl.classList.add('hidden');
+      continueEl.classList.remove('visible');
+      cardA.classList.remove('selected', 'dimmed', 'visible');
+      cardB.classList.remove('selected', 'dimmed', 'visible');
+      document.getElementById('hrev-card-a-text').textContent = hookA;
+      document.getElementById('hrev-card-b-text').textContent = hookB;
+
+      // Intro speech
       const intro = phase === 'section2'
-        ? 'Based on what you just told me — here is a hook I can already write.'
-        : 'Here are two hooks from your edge. One from your differentiator. One from the objection you just gave me.';
-      await speak(intro, hookSpeakEl);
+        ? "Based on what you told me about your members — two hooks."
+        : "Two angles from your edge. One from your differentiator. One from the objection.";
+      await speak(intro, speakEl);
       if (navVersion !== preNav) return;
-      if (hookSpeakEl) hookSpeakEl.style.opacity = '0';
-      cancelWordReveal();
 
-      for (let i = 0; i < hooks.length; i++) {
-        const hookText = typeof hooks[i] === 'string' ? hooks[i] : (hooks[i].text || hooks[i].hook || '');
-        if (!hookText) continue;
-        if (hooks.length > 1) counter.textContent = `Hook ${i + 1} of ${hooks.length}`;
+      // Reveal cards
+      cardsEl.classList.remove('hidden');
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        cardA.classList.add('visible');
+        setTimeout(() => cardB.classList.add('visible'), 160);
+      }));
+      await sleep(350);
 
-        if (cardWrap) {
-          cardWrap.innerHTML = `<div class="hook-card" id="hc-live-${i}"><div class="hook-text">${esc(hookText)}</div></div>`;
-          await sleep(60);
-          document.getElementById(`hc-live-${i}`)?.classList.add('visible');
+      // Speak both hooks
+      await speak(hookA);
+      if (navVersion !== preNav) return;
+      await sleep(250);
+      await speak(hookB);
+      if (navVersion !== preNav) return;
+      await sleep(300);
+
+      // Ask for selection
+      await speak("Which of these feels more like your gym?", speakEl);
+      if (navVersion !== preNav) return;
+
+      // Wait for owner to pick one and click Continue
+      const selectedHook = await new Promise(resolve => {
+        let chosen = null;
+
+        function selectCard(which) {
+          chosen = which === 'a' ? hookA : hookB;
+          cardA.classList.remove('selected', 'dimmed');
+          cardB.classList.remove('selected', 'dimmed');
+          if (which === 'a') { cardA.classList.add('selected'); cardB.classList.add('dimmed'); }
+          else { cardB.classList.add('selected'); cardA.classList.add('dimmed'); }
+          continueEl.classList.remove('hidden');
+          requestAnimationFrame(() => requestAnimationFrame(() => continueEl.classList.add('visible')));
         }
-        await speak(hookText);
-        if (navVersion !== preNav) return;
-        await sleep(600);
-      }
 
-      counter.textContent = '';
-      if (cardWrap) { cardWrap.querySelectorAll('.hook-card').forEach(c => c.classList.remove('visible')); }
-      await sleep(400);
+        cardA.onclick = () => selectCard('a');
+        cardB.onclick = () => selectCard('b');
+        document.getElementById('hrev-continue-btn').onclick = () => {
+          if (!chosen) return;
+          cardA.onclick = null;
+          cardB.onclick = null;
+          document.getElementById('hrev-continue-btn').onclick = null;
+          resolve(chosen);
+        };
+      });
+
+      if (navVersion !== preNav) return;
+
+      // Hide selection UI + save confirmed hook (fire and forget)
+      continueEl.classList.add('hidden');
+      continueEl.classList.remove('visible');
+      fetch(`/api/onboarding/sessions/${sessionId}/confirm-hook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hook: selectedHook, phase }),
+      }).catch(() => {});
+
+      // Ack — AHRI acknowledges the pick conversationally
+      const acks = [
+        "Good choice — that angle is completely uncontested in your market.",
+        "That one connects directly to what your members say in reviews.",
+        "Strong pick — that framing is harder to ignore.",
+        "Good — that one is specific enough that no other gym in your city can say it.",
+      ];
+      await speak(acks[Math.floor(Math.random() * acks.length)], speakEl);
+      // Returns here — caller immediately calls showState('state-interview') + speak(sectionIntro)
+      // No sleep, no card fade — transition is seamless
     }
 
     // ─── Path B offer building helpers ───────────────────────────────────────

@@ -3636,7 +3636,7 @@ Never sound like: "${a.q16 || '[not captured]'}"
   return msg.content[0].text.trim();
 }
 
-// POST /api/onboarding/sessions/:sessionId/live-preview-hook — generate 1-2 hooks mid-interview
+// POST /api/onboarding/sessions/:sessionId/live-preview-hook — generate 2 hook variants mid-interview
 app.post('/api/onboarding/sessions/:sessionId/live-preview-hook', async (req, res) => {
   const { sessionId } = req.params;
   const { phase, answers } = req.body;
@@ -3662,42 +3662,55 @@ app.post('/api/onboarding/sessions/:sessionId/live-preview-hook', async (req, re
 
     let prompt;
     if (phase === 'section2') {
-      prompt = `Write exactly 1 marketing hook for ${gym} in ${city}.
+      prompt = `Write exactly 2 marketing hooks for ${gym} in ${city}.
 
-Avatar data: ${a.q3 || '[not captured]'}
-Member voice (their exact words): ${a.q4 || '[not captured]'}
+CONTEXT:
+Avatar (before/trigger/after): ${a.q3 || '[not captured]'}
+Member voice — their exact words: ${a.q4 || '[not captured]'}
 Market gap: ${gap}
 
-Rules:
-- Use the member's OWN words from q4 where possible
-- Do NOT mention the gym by name
-- No generic fitness language (no "lose weight", "get fit", "transform")
-- One sentence, 10-18 words, punchy
+HOOK A — Pain/Emotional angle:
+Lead with the emotional reality of the member's before state. Use their own words from q4 where possible.
 
-Return JSON only: {"hooks": [{"text": "..."}]}`;
+HOOK B — Bold Claim/Outcome angle:
+Lead with a specific, concrete outcome or market gap claim. Make it something no other gym in ${city} is saying.
+
+Rules for both:
+- Never mention the gym by name
+- No generic fitness language (no "lose weight", "get fit", "transform", "journey")
+- One sentence each, 10-18 words
+- Specific beats generic. Real over polished.
+
+Return JSON only: {"hooks": [{"text": "...", "variant": "a"}, {"text": "...", "variant": "b"}]}`;
     } else if (phase === 'section3') {
       prompt = `Write exactly 2 marketing hooks for ${gym} in ${city}.
 
-Hook 1 — differentiator angle:
+CONTEXT:
 What makes them different: ${a.q5 || '[not captured]'}
+Most common objection + response: ${a.q6 || '[not captured]'}
+Market gap: ${gap}
+Member voice: ${a.q4 || '[not captured]'}
 
-Hook 2 — objection reframe:
-The objection + response: ${a.q6 || '[not captured]'}
+HOOK A — Pain/Objection-Reframe angle:
+Take the exact objection language from q6 and flip it — make the friction the reason to join.
 
-Rules:
-- Hook 1: lead with the specific differentiator — concrete, not vague
-- Hook 2: take the exact objection language and flip it into a reason to join
-- No gym names, no generic fitness language
+HOOK B — Differentiator/Bold Claim angle:
+Lead with the specific differentiator from q5. Something concrete that no other gym in ${city} can say.
+
+Rules for both:
+- Never mention the gym by name
+- No generic fitness language
 - One sentence each, 10-18 words
+- Specific beats generic. Real over polished.
 
-Return JSON only: {"hooks": [{"text": "..."}, {"text": "..."}]}`;
+Return JSON only: {"hooks": [{"text": "...", "variant": "a"}, {"text": "...", "variant": "b"}]}`;
     } else {
       return res.status(400).json({ error: 'Unknown phase' });
     }
 
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
+      max_tokens: 400,
       messages: [{ role: 'user', content: prompt }],
     });
 
@@ -3708,10 +3721,30 @@ Return JSON only: {"hooks": [{"text": "..."}, {"text": "..."}]}`;
       hooks = JSON.parse(jsonStr).hooks || [];
     } catch { hooks = []; }
 
-    console.log(`[onboarding] live-preview-hook phase=${phase} → ${hooks.length} hooks`);
+    console.log(`[onboarding] live-preview-hook phase=${phase} → ${hooks.length} variants`);
     res.json({ hooks });
   } catch (err) {
     console.error(`[onboarding] live-preview-hook failed:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/onboarding/sessions/:sessionId/confirm-hook — save owner-selected hook
+app.post('/api/onboarding/sessions/:sessionId/confirm-hook', async (req, res) => {
+  const { sessionId } = req.params;
+  const { hook, phase } = req.body;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  if (!hook) return res.status(400).json({ error: 'hook required' });
+
+  try {
+    const existing = await r2GetShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`);
+    const arr = Array.isArray(existing) ? existing : [];
+    arr.push({ hook, phase: phase || 'unknown', confirmed_at: new Date().toISOString() });
+    await r2PutShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`, arr);
+    console.log(`[onboarding] confirmed hook saved (phase=${phase}) session ${sessionId}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[onboarding] confirm-hook failed:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -3748,16 +3781,17 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
   if (!apiKey) return res.status(503).json({ error: 'No API key' });
 
   try {
-    const [brainState, avatar, objections, compliance] = await Promise.all([
+    const [brainState, avatar, objections, compliance, confirmedHooksData] = await Promise.all([
       r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/brain-state/current-state.md`),
       r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/lifestyle-avatar.md`),
       r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/objection-vault.md`),
       r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/compliance-b2c.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`),
     ]);
 
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
-    const hooks = await generateFinalHooks(session, brainState, avatar, objections, compliance, client);
+    const hooks = await generateFinalHooks(session, brainState, avatar, objections, compliance, confirmedHooksData, client);
     const posts = await generateContentPosts(session, brainState, avatar, hooks, client);
 
     await Promise.all([
@@ -3778,19 +3812,43 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
   }
 });
 
-/** Generate 5 final hooks from full KB using claude-sonnet-4-6. */
-async function generateFinalHooks(session, brainState, avatar, objections, compliance, client) {
+/** Generate final hooks: prepend owner-confirmed hooks, then generate the remainder with Sonnet. */
+async function generateFinalHooks(session, brainState, avatar, objections, compliance, confirmedHooksData, client) {
   const gym = session.gymName || 'Unknown Gym';
   const city = session.city || '';
 
-  const prompt = `You are AHRI generating 5 final hooks for ${gym} in ${city}. These are built from real interview data.
+  const confirmedArr = Array.isArray(confirmedHooksData) ? confirmedHooksData : [];
+  const confirmedObjects = confirmedArr.slice(0, 2).map(c => ({
+    hook: c.hook,
+    framework: 'Owner Selected',
+    awarenessLevel: 'L2-4',
+  }));
+  const needCount = 5 - confirmedObjects.length;
+
+  const avoidNote = confirmedObjects.length > 0
+    ? `\n\nDo NOT generate hooks similar to these (already confirmed by the owner):\n${confirmedObjects.map((h, i) => `${i + 1}. ${h.hook}`).join('\n')}`
+    : '';
+
+  const remainingFrameworks = [
+    { name: 'Curiosity Gap', level: 'L3' },
+    { name: 'Relatability', level: 'L2-3' },
+    { name: 'Pattern Interrupt', level: 'L3-4' },
+    { name: 'Pain Point', level: 'L2' },
+    { name: 'Bold Claim', level: 'L4' },
+  ].slice(0, needCount);
+
+  const frameworkLines = remainingFrameworks
+    .map(f => `  {"hook": "...", "framework": "${f.name}", "awarenessLevel": "${f.level}"}`)
+    .join(',\n');
+
+  const prompt = `You are AHRI generating ${needCount} hooks for ${gym} in ${city}. Built from real interview data.
 
 KNOWLEDGE BASE:
-${brainState ? '--- BRAIN STATE ---\n' + brainState + '\n' : ''}${avatar ? '--- AVATAR ---\n' + avatar + '\n' : ''}${objections ? '--- OBJECTIONS ---\n' + objections + '\n' : ''}${compliance ? '--- COMPLIANCE ---\n' + compliance : ''}
+${brainState ? '--- BRAIN STATE ---\n' + brainState + '\n' : ''}${avatar ? '--- AVATAR ---\n' + avatar + '\n' : ''}${objections ? '--- OBJECTIONS ---\n' + objections + '\n' : ''}${compliance ? '--- COMPLIANCE ---\n' + compliance : ''}${avoidNote}
 
 RULES:
-- Exactly 5 hooks, max 15 words each
-- One hook per framework: Pain Point (L2), Curiosity Gap (L3), Bold Claim (L4), Relatability (L2-3), Pattern Interrupt (L3-4)
+- Exactly ${needCount} hooks, max 15 words each
+- One hook per framework listed below
 - Use exact VoC language from avatar file where possible
 - Never use: transform, crush, journey, elevate, beast mode, no excuses, unlock your potential, revolutionary, game-changing, state-of-the-art
 - The member is the hero — never make the gym the hero
@@ -3798,11 +3856,7 @@ RULES:
 
 Output JSON array only — no preamble:
 [
-  {"hook": "...", "framework": "Pain Point", "awarenessLevel": "L2"},
-  {"hook": "...", "framework": "Curiosity Gap", "awarenessLevel": "L3"},
-  {"hook": "...", "framework": "Bold Claim", "awarenessLevel": "L4"},
-  {"hook": "...", "framework": "Relatability", "awarenessLevel": "L2-3"},
-  {"hook": "...", "framework": "Pattern Interrupt", "awarenessLevel": "L3-4"}
+${frameworkLines}
 ]`;
 
   const msg = await client.messages.create({
@@ -3811,13 +3865,16 @@ Output JSON array only — no preamble:
     messages: [{ role: 'user', content: prompt }],
   });
 
+  let newHooks = [];
   try {
     const raw = msg.content[0].text.trim();
     const json = raw.match(/\[[\s\S]*\]/)?.[0];
-    return JSON.parse(json);
+    newHooks = JSON.parse(json);
   } catch {
-    return [{ hook: msg.content[0].text.trim(), framework: 'Generated', awarenessLevel: 'L3' }];
+    newHooks = [{ hook: msg.content[0].text.trim(), framework: 'Generated', awarenessLevel: 'L3' }];
   }
+
+  return [...confirmedObjects, ...newHooks];
 }
 
 /** Generate 3 content post concepts from KB using claude-haiku-4-5-20251001. */
