@@ -247,9 +247,14 @@
     .iv-q-label { font-size: 12px; color: rgba(232,234,240,0.28); margin-bottom: 14px; }
     .iv-question { font-size: 17px; font-weight: 600; line-height: 1.58; color: rgba(232,234,240,0.88); max-width: 490px; margin-bottom: 20px; }
     .iv-controls { display: flex; gap: 10px; width: 100%; max-width: 500px; margin-bottom: 11px; align-items: center; }
-    .iv-back-btn { background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 11px 13px; font-family: inherit; font-size: 14px; color: rgba(232,234,240,0.45); cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
-    .iv-back-btn:hover:not(:disabled) { border-color: rgba(255,255,255,0.22); color: rgba(232,234,240,0.75); }
+    .iv-back-btn { background: transparent; border: 1.5px solid #fff; border-radius: 10px; padding: 11px 13px; font-family: inherit; font-size: 14px; color: #fff; cursor: pointer; transition: border-color 0.15s, color 0.15s; flex-shrink: 0; }
+    .iv-back-btn:hover:not(:disabled) { border-color: rgba(255,255,255,0.75); color: rgba(232,234,240,0.85); }
     .iv-back-btn:disabled { opacity: 0.22; cursor: not-allowed; }
+
+    /* ─── Mute button ────────────────────────────────────────────── */
+    .mute-btn { background: none; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; cursor: pointer; color: rgba(232,234,240,0.65); font-size: 16px; line-height: 1; padding: 5px 9px; transition: color 0.15s, border-color 0.15s; flex-shrink: 0; }
+    .mute-btn:hover { color: rgba(232,234,240,0.95); border-color: rgba(255,255,255,0.35); }
+    .mute-btn.muted { color: rgba(232,234,240,0.3); border-color: rgba(255,255,255,0.08); }
     .iv-submit { flex: 1; background: #6366f1; border: none; border-radius: 10px; padding: 11px 18px; font-family: inherit; font-size: 14px; font-weight: 700; color: #fff; cursor: pointer; transition: background 0.15s; }
     .iv-submit:hover:not(:disabled) { background: #4f46e5; }
     .iv-submit:disabled { opacity: 0.3; cursor: not-allowed; }
@@ -345,6 +350,7 @@
       <div class="status-pip preparing" id="status-pip"></div>
       <span id="status-text">Preparing...</span>
     </div>
+    <button class="mute-btn" id="mute-btn" onclick="toggleMute()" title="Toggle mute">🔊</button>
   </div>
 
   <div class="main">
@@ -638,6 +644,19 @@
     let actAdvanceNow = false;
     let actTextRevealed = false;
     let actFullText = '';
+
+    // Mute state — persists across question transitions
+    let isMuted = false;
+
+    function toggleMute() {
+      isMuted = !isMuted;
+      const btn = document.getElementById('mute-btn');
+      if (btn) {
+        btn.textContent = isMuted ? '🔇' : '🔊';
+        btn.classList.toggle('muted', isMuted);
+      }
+      if (currentAudio) currentAudio.volume = isMuted ? 0 : 1;
+    }
 
     // Audio cancellation
     let currentAudio = null;
@@ -1099,6 +1118,7 @@
           const blob = await res.blob();
           const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
+          audio.volume = isMuted ? 0 : 1;
           currentAudio = audio;
           audioPlaying = true;
           console.log('[speak] audio element created, playing');
