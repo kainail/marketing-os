@@ -3665,7 +3665,7 @@ Never sound like: "${a.q16 || '[not captured]'}"
 // POST /api/onboarding/sessions/:sessionId/live-preview-hook — generate 2 hook variants mid-interview
 app.post('/api/onboarding/sessions/:sessionId/live-preview-hook', async (req, res) => {
   const { sessionId } = req.params;
-  const { phase, answers } = req.body;
+  const { phase, answers, usedFrameworks = [] } = req.body;
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
   if (!phase || !answers) return res.status(400).json({ error: 'phase and answers required' });
 
@@ -3678,6 +3678,23 @@ app.post('/api/onboarding/sessions/:sessionId/live-preview-hook', async (req, re
   const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
   if (!apiKey) return res.status(503).json({ error: 'No API key' });
 
+  // Framework rotation — 3 distinct pairs per phase so regenerations always use different angles
+  const FRAMEWORK_PAIRS = {
+    section2: [
+      { a: 'pain-point',    b: 'bold-claim'    },
+      { a: 'curiosity-gap', b: 'differentiator' },
+      { a: 'question-hook', b: 'social-proof'   },
+    ],
+    section3: [
+      { a: 'objection-reframe', b: 'differentiator' },
+      { a: 'curiosity-gap',     b: 'bold-claim'     },
+      { a: 'pain-point',        b: 'question-hook'  },
+    ],
+  };
+
+  const pairs = FRAMEWORK_PAIRS[phase] || FRAMEWORK_PAIRS.section2;
+  const pair = pairs.find(p => !usedFrameworks.includes(p.a) && !usedFrameworks.includes(p.b)) || pairs[pairs.length - 1];
+
   try {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
@@ -3686,20 +3703,30 @@ app.post('/api/onboarding/sessions/:sessionId/live-preview-hook', async (req, re
     const gap = (research?.marketGaps || [])[0] || '';
     const a = answers;
 
-    let prompt;
-    if (phase === 'section2') {
-      prompt = `Write exactly 2 marketing hooks for ${gym} in ${city}.
+    const FRAMEWORK_INSTRUCTIONS = {
+      'pain-point':        `Lead with the emotional reality of the member's before state. Use their exact words from member voice where possible. Make them feel seen.`,
+      'bold-claim':        `Lead with a specific, concrete outcome or market gap claim. Something no other gym in ${city} is saying. Prefer a number or verifiable fact.`,
+      'curiosity-gap':     `Create curiosity by implying something the prospect doesn't know yet. Use contrast or a surprising reframe. Never give away the answer in the hook itself.`,
+      'differentiator':    `Lead with the specific differentiator that sets this gym apart. Concrete — something no competitor in ${city} can claim.`,
+      'objection-reframe': `Take the most common objection and flip it — make the friction or hesitation the reason to join, not the reason to avoid.`,
+      'question-hook':     `Open with a question the prospect has asked themselves in a quiet moment — something they've wondered but never heard a gym answer directly.`,
+      'social-proof':      `Lead with a specific member result, milestone, or community signal. Concrete and verifiable — a number, a timeframe, a real moment.`,
+    };
+
+    const context = phase === 'section2'
+      ? `Avatar (before/trigger/after): ${a.q3 || '[not captured]'}\nMember voice — their exact words: ${a.q4 || '[not captured]'}\nMarket gap: ${gap}`
+      : `What makes them different: ${a.q5 || '[not captured]'}\nMost common objection + response: ${a.q6 || '[not captured]'}\nMarket gap: ${gap}\nMember voice: ${a.q4 || '[not captured]'}`;
+
+    const prompt = `Write exactly 2 marketing hooks for ${gym} in ${city}.
 
 CONTEXT:
-Avatar (before/trigger/after): ${a.q3 || '[not captured]'}
-Member voice — their exact words: ${a.q4 || '[not captured]'}
-Market gap: ${gap}
+${context}
 
-HOOK A — Pain/Emotional angle:
-Lead with the emotional reality of the member's before state. Use their own words from q4 where possible.
+HOOK A — ${pair.a} framework:
+${FRAMEWORK_INSTRUCTIONS[pair.a]}
 
-HOOK B — Bold Claim/Outcome angle:
-Lead with a specific, concrete outcome or market gap claim. Make it something no other gym in ${city} is saying.
+HOOK B — ${pair.b} framework:
+${FRAMEWORK_INSTRUCTIONS[pair.b]}
 
 Rules for both:
 - Never mention the gym by name
@@ -3707,30 +3734,9 @@ Rules for both:
 - One sentence each, 10-18 words
 - Specific beats generic. Real over polished.
 
-Return JSON only: {"hooks": [{"text": "...", "variant": "a"}, {"text": "...", "variant": "b"}]}`;
-    } else if (phase === 'section3') {
-      prompt = `Write exactly 2 marketing hooks for ${gym} in ${city}.
+Return JSON only: {"hooks": [{"text": "...", "framework": "${pair.a}"}, {"text": "...", "framework": "${pair.b}"}], "frameworks": ["${pair.a}", "${pair.b}"]}`;
 
-CONTEXT:
-What makes them different: ${a.q5 || '[not captured]'}
-Most common objection + response: ${a.q6 || '[not captured]'}
-Market gap: ${gap}
-Member voice: ${a.q4 || '[not captured]'}
-
-HOOK A — Pain/Objection-Reframe angle:
-Take the exact objection language from q6 and flip it — make the friction the reason to join.
-
-HOOK B — Differentiator/Bold Claim angle:
-Lead with the specific differentiator from q5. Something concrete that no other gym in ${city} can say.
-
-Rules for both:
-- Never mention the gym by name
-- No generic fitness language
-- One sentence each, 10-18 words
-- Specific beats generic. Real over polished.
-
-Return JSON only: {"hooks": [{"text": "...", "variant": "a"}, {"text": "...", "variant": "b"}]}`;
-    } else {
+    if (phase !== 'section2' && phase !== 'section3') {
       return res.status(400).json({ error: 'Unknown phase' });
     }
 
@@ -3741,33 +3747,55 @@ Return JSON only: {"hooks": [{"text": "...", "variant": "a"}, {"text": "...", "v
     });
 
     let hooks = [];
+    let frameworks = [pair.a, pair.b];
     try {
       const raw = msg.content[0].text.trim();
       const jsonStr = raw.match(/\{[\s\S]*\}/)?.[0] || raw;
-      hooks = JSON.parse(jsonStr).hooks || [];
+      const parsed = JSON.parse(jsonStr);
+      hooks = parsed.hooks || [];
+      if (Array.isArray(parsed.frameworks)) frameworks = parsed.frameworks;
     } catch { hooks = []; }
 
-    console.log(`[onboarding] live-preview-hook phase=${phase} → ${hooks.length} variants`);
-    res.json({ hooks });
+    console.log(`[onboarding] live-preview-hook phase=${phase} frameworks=${frameworks.join('+')} → ${hooks.length} variants`);
+    res.json({ hooks, frameworks });
   } catch (err) {
     console.error(`[onboarding] live-preview-hook failed:`, err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/onboarding/sessions/:sessionId/confirm-hook — save owner-selected hook
+// POST /api/onboarding/sessions/:sessionId/confirm-hook — save owner-selected hook + all generated hooks
 app.post('/api/onboarding/sessions/:sessionId/confirm-hook', async (req, res) => {
   const { sessionId } = req.params;
-  const { hook, phase } = req.body;
+  const { hook, phase, allGenerated } = req.body;
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
   if (!hook) return res.status(400).json({ error: 'hook required' });
 
   try {
     const existing = await r2GetShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`);
-    const arr = Array.isArray(existing) ? existing : [];
-    arr.push({ hook, phase: phase || 'unknown', confirmed_at: new Date().toISOString() });
-    await r2PutShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`, arr);
-    console.log(`[onboarding] confirmed hook saved (phase=${phase}) session ${sessionId}`);
+    // Migrate old array format gracefully
+    let data;
+    if (Array.isArray(existing)) {
+      data = { generated: [], selected: existing };
+    } else if (existing && typeof existing === 'object') {
+      data = existing;
+    } else {
+      data = { generated: [], selected: [] };
+    }
+    if (!Array.isArray(data.generated)) data.generated = [];
+    if (!Array.isArray(data.selected)) data.selected = [];
+
+    // Store every hook shown to the owner — library for final hook generation
+    if (Array.isArray(allGenerated)) {
+      const now = new Date().toISOString();
+      allGenerated.forEach(hookText => {
+        if (hookText) data.generated.push({ hook: hookText, phase: phase || 'unknown', generated_at: now });
+      });
+    }
+
+    data.selected.push({ hook, phase: phase || 'unknown', confirmed_at: new Date().toISOString() });
+    await r2PutShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`, data);
+    console.log(`[onboarding] confirmed hook saved (phase=${phase}, generated=${data.generated.length}) session ${sessionId}`);
     res.json({ success: true });
   } catch (err) {
     console.error('[onboarding] confirm-hook failed:', err.message);
@@ -3962,7 +3990,10 @@ async function generateFinalHooks(session, brainState, avatar, objections, compl
   const gym = session.gymName || 'Unknown Gym';
   const city = session.city || '';
 
-  const confirmedArr = Array.isArray(confirmedHooksData) ? confirmedHooksData : [];
+  // Support both old array format and new { generated, selected } format
+  const confirmedArr = Array.isArray(confirmedHooksData)
+    ? confirmedHooksData
+    : Array.isArray(confirmedHooksData?.selected) ? confirmedHooksData.selected : [];
   const confirmedObjects = confirmedArr.slice(0, 2).map(c => ({
     hook: c.hook,
     framework: 'Owner Selected',

@@ -97,6 +97,9 @@
     .hrev-card-text { font-size: 13px; font-weight: 600; line-height: 1.55; color: rgba(232,234,240,0.85); }
     .hrev-continue { width: 100%; max-width: 500px; padding-top: 4px; opacity: 0; transition: opacity 0.3s; }
     .hrev-continue.visible { opacity: 1; }
+    .hrev-neither-btn { width: 100%; max-width: 500px; margin-top: 8px; padding: 10px 16px; background: none; border: 1.5px dashed rgba(124,58,237,0.35); border-radius: 10px; color: rgba(232,234,240,0.48); font-family: inherit; font-size: 12px; cursor: pointer; transition: border-color 0.2s, color 0.2s; text-align: center; }
+    .hrev-neither-btn:hover:not(:disabled) { border-color: rgba(124,58,237,0.65); color: rgba(232,234,240,0.75); }
+    .hrev-neither-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
     /* ─── Act label + continue / skip buttons ───────────────────── */
     .act-label { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.22); margin-bottom: 14px; min-height: 14px; }
@@ -416,6 +419,7 @@
           <div class="hrev-continue hidden" id="hrev-continue">
             <button class="iv-submit" id="hrev-continue-btn">This one →</button>
           </div>
+          <button class="hrev-neither-btn hidden" id="hrev-neither-btn">Neither — make two more hooks</button>
         </div>
 
         <!-- State 5: interview -->
@@ -1992,118 +1996,200 @@
       setProgress(phase === 'section2' ? 'preview2' : 'preview3');
       const preNav = navVersion;
 
-      let variants = [];
-      try {
-        const res = await fetch(`/api/onboarding/sessions/${sessionId}/live-preview-hook`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phase, answers: interviewState.answers }),
-        });
-        if (res.ok) {
-          const d = await res.json();
-          variants = d.hooks || [];
-        }
-      } catch {}
+      const MAX_REGENS = 2;
+      let usedFrameworks = [];
+      let allGeneratedHooks = [];
+      let regenerationCount = 0;
 
-      if (navVersion !== preNav || variants.length < 2) return;
+      async function fetchPair() {
+        try {
+          const res = await fetch(`/api/onboarding/sessions/${sessionId}/live-preview-hook`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phase, answers: interviewState.answers, usedFrameworks }),
+          });
+          if (res.ok) return await res.json();
+        } catch {}
+        return null;
+      }
 
-      const hookA = typeof variants[0] === 'string' ? variants[0] : (variants[0].text || variants[0].hook || '');
-      const hookB = typeof variants[1] === 'string' ? variants[1] : (variants[1].text || variants[1].hook || '');
-      if (!hookA || !hookB) return;
+      // Initial fetch before showing any UI
+      const initData = await fetchPair();
+      if (navVersion !== preNav || !initData) return;
+
+      let currentHooks = initData.hooks || [];
+      if (currentHooks.length < 2) return;
+      usedFrameworks.push(...(initData.frameworks || []));
+
+      function hookText(h) { return typeof h === 'string' ? h : (h.text || h.hook || ''); }
 
       showState('state-hook-reveal');
 
-      const speakEl   = document.getElementById('hrev-speak');
-      const cardsEl   = document.getElementById('hrev-cards');
-      const cardA     = document.getElementById('hrev-card-a');
-      const cardB     = document.getElementById('hrev-card-b');
+      const speakEl    = document.getElementById('hrev-speak');
+      const cardsEl    = document.getElementById('hrev-cards');
+      const cardA      = document.getElementById('hrev-card-a');
+      const cardB      = document.getElementById('hrev-card-b');
       const continueEl = document.getElementById('hrev-continue');
+      const neitherBtn = document.getElementById('hrev-neither-btn');
 
-      // Reset
+      function loadCards(hA, hB) {
+        cardA.classList.remove('selected', 'dimmed', 'visible');
+        cardB.classList.remove('selected', 'dimmed', 'visible');
+        continueEl.classList.add('hidden');
+        continueEl.classList.remove('visible');
+        continueEl.style.opacity = '';
+        document.getElementById('hrev-card-a-text').textContent = hA;
+        document.getElementById('hrev-card-b-text').textContent = hB;
+      }
+
+      function revealCards() {
+        cardsEl.classList.remove('hidden');
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          cardA.classList.add('visible');
+          setTimeout(() => cardB.classList.add('visible'), 160);
+        }));
+      }
+
+      // Returns Promise resolving to { action: 'select'|'neither', hook?: string }
+      function waitForAction(hA, hB) {
+        return new Promise(resolve => {
+          let chosen = null;
+          function onSelect(which) {
+            chosen = which === 'a' ? hA : hB;
+            cardA.classList.toggle('selected', which === 'a');
+            cardA.classList.toggle('dimmed', which !== 'a');
+            cardB.classList.toggle('selected', which === 'b');
+            cardB.classList.toggle('dimmed', which !== 'b');
+            continueEl.classList.remove('hidden');
+            requestAnimationFrame(() => requestAnimationFrame(() => continueEl.classList.add('visible')));
+          }
+          function cleanup() {
+            cardA.onclick = null;
+            cardB.onclick = null;
+            document.getElementById('hrev-continue-btn').onclick = null;
+            neitherBtn.onclick = null;
+          }
+          cardA.onclick = () => onSelect('a');
+          cardB.onclick = () => onSelect('b');
+          document.getElementById('hrev-continue-btn').onclick = () => {
+            if (!chosen) return;
+            cleanup();
+            resolve({ action: 'select', hook: chosen });
+          };
+          neitherBtn.onclick = () => {
+            cleanup();
+            resolve({ action: 'neither' });
+          };
+        });
+      }
+
+      // ── Initial UI setup ──
       speakEl.innerHTML = '';
+      speakEl.style.opacity = '';
       cardsEl.classList.add('hidden');
       continueEl.classList.add('hidden');
-      continueEl.classList.remove('visible');
-      cardA.classList.remove('selected', 'dimmed', 'visible');
-      cardB.classList.remove('selected', 'dimmed', 'visible');
-      document.getElementById('hrev-card-a-text').textContent = hookA;
-      document.getElementById('hrev-card-b-text').textContent = hookB;
+      neitherBtn.classList.add('hidden');
+      neitherBtn.disabled = false;
 
-      // Intro speech
       const intro = phase === 'section2'
         ? "Based on what you told me about your members — two hooks."
         : "Two angles from your edge. One from your differentiator. One from the objection.";
       await speak(intro, speakEl);
       if (navVersion !== preNav) return;
 
-      // Reveal cards
-      cardsEl.classList.remove('hidden');
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        cardA.classList.add('visible');
-        setTimeout(() => cardB.classList.add('visible'), 160);
-      }));
+      let hA = hookText(currentHooks[0]);
+      let hB = hookText(currentHooks[1]);
+      allGeneratedHooks.push(hA, hB);
+      loadCards(hA, hB);
+      revealCards();
       await sleep(350);
 
-      // Speak both hooks
-      await speak(hookA);
+      await speak(hA);
       if (navVersion !== preNav) return;
       await sleep(250);
-      await speak(hookB);
+      await speak(hB);
       if (navVersion !== preNav) return;
       await sleep(300);
-
-      // Ask for selection
       await speak("Which of these feels more like your gym?", speakEl);
       if (navVersion !== preNav) return;
 
-      // Wait for owner to pick one and click Continue
-      const selectedHook = await new Promise(resolve => {
-        let chosen = null;
+      neitherBtn.classList.remove('hidden');
 
-        function selectCard(which) {
-          chosen = which === 'a' ? hookA : hookB;
-          cardA.classList.remove('selected', 'dimmed');
-          cardB.classList.remove('selected', 'dimmed');
-          if (which === 'a') { cardA.classList.add('selected'); cardB.classList.add('dimmed'); }
-          else { cardB.classList.add('selected'); cardA.classList.add('dimmed'); }
-          continueEl.classList.remove('hidden');
-          requestAnimationFrame(() => requestAnimationFrame(() => continueEl.classList.add('visible')));
+      // ── Main action loop ──
+      let selectedHook = null;
+      while (true) {
+        const result = await waitForAction(hA, hB);
+        if (navVersion !== preNav) return;
+
+        if (result.action === 'select') {
+          selectedHook = result.hook;
+          break;
         }
 
-        cardA.onclick = () => selectCard('a');
-        cardB.onclick = () => selectCard('b');
-        document.getElementById('hrev-continue-btn').onclick = () => {
-          if (!chosen) return;
-          cardA.onclick = null;
-          cardB.onclick = null;
-          document.getElementById('hrev-continue-btn').onclick = null;
+        // "Neither" clicked — regenerate
+        neitherBtn.classList.add('hidden');
+        neitherBtn.disabled = true;
+        stopAudio();
 
-          // 1. Stop any playing audio immediately
-          stopAudio();
+        cardA.classList.remove('visible');
+        cardB.classList.remove('visible');
+        continueEl.classList.add('hidden');
+        continueEl.style.opacity = '';
+        await sleep(350);
+        if (navVersion !== preNav) return;
 
-          // 2. Fade cards out — remove visible (slides back out via existing 0.4s transition)
-          cardA.classList.remove('visible');
-          cardB.classList.remove('visible');
-          continueEl.style.transition = 'opacity 0.3s';
-          continueEl.style.opacity = '0';
-          speakEl.style.transition = 'opacity 0.3s';
-          speakEl.style.opacity = '0';
+        speakEl.innerHTML = '';
+        await speak("Let me try a different angle.", speakEl);
+        if (navVersion !== preNav) return;
 
-          // 3. Resolve after fade completes (350ms covers the 0.4s card animation)
-          setTimeout(() => resolve(chosen), 350);
-        };
-      });
+        const newData = await fetchPair();
+        if (navVersion !== preNav) return;
+
+        if (newData && (newData.hooks || []).length >= 2) {
+          currentHooks = newData.hooks;
+          usedFrameworks.push(...(newData.frameworks || []));
+        }
+        regenerationCount++;
+
+        hA = hookText(currentHooks[0]);
+        hB = hookText(currentHooks[1]);
+        allGeneratedHooks.push(hA, hB);
+
+        loadCards(hA, hB);
+        revealCards();
+        await sleep(350);
+        if (navVersion !== preNav) return;
+
+        if (regenerationCount >= MAX_REGENS) {
+          await speak("These are the strongest angles I have for your gym right now — pick the one that feels closest and we will sharpen it as more data comes in.", speakEl);
+          if (navVersion !== preNav) return;
+          // Neither stays hidden — owner must pick from final pair
+        } else {
+          neitherBtn.disabled = false;
+          neitherBtn.classList.remove('hidden');
+        }
+      }
+
+      // ── Selection made — fade out and transition ──
+      stopAudio();
+      cardA.classList.remove('visible');
+      cardB.classList.remove('visible');
+      continueEl.style.transition = 'opacity 0.3s';
+      continueEl.style.opacity = '0';
+      speakEl.style.transition = 'opacity 0.3s';
+      speakEl.style.opacity = '0';
+      neitherBtn.classList.add('hidden');
+      await sleep(350);
 
       if (navVersion !== preNav) return;
 
-      // Save confirmed hook (fire and forget — don't await)
+      // Save selected hook + all generated hooks (fire and forget)
       fetch(`/api/onboarding/sessions/${sessionId}/confirm-hook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hook: selectedHook, phase }),
+        body: JSON.stringify({ hook: selectedHook, phase, allGenerated: allGeneratedHooks }),
       }).catch(() => {});
 
-      // Clean screen — no cards, no previous content, just the transition speech word by word
       showState('state-transition');
       const transEl = document.getElementById('transition-text');
       transEl.textContent = '';
@@ -2113,7 +2199,6 @@
         : "Almost there — one more section and your system is complete.";
       await speak(transitionLine, transEl);
 
-      // Signal advanceInterview to skip section intro — transition speech already covered it
       interviewState.sectionIntroSpoken = true;
     }
 
