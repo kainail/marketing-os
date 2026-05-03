@@ -2681,7 +2681,7 @@ const Q_PURPOSE = {
 // POST /api/onboarding/sessions/:sessionId/answer — evaluate answer quality
 app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
   const { sessionId } = req.params;
-  const { questionId, transcript, section } = req.body;
+  const { questionId, transcript, section, answers, isTileSelection } = req.body;
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
   if (!transcript || typeof transcript !== 'string') return res.status(400).json({ error: 'transcript required' });
   if (!questionId) return res.status(400).json({ error: 'questionId required' });
@@ -2698,6 +2698,21 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
     const yesSignals = /\b(yes|yeah|we have|we do|we offer|we run|trial|challenge|promo|free|dollar|\$|week|month|days|price|pay|cost|guarantee|cohort|included|access|membership)\b/i.test(lower);
     const hasOffer = (yesSignals && !noSignals) || words.length >= 20;
     return res.json({ sufficient: true, branch: hasOffer ? 'A' : 'B' });
+  }
+
+  // Tile selection — sufficient by definition, just generate market-connected ack
+  if (isTileSelection) {
+    const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+    let acknowledgment = null;
+    if (apiKey) {
+      try {
+        const Anthropic = require('@anthropic-ai/sdk');
+        const client = new Anthropic({ apiKey });
+        const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
+        acknowledgment = await generateAcknowledgment(questionId, transcript, session, research, client, answers);
+      } catch {}
+    }
+    return res.json({ sufficient: true, acknowledgment });
   }
 
   // Detect weak answers — offer suggestion cards instead of probing
@@ -2718,7 +2733,7 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
         const Anthropic = require('@anthropic-ai/sdk');
         const client = new Anthropic({ apiKey });
         const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
-        acknowledgment = await generateAcknowledgment(questionId, transcript, session, research, client);
+        acknowledgment = await generateAcknowledgment(questionId, transcript, session, research, client, answers);
       } catch {}
     }
     return res.json({ sufficient: true, acknowledgment });
@@ -2746,7 +2761,7 @@ Is this answer specific enough to extract the required data, or does it need a f
 Respond JSON only: {"sufficient": boolean, "probeQuestion": "one follow-up question or null"}`
         }]
       }),
-      generateAcknowledgment(questionId, transcript, session, research, client).catch(() => null),
+      generateAcknowledgment(questionId, transcript, session, research, client, answers).catch(() => null),
     ]);
     const raw = evalMsg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
     const result = JSON.parse(raw);
@@ -2796,28 +2811,49 @@ async function generateAnswerSuggestions(questionId, session, research) {
   }
 }
 
-/** Generate a brief conversational acknowledgment after a sufficient answer. Uses Claude Haiku. */
-async function generateAcknowledgment(questionId, transcript, session, research, client) {
+/** Generate a market-connected acknowledgment after a sufficient answer. Uses Claude Haiku. */
+async function generateAcknowledgment(questionId, transcript, session, research, client, answers) {
   const gymName = session.gymName || 'your gym';
   const city = session.city || 'your city';
+
+  const comps = (research?.competitors || []).slice(0, 5);
+  const activeComps = comps.filter(c => (c.adCount || 0) > 0);
   const gap = (research?.marketGaps || [])[0] || '';
+  const gaps = (research?.marketGaps || []).slice(0, 3).join('; ');
+  const reviews = (research?.googleReviews || []).slice(0, 4).map(r => r.text?.substring(0, 100)).filter(Boolean).join(' | ');
+  const compAds = activeComps.map(c => `${c.name} (${c.adCount} ads, themes: ${(c.adThemes || []).join(', ')})`).join('; ');
+  const answeredSoFar = Object.entries(answers || {}).slice(0, 8).map(([k, v]) => `${k}: ${String(v).substring(0, 80)}`).join('\n');
 
-  const prompt = `You are AHRI, a focused marketing AI interviewing the owner of ${gymName} in ${city}.
-They just answered a question about: ${Q_PURPOSE[questionId] || 'their gym'}.
-Their answer: "${transcript.substring(0, 180)}"
-${gap ? `Market gap context: ${gap}` : ''}
+  const prompt = `You are AHRI — a marketing intelligence system that spent weeks researching ${gymName} in ${city} before this interview. You know this market deeply.
 
-Write ONE brief acknowledgment (1 sentence, 15-25 words) that:
-- Reflects what they just said with a specific, grounded insight
-- Sounds conversational, not robotic
-- Never starts with "Great!" "Awesome!" "Perfect!" "Excellent!" or similar hollow affirmations
-- Naturally bridges to continuing the conversation
+The gym owner just answered a question. Here is the exchange:
+QUESTION TOPIC: ${Q_PURPOSE[questionId] || 'their gym context'}
+OWNER'S ANSWER: "${transcript.substring(0, 300)}"
 
-Output only the acknowledgment sentence. Nothing else.`;
+YOUR MARKET RESEARCH ON THIS GYM:
+Competitors running ads: ${compAds || 'none found'}
+Market gap nobody is addressing: ${gap || 'not identified'}
+All market gaps: ${gaps || 'not identified'}
+Member reviews: ${reviews || 'none'}
+
+OTHER ANSWERS THE OWNER HAS GIVEN SO FAR:
+${answeredSoFar || 'none yet — this is the first answer'}
+
+Write a single response of exactly 1-2 sentences. This response connects what the owner just said to something specific in your market research — a specific competitor name, exact review language, or the market gap. It must make the owner think "how does she know that?"
+
+STRICT RULES — any violation fails:
+- Must reference at least one specific data point from the research (competitor name, review phrase, market gap wording, ad theme, ad count)
+- Must NEVER start with: I, Got, Perfect, Great, Interesting, That, Thanks, Awesome, Excellent, Noted
+- Must NEVER be generic — every word must be specific to this gym and this market
+- Must sound like natural spoken speech — no bullet points, no formal language, no hedging
+- Ends with a natural forward lean — implies the next question matters even more
+- 1-2 sentences only — never more
+
+Output only the 1-2 sentence response. No quotes. No preamble.`;
 
   const msg = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 60,
+    max_tokens: 80,
     messages: [{ role: 'user', content: prompt }],
   });
   return msg.content[0].text.trim().replace(/^["']|["']$/g, '');
@@ -3746,6 +3782,125 @@ app.post('/api/onboarding/sessions/:sessionId/confirm-hook', async (req, res) =>
   } catch (err) {
     console.error('[onboarding] confirm-hook failed:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/onboarding/sessions/:sessionId/offer-iterations — score offer against Hormozi, generate 2 improvements
+app.post('/api/onboarding/sessions/:sessionId/offer-iterations', async (req, res) => {
+  const { sessionId } = req.params;
+  const { answers } = req.body;
+
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) return res.json({ skip: true });
+
+  try {
+    const [brainState, research] = await Promise.all([
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/brain-state/current-state.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`),
+    ]);
+
+    const gymName = session.gymName || 'this gym';
+    const city = session.city || 'their city';
+    const activeComps = (research?.competitors || []).filter(c => (c.adCount || 0) > 0).slice(0, 5);
+    const gap = (research?.marketGaps || [])[0] || 'personalized coaching';
+    const reviews = (research?.googleReviews || []).slice(0, 3).map(r => r.text?.substring(0, 100)).filter(Boolean).join(' | ');
+    const compSummary = activeComps.map(c => `${c.name}: ${c.adCount} ads, themes: ${(c.adThemes || []).join(', ')}`).join('\n');
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+
+    const offerContext = brainState
+      ? brainState.substring(brainState.indexOf('## Active Offer'), brainState.indexOf('## Active Avatar')).trim() || brainState.substring(0, 800)
+      : `Answers: ${JSON.stringify(answers || {}).substring(0, 500)}`;
+
+    const msg = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1400,
+      messages: [{
+        role: 'user',
+        content: `You are AHRI applying the Hormozi value equation to score and improve a gym's front-end offer.
+
+GYM: ${gymName} in ${city}
+MARKET GAP NOBODY IS ADDRESSING: ${gap}
+COMPETITORS RUNNING ADS:\n${compSummary || 'none found'}
+MEMBER REVIEWS: ${reviews || 'none'}
+
+CURRENT OFFER:
+${offerContext}
+
+HORMOZI VALUE EQUATION:
+Value = (Dream Outcome × Perceived Likelihood) / (Time Delay × Effort/Sacrifice)
+Score each dimension 1-10.
+
+TASK:
+1. Score the current offer on all 4 dimensions.
+2. If BOTH of the two lowest scores are above 8, return { "skip": true }.
+3. Otherwise create exactly 2 iterations. Each improves ONE specific weak dimension while keeping all other elements from the original offer.
+4. For each iteration, write one ackIfSelected sentence AHRI says when the owner picks it. Must reference a specific competitor, review excerpt, or market gap — never generic.
+
+Respond JSON only:
+{
+  "skip": false,
+  "scores": { "dreamOutcome": 7, "perceivedLikelihood": 5, "timeDelay": 8, "effort": 6 },
+  "iterations": [
+    {
+      "title": "Stronger guarantee",
+      "scoreDimension": "Perceived likelihood",
+      "scoreFrom": 5,
+      "scoreTo": 9,
+      "duration": "21 days",
+      "price": "$29",
+      "included": "3 coaching sessions + unlimited gym access",
+      "guarantee": "Full refund if you don't see a measurable change in 21 days — no questions asked",
+      "differentiator": "One dedicated coach, not just access",
+      "explanation": "None of the 5 gyms in ${city} offer a money-back guarantee — this removes the biggest objection before they even walk in.",
+      "ackIfSelected": "None of the competitors I found are willing to back their offer with a guarantee — that alone puts you in a different category."
+    },
+    {
+      "title": "Clearer outcome promise",
+      "scoreDimension": "Dream outcome",
+      "scoreFrom": 6,
+      "scoreTo": 9,
+      "duration": "21 days",
+      "price": "$29",
+      "included": "3 coaching sessions + unlimited gym access",
+      "guarantee": "Results or your money back",
+      "differentiator": "You leave with a specific 90-day plan",
+      "explanation": "Your reviews mention members wanting a plan, not just a gym — this promise matches what your own members are already saying.",
+      "ackIfSelected": "Your members already said it in their reviews — they came for a plan, not a membership — this offer speaks that language."
+    }
+  ]
+}`,
+      }],
+    });
+
+    const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+    const result = JSON.parse(raw);
+    return res.json(result);
+  } catch (err) {
+    console.error('[onboarding] offer-iterations failed:', err.message);
+    return res.json({ skip: true });
+  }
+});
+
+// POST /api/onboarding/sessions/:sessionId/confirm-offer — save selected offer iteration to R2
+app.post('/api/onboarding/sessions/:sessionId/confirm-offer', async (req, res) => {
+  const { sessionId } = req.params;
+  const { iteration } = req.body;
+  if (!sessionId || !iteration) return res.status(400).json({ error: 'Missing required fields' });
+
+  try {
+    await r2PutShared(`onboarding/sessions/${sessionId}/confirmed-offer.json`, {
+      ...iteration,
+      confirmed_at: new Date().toISOString(),
+    });
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[onboarding] confirm-offer failed:', err.message);
+    return res.status(500).json({ error: err.message });
   }
 });
 

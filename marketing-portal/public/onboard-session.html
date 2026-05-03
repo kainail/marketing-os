@@ -152,6 +152,22 @@
     .cr-post-platform { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 5px; }
     .cr-post-hook { font-size: 13px; color: rgba(232,234,240,0.85); line-height: 1.4; margin-bottom: 4px; }
     .cr-post-angle { font-size: 11px; color: rgba(232,234,240,0.45); line-height: 1.4; }
+    .cr-offer-readback { font-size: 13px; color: rgba(232,234,240,0.45); margin-bottom: 14px; line-height: 1.5; }
+    .cr-offer-tiles { display: flex; gap: 10px; width: 100%; opacity: 0; transition: opacity 0.5s; }
+    .cr-offer-tiles.cr-visible { opacity: 1; }
+    .cr-offer-tile { flex: 1; border: 2px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 15px; cursor: pointer; transition: border-color 0.2s, opacity 0.2s; background: rgba(255,255,255,0.02); }
+    .cr-offer-tile:hover { border-color: rgba(255,255,255,0.15); }
+    .cr-offer-tile.selected { border-color: #7c3aed; }
+    .cr-offer-tile.dimmed { opacity: 0.3; pointer-events: none; }
+    .cr-offer-tile-title { font-size: 12px; font-weight: 700; color: #a78bfa; margin-bottom: 10px; letter-spacing: 0.3px; }
+    .cr-offer-tile-fields { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
+    .cr-offer-tile-field { display: flex; gap: 8px; font-size: 11px; line-height: 1.4; }
+    .cr-offer-tile-field-label { color: rgba(232,234,240,0.3); min-width: 70px; flex-shrink: 0; }
+    .cr-offer-tile-field-value { color: rgba(232,234,240,0.75); }
+    .cr-offer-tile-explanation { font-size: 11px; color: rgba(232,234,240,0.45); margin-bottom: 7px; line-height: 1.4; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 7px; }
+    .cr-offer-tile-score { font-size: 10px; color: #a78bfa; font-weight: 600; letter-spacing: 0.5px; }
+    .cr-offer-continue { width: 100%; margin-top: 12px; opacity: 0; transition: opacity 0.4s; }
+    .cr-offer-continue.cr-visible { opacity: 1; }
     .cr-cta-row { width: 100%; max-width: 500px; padding-top: 8px; opacity: 0; transition: opacity 0.5s; }
     .cr-cta-row.cr-visible { opacity: 1; }
     .complete-cta { display: inline-flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 13px 28px; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(232,234,240,0.7); cursor: pointer; transition: background 0.15s; text-decoration: none; }
@@ -466,6 +482,28 @@
           <div class="cr-section hidden" id="cr-posts">
             <div class="cr-section-label">First 3 Posts</div>
             <div class="cr-posts-list" id="cr-posts-list"></div>
+          </div>
+
+          <div class="cr-section hidden" id="cr-offer">
+            <div class="cr-section-label">Your Offer</div>
+            <div id="cr-offer-readback" class="cr-offer-readback"></div>
+            <div class="cr-offer-tiles hidden" id="cr-offer-tiles">
+              <div class="cr-offer-tile" id="cr-offer-tile-a">
+                <div class="cr-offer-tile-title" id="cr-offer-tile-a-title"></div>
+                <div class="cr-offer-tile-fields" id="cr-offer-tile-a-fields"></div>
+                <div class="cr-offer-tile-explanation" id="cr-offer-tile-a-explanation"></div>
+                <div class="cr-offer-tile-score" id="cr-offer-tile-a-score"></div>
+              </div>
+              <div class="cr-offer-tile" id="cr-offer-tile-b">
+                <div class="cr-offer-tile-title" id="cr-offer-tile-b-title"></div>
+                <div class="cr-offer-tile-fields" id="cr-offer-tile-b-fields"></div>
+                <div class="cr-offer-tile-explanation" id="cr-offer-tile-b-explanation"></div>
+                <div class="cr-offer-tile-score" id="cr-offer-tile-b-score"></div>
+              </div>
+            </div>
+            <div class="cr-offer-continue hidden" id="cr-offer-continue">
+              <button class="iv-submit" id="cr-offer-continue-btn">Use this offer →</button>
+            </div>
           </div>
 
           <div class="cr-cta-row hidden" id="cr-cta">
@@ -1442,25 +1480,19 @@
       interviewState.answers[q.id] = transcript;
       saveAnswers().catch(() => {});
 
-      // Tile selection is always sufficient — skip evaluation entirely
-      if (isTileSelection) {
-        isTileSelection = false;
-        const ack = _pathBAcks[_pathBAckIdx % _pathBAcks.length];
-        _pathBAckIdx++;
-        await speak(ack, document.getElementById('iv-question'));
-        if (navVersion !== submitNav) { interviewState.submitting = false; return; }
-        interviewState.submitting = false;
-        resetAnswerArea();
-        await advanceInterview();
-        return;
-      }
-
       try {
         const evalRes = await fetch(`/api/onboarding/sessions/${sessionId}/answer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ questionId: q.id, transcript, section: q.section }),
+          body: JSON.stringify({
+            questionId: q.id,
+            transcript,
+            section: q.section,
+            answers: interviewState.answers,
+            isTileSelection: isTileSelection ? true : undefined,
+          }),
         });
+        if (isTileSelection) isTileSelection = false;
 
         if (!evalRes.ok) throw new Error('eval failed');
         const evalData = await evalRes.json();
@@ -1775,9 +1807,6 @@
         console.log('[PathB] Tile clicked:', tile.dataset.tileIndex, tile.textContent.slice(0, 50));
       });
     }
-
-    const _pathBAcks = ['Got it.', 'Perfect.', 'Good.', 'Done.'];
-    let _pathBAckIdx = 0;
 
     function selectTile(text, cardEl) {
       document.querySelectorAll('.suggestion-card').forEach(c => c.classList.remove('selected'));
@@ -2288,6 +2317,11 @@
       let avatarStruggle = '';
       let marketGap = '';
       let offerSummary = '';
+      let offerDuration = '';
+      let offerPrice = '';
+      let offerIncluded = '';
+      let offerGuarantee = '';
+      let offerMechanism = '';
 
       try {
         const pdRes = await fetch(`/api/onboarding/sessions/${sessionId}/portal-data`);
@@ -2301,16 +2335,28 @@
           const gapMatch = bs.match(/^Market gap:\s*(.+)$/m);
           const priceMatch = bs.match(/^Price:\s*(.+)$/m);
           const durationMatch = bs.match(/^Duration:\s*(.+)$/m);
+          const includedMatch = bs.match(/^Included:\s*(.+)$/m);
+          const guaranteeMatch = bs.match(/^Guarantee:\s*(.+)$/m);
+          const mechMatch = bs.match(/^## Mechanism\s*\n([^\n#]+)/m);
 
-          if (nameMatch?.[1] && nameMatch[1] !== '[not captured]') avatarName = nameMatch[1].trim();
-          if (struggleMatch?.[1] && struggleMatch[1] !== '[not captured]') {
+          const notCap = (v) => !v || v === '[not captured]';
+
+          if (nameMatch?.[1] && !notCap(nameMatch[1])) avatarName = nameMatch[1].trim();
+          if (struggleMatch?.[1] && !notCap(struggleMatch[1])) {
             avatarStruggle = struggleMatch[1].trim().split('\n').slice(0, 2).join(' ').substring(0, 120);
           }
-          if (gapMatch?.[1] && gapMatch[1] !== '[not captured]') marketGap = gapMatch[1].trim();
-          if (priceMatch?.[1] && priceMatch[1] !== '[not captured]') {
-            offerSummary = priceMatch[1].trim();
-            if (durationMatch?.[1] && durationMatch[1] !== '[not captured]') offerSummary += ' · ' + durationMatch[1].trim();
+          if (gapMatch?.[1] && !notCap(gapMatch[1])) marketGap = gapMatch[1].trim();
+          if (priceMatch?.[1] && !notCap(priceMatch[1])) {
+            offerPrice = priceMatch[1].trim();
+            offerSummary = offerPrice;
           }
+          if (durationMatch?.[1] && !notCap(durationMatch[1])) {
+            offerDuration = durationMatch[1].trim();
+            if (offerSummary) offerSummary += ' · ' + offerDuration;
+          }
+          if (includedMatch?.[1] && !notCap(includedMatch[1])) offerIncluded = includedMatch[1].trim();
+          if (guaranteeMatch?.[1] && !notCap(guaranteeMatch[1])) offerGuarantee = guaranteeMatch[1].trim();
+          if (mechMatch?.[1] && !notCap(mechMatch[1])) offerMechanism = mechMatch[1].trim();
         }
       } catch {}
 
@@ -2377,12 +2423,142 @@
       }
 
       if (navVersion !== revNav) return;
-      await sleep(400);
+
+      // Act 5: Offer analysis
+      await sleep(1500);
+      crReveal('cr-offer');
+      await speak("Now let me show you what your offer looks like — and see if I can make it stronger.", speakEl);
+      if (navVersion !== revNav) return;
+
+      // Read back the current offer components
+      const readbackParts = [];
+      if (offerDuration) readbackParts.push(offerDuration);
+      if (offerPrice) readbackParts.push(offerPrice);
+      if (offerIncluded) readbackParts.push(`includes ${offerIncluded.substring(0, 70)}`);
+      if (offerGuarantee) readbackParts.push(`with a ${offerGuarantee.substring(0, 60)} guarantee`);
+      if (offerMechanism) readbackParts.push(offerMechanism.substring(0, 80));
+      if (readbackParts.length > 0) {
+        const readbackText = `Your offer: ${readbackParts.join(', ')}.`;
+        document.getElementById('cr-offer-readback').textContent = readbackText;
+        await speak(readbackText, speakEl);
+        if (navVersion !== revNav) return;
+      }
+
+      await speak("Let me run this through my offer framework and see if there is a stronger version.", speakEl);
+      if (navVersion !== revNav) return;
+      setProgress('processing');
+
+      const iterRes = await fetch(`/api/onboarding/sessions/${sessionId}/offer-iterations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers: interviewState.answers }),
+      });
+      const iterData = iterRes.ok ? await iterRes.json() : { skip: true };
+      setProgress('complete');
+      if (navVersion !== revNav) return;
+
+      if (iterData.skip || !iterData.iterations || iterData.iterations.length < 2) {
+        await speak("Your offer is already well structured for this market. I would not change a thing.", speakEl);
+      } else {
+        const [iterA, iterB] = iterData.iterations;
+
+        // Populate tile A
+        document.getElementById('cr-offer-tile-a-title').textContent = iterA.title || '';
+        document.getElementById('cr-offer-tile-a-explanation').textContent = iterA.explanation || '';
+        document.getElementById('cr-offer-tile-a-score').textContent = iterA.scoreDimension ? `${iterA.scoreDimension}: ${iterA.scoreFrom} → ${iterA.scoreTo}` : '';
+        crFillOfferFields('cr-offer-tile-a-fields', iterA);
+
+        // Populate tile B
+        document.getElementById('cr-offer-tile-b-title').textContent = iterB.title || '';
+        document.getElementById('cr-offer-tile-b-explanation').textContent = iterB.explanation || '';
+        document.getElementById('cr-offer-tile-b-score').textContent = iterB.scoreDimension ? `${iterB.scoreDimension}: ${iterB.scoreFrom} → ${iterB.scoreTo}` : '';
+        crFillOfferFields('cr-offer-tile-b-fields', iterB);
+
+        // Reveal tiles simultaneously
+        const tilesEl = document.getElementById('cr-offer-tiles');
+        tilesEl.classList.remove('hidden');
+        requestAnimationFrame(() => requestAnimationFrame(() => tilesEl.classList.add('cr-visible')));
+        await sleep(400);
+
+        await speak("Here are two stronger versions of your offer. Both keep what you described — I just sharpened a specific part of each one based on what I know about your market.", speakEl);
+        if (navVersion !== revNav) return;
+        await sleep(300);
+        await speak(`${iterA.title}. ${iterA.explanation}`, speakEl);
+        await sleep(250);
+        await speak(`${iterB.title}. ${iterB.explanation}`, speakEl);
+        await sleep(300);
+        await speak("Which feels more like your gym?", speakEl);
+
+        // Wait for owner to select a tile and confirm
+        const selectedIter = await new Promise(resolve => {
+          let chosen = null;
+          const tileA = document.getElementById('cr-offer-tile-a');
+          const tileB = document.getElementById('cr-offer-tile-b');
+          const continueBtn = document.getElementById('cr-offer-continue-btn');
+
+          function pickTile(which) {
+            chosen = which === 'a' ? iterA : iterB;
+            tileA.classList.toggle('selected', which === 'a');
+            tileB.classList.toggle('selected', which === 'b');
+            tileA.classList.toggle('dimmed', which === 'b');
+            tileB.classList.toggle('dimmed', which === 'a');
+            const continueRow = document.getElementById('cr-offer-continue');
+            continueRow.classList.remove('hidden');
+            requestAnimationFrame(() => requestAnimationFrame(() => continueRow.classList.add('cr-visible')));
+          }
+
+          tileA.onclick = () => pickTile('a');
+          tileB.onclick = () => pickTile('b');
+          continueBtn.onclick = () => {
+            if (!chosen) return;
+            tileA.onclick = null; tileB.onclick = null; continueBtn.onclick = null;
+            resolve(chosen);
+          };
+        });
+
+        if (navVersion !== revNav) return;
+
+        // Hide continue, fire-and-forget confirm
+        document.getElementById('cr-offer-continue').classList.add('hidden');
+        fetch(`/api/onboarding/sessions/${sessionId}/confirm-offer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ iteration: selectedIter }),
+        }).catch(() => {});
+
+        // Market-connected ack (pre-generated per iteration)
+        if (selectedIter.ackIfSelected) {
+          await speak(selectedIter.ackIfSelected, speakEl);
+          if (navVersion !== revNav) return;
+        }
+      }
+
+      if (navVersion !== revNav) return;
+      await sleep(600);
 
       // CTA
       document.getElementById('complete-portal-link').href = `/onboard/portal/${sessionId}`;
       crReveal('cr-cta');
       await speak("That's your system. Your portal has everything — your avatar, your offer, and your hooks. We build the first campaign brief from here.", speakEl);
+    }
+
+    function crFillOfferFields(containerId, iter) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+      const fields = [
+        ['Duration', iter.duration],
+        ['Price', iter.price],
+        ['Included', iter.included],
+        ['Guarantee', iter.guarantee],
+        ['Differentiator', iter.differentiator],
+      ];
+      for (const [label, val] of fields) {
+        if (!val || val === '[not captured]') continue;
+        const row = document.createElement('div');
+        row.className = 'cr-offer-tile-field';
+        row.innerHTML = `<div class="cr-offer-tile-field-label">${esc(label)}</div><div class="cr-offer-tile-field-value">${esc(String(val).substring(0, 80))}</div>`;
+        container.appendChild(row);
+      }
     }
 
     init();
