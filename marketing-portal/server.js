@@ -2826,14 +2826,14 @@ Output only the acknowledgment sentence. Nothing else.`;
 // POST /api/onboarding/sessions/:sessionId/question-suggestions — always-on 3 tiles per question (no auth — UUID secured)
 app.post('/api/onboarding/sessions/:sessionId/question-suggestions', async (req, res) => {
   const { sessionId } = req.params;
-  const { questionId, questionText, section } = req.body;
+  const { questionId, questionText, section, answers } = req.body;
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
   if (!questionId || !questionText) return res.status(400).json({ error: 'questionId and questionText required' });
   const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
   if (!session) return res.status(404).json({ error: 'Session not found' });
   const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
   try {
-    const suggestions = await generateQuestionSuggestions(questionId, questionText, section, session, research);
+    const suggestions = await generateQuestionSuggestions(questionId, questionText, section, session, research, answers || {});
     res.json({ suggestions });
   } catch (err) {
     console.error('[onboarding] question-suggestions failed:', err.message);
@@ -2842,10 +2842,10 @@ app.post('/api/onboarding/sessions/:sessionId/question-suggestions', async (req,
 });
 
 /** Generate 3 market-specific suggestion tiles for a question using Claude Haiku. */
-async function generateQuestionSuggestions(questionId, questionText, section, session, research) {
-  // Path B questions and intro tiles use specialized research-based generation
+async function generateQuestionSuggestions(questionId, questionText, section, session, research, pathBAnswers = {}) {
+  // Path B questions use specialized research-based generation with accumulated offer context
   if (['qb2','qb3','qb4','qb5','qb6'].includes(questionId)) {
-    return generatePathBTiles(questionId, session, research);
+    return generatePathBTiles(questionId, session, research, pathBAnswers);
   }
   // Path A free-form questions get inspiration tiles
   if (['qa2','qa3','qa4','qa5'].includes(questionId)) {
@@ -2903,16 +2903,19 @@ Respond ONLY with a JSON array, no other text:
   }
 }
 
-/** Generate 3 market-specific tiles for Path B offer-building questions using Claude Haiku. */
-async function generatePathBTiles(questionId, session, research) {
+/** Generate 3 market-specific tiles for Path B offer-building questions using Claude Haiku.
+ *  pathBAnswers carries every answer already submitted: { qb2, qb3, qb4, qb5 } so each
+ *  tile prompt knows exactly what the owner has already chosen. */
+async function generatePathBTiles(questionId, session, research, pathBAnswers = {}) {
   const city = session.city || 'your city';
   const gymName = session.gymName || 'this gym';
   const competitors = (research?.competitors || []).slice(0, 3);
   const competitorNames = competitors.map(c => c.name).filter(Boolean).join(', ') || 'local gyms';
+  const top2Competitors = competitors.slice(0, 2).map(c => c.name).filter(Boolean).join(' and ') || competitorNames;
   const primaryGap = (research?.marketGaps || [])[0] || 'personalized coaching and accountability';
   const reviewExcerpts = (research?.googleReviews || [])
     .filter(r => r.text?.length > 20).slice(0, 3)
-    .map(r => `"${r.text.substring(0, 80)}"`).join(' | ') || '';
+    .map(r => `"${r.text.substring(0, 80)}"`).join('\n') || 'not available';
   const competitorPrices = competitors
     .map(c => parseFloat(c.price || c.membershipPrice || c.monthly_price || 0))
     .filter(p => p > 0);
@@ -2923,41 +2926,74 @@ async function generatePathBTiles(questionId, session, research) {
     ? `Competitors charge ~$${avgCompPrice}/mo (${competitorNames}).`
     : `No competitor pricing found — estimate ~$49/mo for ${city}.`;
 
+  // Accumulated offer choices so far — used in qb3-qb6 prompts
+  const chosen = {
+    duration: pathBAnswers.qb2 || null,
+    price:    pathBAnswers.qb3 || null,
+    included: pathBAnswers.qb4 || null,
+    guarantee:pathBAnswers.qb5 || null,
+  };
+  const offerSoFar = [
+    chosen.duration && `Trial: ${chosen.duration}`,
+    chosen.price    && `Price: ${chosen.price}`,
+    chosen.included && `Included: ${chosen.included}`,
+    chosen.guarantee && `Guarantee: ${chosen.guarantee}`,
+  ].filter(Boolean).join(' | ') || 'not yet built';
+
   const PROMPTS = {
     qb2: `Generate exactly 3 trial duration options for a gym called ${gymName} in ${city}.
-Market: ${compPriceCtx} Market gap nobody is filling: "${primaryGap}".
+${compPriceCtx} Market gap nobody is filling: "${primaryGap}".
 The 3 options MUST be 14 days, 21 days, and 30 days — in that order.
-For each: write a 1-sentence rationale that is specific to this market, these competitors, and this gap.
+For each: write a 1-sentence rationale specific to this market, these competitors, and this gap.
 Output ONLY a JSON array, no other text:
 [{"text":"14-day trial","subtext":"[market-specific rationale]"},{"text":"21-day trial","subtext":"[market-specific rationale]"},{"text":"30-day trial","subtext":"[market-specific rationale]"}]`,
 
-    qb3: `Generate exactly 3 entry price options for a trial at ${gymName} in ${city}.
+    qb3: `Generate exactly 3 entry price options for a ${chosen.duration || 'trial'} at ${gymName} in ${city}.
 ${compPriceCtx}
-Position each price option explicitly against competitor pricing.
-Prices must be specific dollar amounts. Go from low barrier to recommended.
+The owner has chosen a ${chosen.duration || 'trial'} duration. Position each price explicitly against the competitor monthly rate.
+Prices must be specific dollar amounts — go from near-free to premium anchor.
+Each subtext must name the actual competitor pricing context and explain why this price converts.
 Output ONLY a JSON array, no other text:
-[{"text":"$X for the trial","subtext":"[competitor context and positioning — mention competitor names and prices]"},...]`,
+[{"text":"$X for the ${chosen.duration || 'trial'}","subtext":"[exact competitor positioning + why this price converts for this duration]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`,
 
-    qb4: `Generate exactly 3 trial inclusion packages for ${gymName} in ${city}.
-Market gap: "${primaryGap}". Competitors: ${competitorNames}.
-Option 1: unlimited classes only (basic, no friction). Option 2: unlimited classes + one coached orientation session. Option 3: unlimited classes + weekly coach check-ins throughout the trial.
-For each: explain exactly what the member experiences day-to-day and how it fills the gap.
-Output ONLY a JSON array, no other text:
-[{"text":"[what's included — specific wording]","subtext":"[day-to-day member experience + how it fills the gap]"},...]`,
+    qb4: `You are generating 3 trial inclusion options for ${gymName} in ${city}.
+OFFER SO FAR: ${offerSoFar}.
+MARKET GAP — what nobody in this market is offering: "${primaryGap}".
+COMPETITORS leaving this gap open: ${competitorNames}.
+MEMBER REVIEWS (what members actually want):
+${reviewExcerpts}
 
-    qb5: `Generate exactly 3 guarantee options for ${gymName} in ${city}.
-Market gap: "${primaryGap}". Member reviews: ${reviewExcerpts || 'not available'}.
-Option 1: satisfaction guarantee (full refund if not happy). Option 2: attendance-based (show up X times per week or full refund). Option 3: results-based (feel measurably stronger or get a free extra month of coaching).
-Write guarantee language that directly addresses what the reviews show members worry about.
-Output ONLY a JSON array, no other text:
-[{"text":"[exact guarantee wording]","subtext":"[why this addresses this market's specific fear]"},...]`,
+Generate 3 distinct inclusion packages that each address the market gap differently. Derive the structure from the gap and reviews — do NOT use generic templates. Each package answers: what does the member experience day by day during the trial, and how does it specifically fill the gap that ${top2Competitors} leaves open?
 
-    qb6: `Generate exactly 3 core differentiator options for ${gymName} in ${city}.
-Market gap (what NO competitor currently says): "${primaryGap}". Competitors: ${competitorNames}. Member reviews: ${reviewExcerpts || 'not available'}.
-Each option must be something SPECIFIC that fills the gap competitors leave open — drawn from the gap data and reviews.
-Write in first-person owner voice (e.g. "We do X that nobody else does").
 Output ONLY a JSON array, no other text:
-[{"text":"[differentiator in first-person owner voice]","subtext":"[which competitor gap this fills and why it converts]"},...]`,
+[{"text":"[exact wording of what's included]","subtext":"[day-by-day member experience + which competitor gap this fills]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`,
+
+    qb5: `You are generating 3 guarantee options for ${gymName} in ${city}.
+COMPLETE OFFER BUILT SO FAR: ${offerSoFar}.
+MARKET GAP: "${primaryGap}".
+MEMBER REVIEWS — what prospects fear and what made them join:
+${reviewExcerpts}
+
+Read the reviews carefully. What is the specific hesitation or fear that would stop a prospect from saying yes to THIS offer (${offerSoFar})? Generate 3 guarantees that each address that fear in a different way. Derive the guarantee structure from the reviews — the language should speak directly to what the reviews reveal. Each guarantee should make saying yes to this specific offer feel completely safe.
+
+Output ONLY a JSON array, no other text:
+[{"text":"[exact guarantee language as the owner says it out loud]","subtext":"[which specific fear from the reviews this removes]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`,
+
+    qb6: `You are generating 3 core differentiator options for ${gymName} in ${city}.
+COMPLETE OFFER BUILT: ${offerSoFar}.
+MARKET GAP — what NONE of the local competitors are saying: "${primaryGap}".
+ACTUAL COMPETITORS IN THIS MARKET: ${competitorNames}.
+MEMBER REVIEWS:
+${reviewExcerpts}
+
+Generate 3 differentiators that each complete this specific offer cohesively. Each must:
+- Reference the actual gap that ${top2Competitors} leaves open
+- Directly complement the offer already built (${offerSoFar}) — the differentiator should make the overall package feel inevitable
+- Sound like something the owner says in a real conversation — not polished marketing copy
+- Be something no gym in ${city} is currently saying
+
+Output ONLY a JSON array, no other text:
+[{"text":"[differentiator in first-person owner voice]","subtext":"[which competitor gap this fills and how it completes the offer above]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`,
   };
 
   const prompt = PROMPTS[questionId];
@@ -2970,7 +3006,7 @@ Output ONLY a JSON array, no other text:
       const client = new Anthropic({ apiKey });
       const msg = await client.messages.create({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 700,
+        max_tokens: 900,
         messages: [{ role: 'user', content: prompt }],
       });
       const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
@@ -2980,13 +3016,17 @@ Output ONLY a JSON array, no other text:
       console.error(`[pathb-tiles] ${questionId} generation failed:`, err.message);
     }
   }
-  return pathBFallback(questionId, city, avgCompPrice, competitorNames, primaryGap);
+  return pathBFallback(questionId, city, avgCompPrice, competitorNames, primaryGap, chosen);
 }
 
-function pathBFallback(questionId, city, avgCompPrice, competitorNames, primaryGap) {
+function pathBFallback(questionId, city, avgCompPrice, competitorNames, primaryGap, chosen = {}) {
+  const dur = chosen.duration || 'the trial';
+  const price = chosen.price || 'entry';
+  const included = chosen.included || 'classes and coaching';
+
   if (questionId === 'qb2') return [
-    { text: '14-day trial', subtext: 'Lowest commitment barrier — easy yes for skeptical leads' },
-    { text: '21-day trial', subtext: `Most common in ${city} — long enough to feel real results` },
+    { text: '14-day trial', subtext: 'Lowest commitment barrier — easiest yes for skeptical prospects' },
+    { text: '21-day trial', subtext: 'Long enough to build a habit and feel real results' },
     { text: '30-day trial', subtext: 'Full month — highest perceived value, easiest to justify the price' },
   ];
   if (questionId === 'qb3') {
@@ -2994,25 +3034,25 @@ function pathBFallback(questionId, city, avgCompPrice, competitorNames, primaryG
     const mid = Math.round(avgCompPrice * 0.3);
     const rec = Math.round(avgCompPrice * 0.5);
     return [
-      { text: `$${low} for the trial`, subtext: `Lowest barrier — competitors in ${city} charge ~$${avgCompPrice}/mo so this feels nearly free` },
-      { text: `$${mid} for the trial`, subtext: 'Filters for committed leads — attracts members with skin in the game' },
-      { text: `$${rec} for the trial`, subtext: 'Recommended — roughly half your monthly rate, feels fair and funds the trial' },
+      { text: `$${low} for ${dur}`, subtext: `Near-free entry — competitors charge ~$${avgCompPrice}/mo so this feels like a no-risk test` },
+      { text: `$${mid} for ${dur}`, subtext: 'Enough skin in the game to show up — filters out tire-kickers' },
+      { text: `$${rec} for ${dur}`, subtext: `About half the competitor monthly rate — fair anchor that funds the ${dur}` },
     ];
   }
   if (questionId === 'qb4') return [
-    { text: 'Unlimited group classes during the trial', subtext: 'Simplest offer — no friction, easy yes' },
-    { text: 'Unlimited classes + one orientation session on day one', subtext: `Fills the gap ${competitorNames} leave open` },
-    { text: 'Unlimited classes + weekly coach check-in during the trial', subtext: 'Highest value — impossible to replicate at any big-box gym' },
+    { text: `Unlimited group classes for ${dur}`, subtext: `Simplest offer — no friction for the ${price} entry` },
+    { text: `Unlimited classes + one coached orientation on day one`, subtext: `Fills the gap ${competitorNames} leave open — they drop members in with no direction` },
+    { text: `Unlimited classes + weekly 1-on-1 coach check-in throughout ${dur}`, subtext: `Highest perceived value — impossible to match at any big-box gym in ${city}` },
   ];
   if (questionId === 'qb5') return [
-    { text: 'Full refund if not completely satisfied after the trial', subtext: 'Satisfaction guarantee — removes all risk, simplest to explain' },
-    { text: "Show up at least 3 times a week — if you don't feel a difference, full refund", subtext: 'Attendance-based — rewards commitment, filters out non-starters' },
-    { text: 'Complete the trial — if you are not measurably stronger, we coach you free until you are', subtext: 'Results-based — strongest closing tool, highest perceived value' },
+    { text: `Complete ${dur} — if you are not completely satisfied, full refund, no questions asked`, subtext: 'Removes all risk — the simplest guarantee to say out loud' },
+    { text: `Show up at least 3 times a week during ${dur}. If you do not feel a measurable difference, I refund every dollar`, subtext: 'Attendance-based — rewards commitment and filters non-starters' },
+    { text: `Finish ${dur} with ${included}. If you are not noticeably stronger, we coach you free until you are`, subtext: 'Results-based — turns the trial into a promise, strongest closing tool' },
   ];
   if (questionId === 'qb6') return [
-    { text: `We give every new member a dedicated coach for their first 30 days — ${competitorNames} do not do this`, subtext: `Fills market gap: "${primaryGap.substring(0, 60)}"` },
-    { text: 'Every member gets a personalized training plan on day one — not a generic class schedule', subtext: 'What reviews show members want but cannot find elsewhere in the market' },
-    { text: 'Our coaches know every member by name and adjust their program weekly — you are never just a number here', subtext: 'Personal accountability impossible at any big-box gym' },
+    { text: `We assign every new member a personal coach on day one who checks in before every session — ${competitorNames} do not do this`, subtext: `Fills the gap: "${primaryGap.substring(0, 60)}" — nobody else in ${city} is saying this` },
+    { text: `Every member gets a fully personalized program from day one — not a generic class schedule`, subtext: `Completes the ${dur} at ${price} offer: the coached structure makes the price feel irrelevant` },
+    { text: `Our coaches know every member by name and adjust their program weekly — you are never just a number`, subtext: `What ${competitorNames} cannot offer — personal accountability that scales` },
   ];
   return [];
 }
