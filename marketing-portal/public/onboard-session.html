@@ -246,8 +246,7 @@
     .iv-section-tag { font-size: 10px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 5px; }
     .iv-q-label { font-size: 12px; color: rgba(232,234,240,0.28); margin-bottom: 14px; }
     .iv-question { font-size: 17px; font-weight: 600; line-height: 1.58; color: rgba(232,234,240,0.88); max-width: 490px; margin-bottom: 20px; }
-    .iv-controls { display: flex; gap: 10px; width: 100%; max-width: 500px; margin-bottom: 11px; align-items: center; }
-    .iv-back-btn { background: #7c3aed; border: none; border-radius: 10px; padding: 11px 13px; font-family: inherit; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
+.iv-back-btn { background: #7c3aed; border: none; border-radius: 10px; padding: 11px 13px; font-family: inherit; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; transition: background 0.15s; flex-shrink: 0; }
     .iv-back-btn:hover:not(:disabled) { background: #6d28d9; }
     .iv-back-btn:disabled { background: #5b21b6; cursor: not-allowed; }
 
@@ -452,13 +451,11 @@
           <div class="iv-section-tag" id="iv-section-tag">The Offer</div>
           <div class="iv-q-label" id="iv-q-label">Question 1</div>
           <p class="iv-question" id="iv-question">—</p>
-          <div class="iv-controls">
-            <button class="iv-back-btn" id="prev-btn" onclick="goToPrevQuestion()" disabled title="Go back to previous question">←</button>
-          </div>
           <div class="answer-area">
             <textarea id="text-answer" placeholder="Type your answer here..." rows="2" oninput="onTextInput(this.value)"></textarea>
             <div class="iv-btns-row">
               <button class="iv-submit" id="submit-btn" onclick="submitAnswer()" disabled>Submit answer</button>
+              <button class="iv-back-btn" id="prev-btn" type="button" onclick="goToPrevQuestion()" disabled title="Go back to previous question">← Back</button>
               <button class="iv-skip-btn" id="iv-skip-btn" onclick="skipAct()">Skip →</button>
               <button type="button" class="iv-mute-btn" id="iv-mute-btn" onclick="toggleMute()">🔊</button>
             </div>
@@ -2023,9 +2020,7 @@
     }
 
     async function runTileBuilder(parentNav) {
-      const controlsEl = document.querySelector('.iv-controls');
       const answerAreaEl = document.querySelector('.answer-area');
-      if (controlsEl) controlsEl.style.display = 'none';
       if (answerAreaEl) answerAreaEl.style.display = 'none';
 
       const wrap = document.createElement('div');
@@ -2118,9 +2113,7 @@
     }
 
     async function completeTileBuilder() {
-      const controlsEl = document.querySelector('.iv-controls');
       const answerAreaEl = document.querySelector('.answer-area');
-      if (controlsEl) controlsEl.style.display = '';
       if (answerAreaEl) answerAreaEl.style.display = '';
       const wrap = document.getElementById('tile-builder-wrap');
       if (wrap) wrap.remove();
