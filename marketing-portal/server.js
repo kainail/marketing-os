@@ -3758,15 +3758,19 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
     const hooks = await generateFinalHooks(session, brainState, avatar, objections, compliance, client);
+    const posts = await generateContentPosts(session, brainState, avatar, hooks, client);
 
-    await r2PutShared(`onboarding/sessions/${sessionId}/hooks.json`, { hooks, generated_at: new Date().toISOString() });
+    await Promise.all([
+      r2PutShared(`onboarding/sessions/${sessionId}/hooks.json`, { hooks, generated_at: new Date().toISOString() }),
+      r2PutShared(`onboarding/sessions/${sessionId}/content-posts.json`, { posts, generated_at: new Date().toISOString() }),
+    ]);
     session.status = 'complete';
     session.completed_at = new Date().toISOString();
     await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
 
     await sendKaiNotification(session, sessionId, hooks, brainState);
-    console.log(`[onboarding] session ${sessionId} complete — ${hooks.length} hooks`);
-    res.json({ success: true, hooks });
+    console.log(`[onboarding] session ${sessionId} complete — ${hooks.length} hooks, ${posts.length} posts`);
+    res.json({ success: true, hooks, posts });
   } catch (err) {
     console.error('[onboarding] complete failed:', err.message);
     res.status(500).json({ error: err.message });
@@ -3812,6 +3816,47 @@ Output JSON array only — no preamble:
     return JSON.parse(json);
   } catch {
     return [{ hook: msg.content[0].text.trim(), framework: 'Generated', awarenessLevel: 'L3' }];
+  }
+}
+
+/** Generate 3 content post concepts from KB using claude-haiku-4-5-20251001. */
+async function generateContentPosts(session, brainState, avatar, hooks, client) {
+  const gym = session.gymName || 'Unknown Gym';
+  const city = session.city || '';
+  const hookTexts = (hooks || []).slice(0, 3)
+    .map(h => (typeof h === 'string' ? h : h.hook) || '')
+    .filter(Boolean).join('\n');
+
+  const prompt = `You are AHRI generating 3 content post concepts for ${gym} in ${city}.
+
+AVATAR:
+${typeof avatar === 'string' ? avatar.substring(0, 400) : ''}
+
+HOOKS:
+${hookTexts}
+
+Generate 3 content post concepts — one each for: Instagram Reel, Facebook Post, Instagram Story.
+Each concept uses a different hook angle. Hook line is max 12 words. Angle is 1 sentence: what the post actually shows.
+Never generic fitness clichés. Be specific to this gym's context.
+
+Output JSON array only:
+[
+  {"platform": "Instagram Reel", "hook": "...", "angle": "..."},
+  {"platform": "Facebook Post", "hook": "...", "angle": "..."},
+  {"platform": "Instagram Story", "hook": "...", "angle": "..."}
+]`;
+
+  try {
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 350,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw = msg.content[0].text.trim();
+    const json = raw.match(/\[[\s\S]*\]/)?.[0];
+    return JSON.parse(json);
+  } catch {
+    return [];
   }
 }
 

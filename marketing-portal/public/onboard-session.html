@@ -122,14 +122,32 @@
     .kb-file.complete { cursor: pointer; }
     .kb-file.complete:hover { border-color: rgba(34,197,94,0.4); }
 
-    /* ─── State 5: complete ──────────────────────────────────────── */
-    .complete-badge { display: inline-flex; align-items: center; gap: 7px; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); border-radius: 20px; padding: 5px 14px; font-size: 12px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: #86efac; margin-bottom: 26px; }
-    .complete-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.5); flex-shrink: 0; }
-    .complete-heading { font-size: 28px; font-weight: 800; line-height: 1.2; margin-bottom: 14px; }
-    .complete-sub { font-size: 15px; color: rgba(232,234,240,0.5); max-width: 440px; line-height: 1.65; margin-bottom: 28px; }
-    .complete-items { display: flex; flex-direction: column; gap: 8px; max-width: 420px; width: 100%; margin-bottom: 28px; }
-    .complete-item { display: flex; align-items: flex-start; gap: 10px; text-align: left; font-size: 14px; color: rgba(232,234,240,0.65); line-height: 1.45; }
-    .complete-item-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; flex-shrink: 0; margin-top: 5px; }
+    /* ─── State 5: complete reveal ───────────────────────────────── */
+    #state-complete { justify-content: flex-start; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; text-align: left; padding-bottom: 24px; }
+    .cr-speak-el { font-size: 14px; color: rgba(232,234,240,0.6); min-height: 20px; margin-bottom: 18px; line-height: 1.5; width: 100%; max-width: 500px; }
+    .cr-section { width: 100%; max-width: 500px; margin-bottom: 20px; opacity: 0; transform: translateY(10px); transition: opacity 0.5s ease, transform 0.5s ease; }
+    .cr-section.cr-visible { opacity: 1; transform: translateY(0); }
+    .cr-section-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 10px; }
+    .cr-avatar-card { background: rgba(124,58,237,0.07); border: 1px solid rgba(124,58,237,0.18); border-radius: 12px; padding: 16px 18px; }
+    .cr-avatar-name { font-size: 15px; font-weight: 600; color: rgba(232,234,240,0.9); margin-bottom: 6px; }
+    .cr-avatar-struggle { font-size: 13px; color: rgba(232,234,240,0.55); line-height: 1.5; }
+    .cr-position-row { display: flex; gap: 10px; }
+    .cr-pos-item { flex: 1; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px 14px; }
+    .cr-pos-label { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 6px; }
+    .cr-pos-value { font-size: 13px; color: rgba(232,234,240,0.8); line-height: 1.4; }
+    .cr-hooks-list { display: flex; flex-direction: column; gap: 7px; }
+    .cr-hook-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 9px; padding: 12px 14px; opacity: 0; transform: translateY(6px); transition: opacity 0.35s, transform 0.35s; }
+    .cr-hook-item.cr-visible { opacity: 1; transform: translateY(0); }
+    .cr-hook-text { font-size: 13px; color: rgba(232,234,240,0.85); line-height: 1.4; margin-bottom: 4px; }
+    .cr-hook-meta { font-size: 10px; color: rgba(124,58,237,0.7); font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; }
+    .cr-posts-list { display: flex; flex-direction: column; gap: 7px; }
+    .cr-post-item { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 9px; padding: 12px 14px; opacity: 0; transform: translateY(6px); transition: opacity 0.35s, transform 0.35s; }
+    .cr-post-item.cr-visible { opacity: 1; transform: translateY(0); }
+    .cr-post-platform { font-size: 10px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 5px; }
+    .cr-post-hook { font-size: 13px; color: rgba(232,234,240,0.85); line-height: 1.4; margin-bottom: 4px; }
+    .cr-post-angle { font-size: 11px; color: rgba(232,234,240,0.45); line-height: 1.4; }
+    .cr-cta-row { width: 100%; max-width: 500px; padding-top: 8px; opacity: 0; transition: opacity 0.5s; }
+    .cr-cta-row.cr-visible { opacity: 1; }
     .complete-cta { display: inline-flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 13px 28px; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(232,234,240,0.7); cursor: pointer; transition: background 0.15s; text-decoration: none; }
     .complete-cta:hover { background: rgba(255,255,255,0.08); }
 
@@ -383,16 +401,43 @@
 
         <!-- State 6: session complete -->
         <div class="state-pane hidden" id="state-complete">
-          <div class="complete-badge"><div class="complete-badge-dot"></div>Session Complete</div>
-          <div class="complete-heading">Your marketing system<br/>is configured.</div>
-          <p class="complete-sub">Here's what we built in this session.</p>
-          <div class="complete-items">
-            <div class="complete-item"><div class="complete-item-dot"></div><span id="complete-avatar-line">Avatar: lifestyle member</span></div>
-            <div class="complete-item"><div class="complete-item-dot"></div><span id="complete-position-line">Market position: identified</span></div>
-            <div class="complete-item"><div class="complete-item-dot"></div><span id="complete-offer-line">Offer: configured</span></div>
-            <div class="complete-item"><div class="complete-item-dot"></div><span id="complete-hooks-line">5 hooks ready to run.</span></div>
+          <div id="complete-speak-el" class="cr-speak-el"></div>
+
+          <div class="cr-section hidden" id="cr-avatar">
+            <div class="cr-section-label">Your Member</div>
+            <div class="cr-avatar-card">
+              <div class="cr-avatar-name" id="cr-avatar-name">Lifestyle Member</div>
+              <div class="cr-avatar-struggle" id="cr-avatar-struggle"></div>
+            </div>
           </div>
-          <a id="complete-portal-link" class="complete-cta" href="#" target="_blank">View your marketing portal →</a>
+
+          <div class="cr-section hidden" id="cr-position">
+            <div class="cr-section-label">Your Position</div>
+            <div class="cr-position-row">
+              <div class="cr-pos-item">
+                <div class="cr-pos-label">Market Gap</div>
+                <div class="cr-pos-value" id="cr-pos-gap"></div>
+              </div>
+              <div class="cr-pos-item">
+                <div class="cr-pos-label">Your Offer</div>
+                <div class="cr-pos-value" id="cr-pos-offer"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cr-section hidden" id="cr-hooks">
+            <div class="cr-section-label">Your Hooks</div>
+            <div class="cr-hooks-list" id="cr-hooks-list"></div>
+          </div>
+
+          <div class="cr-section hidden" id="cr-posts">
+            <div class="cr-section-label">First 3 Posts</div>
+            <div class="cr-posts-list" id="cr-posts-list"></div>
+          </div>
+
+          <div class="cr-cta-row hidden" id="cr-cta">
+            <a id="complete-portal-link" class="complete-cta" href="#" target="_blank">View your marketing portal →</a>
+          </div>
         </div>
 
       </div>
@@ -2056,7 +2101,7 @@
         const res = await fetch(`/api/onboarding/sessions/${sessionId}/complete`, { method: 'POST' });
         if (!res.ok) throw new Error('complete API failed');
         const data = await res.json();
-        await revealFinalHooks(data.hooks || []);
+        await showCompleteReveal(data);
       } catch (err) {
         console.error('[AHRI] completion failed:', err);
         showState('state-speaking');
@@ -2065,71 +2110,123 @@
       }
     }
 
-    // ─── Reveal final hooks one by one with speech ────────────────────────────
-    async function revealFinalHooks(hooks) {
-      showState('state-hook-reveal');
-      document.getElementById('hook-counter').textContent = '';
+    // ─── Session complete — sequential reveal ────────────────────────────────
+    async function showCompleteReveal(data) {
+      const hooks = data.hooks || [];
+      const posts = data.posts || [];
+      const revNav = navVersion;
 
-      const hookSpeakEl = document.getElementById('hook-speaking-text');
-      if (hookSpeakEl) { hookSpeakEl.style.opacity = '1'; hookSpeakEl.innerHTML = ''; }
-      await speak("These are your hooks. Built from your offer, your differentiator, and the exact words your members use.", hookSpeakEl);
-      if (hookSpeakEl) hookSpeakEl.style.opacity = '0';
-      await sleep(600);
+      showState('state-complete');
+      updateStatusPip('active', 'Session complete');
+
+      const speakEl = document.getElementById('complete-speak-el');
+
+      function crReveal(id) {
+        const el = document.getElementById(id);
+        el.classList.remove('hidden');
+        requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('cr-visible')));
+      }
+
+      // Pull session data for cards
+      let avatarName = 'Lifestyle Member';
+      let avatarStruggle = '';
+      let marketGap = '';
+      let offerSummary = '';
+
+      try {
+        const pdRes = await fetch(`/api/onboarding/sessions/${sessionId}/portal-data`);
+        if (pdRes.ok && navVersion === revNav) {
+          const pd = await pdRes.json();
+          const bs = typeof pd.kb?.brainState === 'string' ? pd.kb.brainState : '';
+          const av = typeof pd.kb?.avatar === 'string' ? pd.kb.avatar : '';
+
+          const nameMatch = av.match(/^## Who They Are\n([^\n]+)/m) || av.match(/^Name:\s*(.+)$/m);
+          const struggleMatch = av.match(/^## Before State\n([\s\S]+?)(?=\n##|\n---|\n\n|$)/m);
+          const gapMatch = bs.match(/^Market gap:\s*(.+)$/m);
+          const priceMatch = bs.match(/^Price:\s*(.+)$/m);
+          const durationMatch = bs.match(/^Duration:\s*(.+)$/m);
+
+          if (nameMatch?.[1] && nameMatch[1] !== '[not captured]') avatarName = nameMatch[1].trim();
+          if (struggleMatch?.[1] && struggleMatch[1] !== '[not captured]') {
+            avatarStruggle = struggleMatch[1].trim().split('\n').slice(0, 2).join(' ').substring(0, 120);
+          }
+          if (gapMatch?.[1] && gapMatch[1] !== '[not captured]') marketGap = gapMatch[1].trim();
+          if (priceMatch?.[1] && priceMatch[1] !== '[not captured]') {
+            offerSummary = priceMatch[1].trim();
+            if (durationMatch?.[1] && durationMatch[1] !== '[not captured]') offerSummary += ' · ' + durationMatch[1].trim();
+          }
+        }
+      } catch {}
+
+      if (navVersion !== revNav) return;
+
+      // Act 1: Avatar card
+      document.getElementById('cr-avatar-name').textContent = avatarName;
+      document.getElementById('cr-avatar-struggle').textContent = avatarStruggle || "Ready to make a change — hasn't found the right fit yet.";
+      crReveal('cr-avatar');
+      const avatarIntro = avatarStruggle
+        ? `Here's who we're building for. ${avatarName}. ${avatarStruggle.substring(0, 80)}.`
+        : `Here's who we're building for. ${avatarName}. Ready to make a change.`;
+      await speak(avatarIntro, speakEl);
+      if (navVersion !== revNav) return;
+      await sleep(400);
+
+      // Act 2: Market position
+      document.getElementById('cr-pos-gap').textContent = marketGap || 'Personalized accountability';
+      document.getElementById('cr-pos-offer').textContent = offerSummary || 'Configured this session';
+      crReveal('cr-position');
+      await speak(`Your market gap is ${marketGap || 'personalized coaching'}. Your offer closes it.`, speakEl);
+      if (navVersion !== revNav) return;
+      await sleep(400);
+
+      // Act 3: Hooks one by one
+      crReveal('cr-hooks');
+      await speak(`Here are your ${hooks.length} hooks.`, speakEl);
+      await sleep(200);
 
       for (let i = 0; i < hooks.length; i++) {
+        if (navVersion !== revNav) return;
         const h = hooks[i];
         const hookText = typeof h === 'string' ? h : (h.hook || '');
         const framework = typeof h === 'string' ? '' : (h.framework || '');
         if (!hookText) continue;
-
-        document.getElementById('hook-counter').textContent = `Hook ${i + 1} of ${hooks.length}`;
-
-        const cardWrap = document.querySelector('.hook-card-wrap');
-        cardWrap.innerHTML = `<div class="hook-card" id="hc-new">
-          <div class="hook-text">${esc(hookText)}</div>
-          <div class="hook-meta">${esc(framework)}</div>
-        </div>`;
-        await sleep(80);
-        document.getElementById('hc-new').classList.add('visible');
+        const hookEl = document.createElement('div');
+        hookEl.className = 'cr-hook-item';
+        hookEl.innerHTML = `<div class="cr-hook-text">${esc(hookText)}</div>${framework ? `<div class="cr-hook-meta">${esc(framework)}</div>` : ''}`;
+        document.getElementById('cr-hooks-list').appendChild(hookEl);
+        await sleep(50);
+        requestAnimationFrame(() => requestAnimationFrame(() => hookEl.classList.add('cr-visible')));
         await speak(hookText);
-        await sleep(350);
+        await sleep(250);
       }
 
-      const finalSpeakEl = document.getElementById('hook-speaking-text');
-      if (finalSpeakEl) { finalSpeakEl.style.opacity = '1'; finalSpeakEl.innerHTML = ''; }
-      await speak("These are ready to run. Your first campaign brief is being prepared now.", finalSpeakEl);
-      await sleep(500);
-      await showSessionComplete(hooks);
-    }
+      if (navVersion !== revNav) return;
 
-    // ─── Session complete screen ──────────────────────────────────────────────
-    async function showSessionComplete(hooks) {
-      showState('state-complete');
-      updateStatusPip('active', 'Session complete');
-      document.getElementById('complete-hooks-line').textContent = `${hooks.length} hooks ready to run.`;
+      // Act 4: Content posts
+      if (posts.length > 0) {
+        await sleep(300);
+        crReveal('cr-posts');
+        await speak('And your first three posts.', speakEl);
+        await sleep(200);
+        for (const p of posts) {
+          if (navVersion !== revNav) return;
+          const postEl = document.createElement('div');
+          postEl.className = 'cr-post-item';
+          postEl.innerHTML = `<div class="cr-post-platform">${esc(p.platform || '')}</div><div class="cr-post-hook">${esc(p.hook || '')}</div><div class="cr-post-angle">${esc(p.angle || '')}</div>`;
+          document.getElementById('cr-posts-list').appendChild(postEl);
+          await sleep(50);
+          requestAnimationFrame(() => requestAnimationFrame(() => postEl.classList.add('cr-visible')));
+          await sleep(700);
+        }
+      }
+
+      if (navVersion !== revNav) return;
+      await sleep(400);
+
+      // CTA
       document.getElementById('complete-portal-link').href = `/onboard/portal/${sessionId}`;
-
-      try {
-        const res = await fetch(`/api/onboarding/sessions/${sessionId}/portal-data`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const bs = typeof data.kb?.brainState === 'string' ? data.kb.brainState : '';
-        const av = typeof data.kb?.avatar === 'string' ? data.kb.avatar : '';
-
-        const offerMatch    = bs.match(/^Price:\s*(.+)$/m);
-        const positionMatch = bs.match(/^Market gap:\s*(.+)$/m);
-        const avatarMatch   = av.match(/^## Who They Are\n([^\n]+)/m);
-
-        if (avatarMatch?.[1] && avatarMatch[1] !== '[not captured]') {
-          document.getElementById('complete-avatar-line').textContent = 'Avatar: ' + avatarMatch[1].trim();
-        }
-        if (positionMatch?.[1] && positionMatch[1] !== '[not captured]') {
-          document.getElementById('complete-position-line').textContent = 'Market position: ' + positionMatch[1].trim();
-        }
-        if (offerMatch?.[1] && offerMatch[1] !== '[not captured]') {
-          document.getElementById('complete-offer-line').textContent = 'Offer: ' + offerMatch[1].trim();
-        }
-      } catch {}
+      crReveal('cr-cta');
+      await speak("That's your system. Your portal has everything — your avatar, your offer, and your hooks. We build the first campaign brief from here.", speakEl);
     }
 
     init();
