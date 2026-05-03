@@ -2847,6 +2847,10 @@ async function generateQuestionSuggestions(questionId, questionText, section, se
   if (['qb2','qb3','qb4','qb5','qb6'].includes(questionId)) {
     return generatePathBTiles(questionId, session, research);
   }
+  // Path A free-form questions get inspiration tiles
+  if (['qa2','qa3','qa4','qa5'].includes(questionId)) {
+    return generatePathATiles(questionId, session, research);
+  }
 
   const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
   if (!apiKey) return [];
@@ -3013,6 +3017,113 @@ function pathBFallback(questionId, city, avgCompPrice, competitorNames, primaryG
   return [];
 }
 
+/** Generate 3 inspiration tiles for Path A free-form offer questions using Claude Haiku. */
+async function generatePathATiles(questionId, session, research) {
+  const city = session.city || 'your city';
+  const gymName = session.gymName || 'this gym';
+  const competitors = (research?.competitors || []).slice(0, 3);
+  const competitorNames = competitors.map(c => c.name).filter(Boolean).join(', ') || 'local gyms';
+  const primaryGap = (research?.marketGaps || [])[0] || 'personalized coaching and accountability';
+  const reviewExcerpts = (research?.googleReviews || [])
+    .filter(r => r.text?.length > 20).slice(0, 2)
+    .map(r => `"${r.text.substring(0, 80)}"`).join(' | ') || '';
+
+  const PROMPTS = {
+    qa2: `Generate 3 example offer structures a gym owner could use to answer: "Walk me through exactly what is included, what they pay, and what happens if it does not work."
+
+GYM: ${gymName}, ${city}
+Market gap: "${primaryGap}"
+Competitors: ${competitorNames}
+
+Each example: a complete 2-3 sentence offer description in first-person owner voice covering trial duration, price, what's included, and the guarantee.
+Make each distinct: one value-focused, one guarantee-focused, one experience-focused.
+
+Output ONLY a JSON array, no other text:
+[{"text":"[complete offer description]","subtext":"[angle label]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`,
+
+    qa3: `Generate 3 examples of "the one thing that makes people say — wait, that is included?" for a gym.
+
+GYM: ${gymName}, ${city}
+Market gap nobody is filling: "${primaryGap}"
+Competitors: ${competitorNames}
+Member reviews: ${reviewExcerpts || 'not available'}
+
+Each: a specific surprise element drawn from the market gap — what members want but cannot find. First-person owner voice.
+
+Output ONLY a JSON array, no other text:
+[{"text":"[the surprise element in owner's voice]","subtext":"[why this surprises — connects to gap]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`,
+
+    qa4: `Generate 3 guarantee structures a gym owner could use for their trial offer.
+
+GYM: ${gymName}, ${city}
+Market gap: "${primaryGap}"
+Member reviews: ${reviewExcerpts || 'not available'}
+
+Option 1: Simple satisfaction guarantee. Option 2: Attendance-based (show up X times or full refund). Option 3: Results-based (feel measurable change or we extend free).
+
+Write each as exact guarantee language the owner would say out loud.
+
+Output ONLY a JSON array, no other text:
+[{"text":"[exact guarantee language]","subtext":"[what fear this removes]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`,
+
+    qa5: `Generate 3 cohort framing statements for: "When does your next group or cohort start and how many spots are available?"
+
+GYM: ${gymName}, ${city}
+
+Cover: (1) specific date + limited spots, (2) monthly application-based with scarcity, (3) rolling weekly enrollment with limited openings.
+First-person owner voice. Numbers should feel real and create urgency.
+
+Output ONLY a JSON array, no other text:
+[{"text":"[cohort framing statement]","subtext":"[why this creates urgency]"},{"text":"...","subtext":"..."},{"text":"...","subtext":"..."}]`,
+  };
+
+  const prompt = PROMPTS[questionId];
+  if (!prompt) return [];
+
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (apiKey) {
+    try {
+      const Anthropic = require('@anthropic-ai/sdk');
+      const client = new Anthropic({ apiKey });
+      const msg = await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 700,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length >= 1) return parsed.slice(0, 3);
+    } catch (err) {
+      console.error(`[patha-tiles] ${questionId} generation failed:`, err.message);
+    }
+  }
+  return pathAFallback(questionId, city, gymName, competitorNames, primaryGap);
+}
+
+function pathAFallback(questionId, city, gymName, competitorNames, primaryGap) {
+  if (questionId === 'qa2') return [
+    { text: "We run a 21-day trial for $1 down. They get unlimited classes, a personal orientation session on day one, and if they don't feel a measurable difference after showing up at least 3 times a week, they get a full refund.", subtext: 'Value + guarantee focus' },
+    { text: "Our trial is 30 days with nothing due upfront. Unlimited classes, weekly coach check-ins, and a personalized plan from day one. If they're not satisfied after two weeks, we refund completely.", subtext: 'Low barrier + experience focus' },
+    { text: "We do a 14-day trial for $49. Unlimited group classes plus a one-on-one goal session with a coach. If they don't see value, we refund the $49, no questions asked.", subtext: 'Short commitment + clear value' },
+  ];
+  if (questionId === 'qa3') return [
+    { text: `Every new member gets a personal coach assigned on day one who checks in with them before every session — ${competitorNames} don't do this at all.`, subtext: `Fills gap: "${primaryGap.substring(0, 55)}"` },
+    { text: 'On day one they get a full movement assessment, a personalized program, and their coach maps out exactly what they will do for the next 30 days — not a generic class schedule.', subtext: 'Personalization at scale — impossible at big-box gyms' },
+    { text: 'Every member gets a progress review at day 7, day 14, and day 21. Most gyms do this once a year — we do it three times during the trial alone.', subtext: 'Accountability members say they cannot find elsewhere' },
+  ];
+  if (questionId === 'qa4') return [
+    { text: "If you are not completely satisfied after your trial, I will give you a full refund — no questions, no forms, just a message to me directly.", subtext: 'Satisfaction guarantee — removes all risk' },
+    { text: "Show up at least 3 times per week during the trial. If you don't feel measurably stronger and more energized by the end, I will refund every dollar you paid.", subtext: 'Attendance-based — rewards commitment, filters non-starters' },
+    { text: "Complete the full trial. If you are not noticeably stronger and do not feel like this is the right place for you, we will coach you free for another 30 days — or refund you completely.", subtext: 'Results-based — strongest closing tool in the market' },
+  ];
+  if (questionId === 'qa5') return [
+    { text: 'We start a new group every Monday and we only take 6 people per group — next Monday we have 2 spots left.', subtext: 'Specific date + scarcity creates urgency' },
+    { text: 'We open 8 spots on the first of every month. This month we have 3 remaining — after that the next opening is the 1st.', subtext: 'Monthly cadence + application frame' },
+    { text: 'We run rolling groups of 4 — a new one starts every week. This week is full but next week we have 4 spots open.', subtext: 'Weekly availability + real number creates FOMO' },
+  ];
+  return [];
+}
+
 // POST /api/onboarding/sessions/:sessionId/synthesize-offer — legacy route, kept for compatibility
 app.post('/api/onboarding/sessions/:sessionId/synthesize-offer', async (req, res) => {
   res.status(410).json({ error: 'Replaced by /analyze-offer' });
@@ -3034,13 +3145,7 @@ app.post('/api/onboarding/sessions/:sessionId/analyze-offer', async (req, res) =
     .filter(r => r.text?.length > 20).slice(0, 2)
     .map(r => `"${r.text.substring(0, 100)}"`).join(' | ') || 'not available';
 
-  const original = {
-    duration: answers?.qb2 || '21 days',
-    price: answers?.qb3 || '$0 down',
-    included: answers?.qb4 || 'Unlimited classes',
-    guarantee: answers?.qb5 || 'Full refund if not satisfied',
-    differentiator: answers?.qb6 || 'Personalized coaching',
-  };
+  const isPathA = answers?.qa2 && !answers?.qb2;
 
   const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
   if (!apiKey) return res.status(500).json({ error: 'API key not configured' });
@@ -3048,6 +3153,87 @@ app.post('/api/onboarding/sessions/:sessionId/analyze-offer', async (req, res) =
   try {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
+
+    if (isPathA) {
+      // Path A: extract structured offer from free-form answers, then score and iterate
+      const prompt = `You are AHRI, an AI marketing strategist. A gym owner answered 4 free-form questions about their offer.
+
+GYM: ${gymName}, ${city}
+MARKET GAP: "${primaryGap}"
+MEMBER REVIEWS: ${reviewExcerpts}
+
+FREE-FORM ANSWERS:
+qa2 (what's included, price, guarantee): ${answers.qa2 || 'not answered'}
+qa3 (the one surprise element): ${answers.qa3 || 'not answered'}
+qa4 (guarantee — word for word): ${answers.qa4 || 'not answered'}
+qa5 (cohort timing and availability): ${answers.qa5 || 'not answered'}
+
+Step 1 — Extract these 5 structured fields from the answers above:
+- duration: the trial period or cohort length (e.g. "21 days", "30 days")
+- price: the entry price or cost (e.g. "$1", "$49", "$0 down")
+- included: what the member gets (1-2 sentences)
+- guarantee: the exact guarantee language
+- differentiator: what makes this offer unique (the surprise element or standout feature)
+
+Step 2 — Score each Hormozi dimension 1-10 for the extracted offer:
+Dream Outcome, Perceived Likelihood, Time Delay (inverted — shorter = higher score), Effort & Sacrifice (inverted — less = higher score).
+
+Step 3 — If ALL FOUR dimensions score 7 or higher: set allAbove7 to true, return empty iterations array.
+         Otherwise: generate 3 iterations that each fix a different weak dimension.
+
+Return ONLY this JSON (no markdown, no explanation):
+{
+  "original": {
+    "duration": "extracted value",
+    "price": "extracted value",
+    "included": "extracted value",
+    "guarantee": "extracted value",
+    "differentiator": "extracted value"
+  },
+  "allAbove7": false,
+  "ahriAnalysis": "2 sentences max: what is weakest and what it costs in conversions",
+  "iterations": [
+    {
+      "title": "Iteration A — [short label naming the change]",
+      "change": "One sentence: what changed and why",
+      "offer": { "duration": "...", "price": "...", "included": "...", "guarantee": "...", "differentiator": "..." }
+    },
+    {
+      "title": "Iteration B — [short label]",
+      "change": "One sentence",
+      "offer": { "duration": "...", "price": "...", "included": "...", "guarantee": "...", "differentiator": "..." }
+    },
+    {
+      "title": "Iteration C — [short label]",
+      "change": "One sentence",
+      "offer": { "duration": "...", "price": "...", "included": "...", "guarantee": "...", "differentiator": "..." }
+    }
+  ]
+}`;
+
+      const msg = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1600,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
+      const analysis = JSON.parse(raw);
+      return res.json({
+        original: analysis.original,
+        allAbove7: analysis.allAbove7 || false,
+        ahriAnalysis: analysis.ahriAnalysis,
+        iterations: analysis.allAbove7 ? [] : (analysis.iterations || []),
+      });
+    }
+
+    // Path B: structured answers already in qb2-qb6
+    const original = {
+      duration: answers?.qb2 || '21 days',
+      price: answers?.qb3 || '$0 down',
+      included: answers?.qb4 || 'Unlimited classes',
+      guarantee: answers?.qb5 || 'Full refund if not satisfied',
+      differentiator: answers?.qb6 || 'Personalized coaching',
+    };
 
     const prompt = `You are AHRI, an AI marketing strategist. Analyze this gym offer using the Hormozi value equation and generate 3 stronger iterations.
 

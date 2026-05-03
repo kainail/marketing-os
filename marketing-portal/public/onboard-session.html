@@ -210,6 +210,12 @@
     .suggestions-wrap.pathb-mode .suggestion-card.selected { background: rgba(124,58,237,0.2); border-color: rgba(124,58,237,0.5); }
     .suggestions-wrap.pathb-mode .suggestions-label { font-size: 13px; font-weight: 500; color: rgba(232,234,240,0.55); }
 
+    /* ─── Path A inspiration tile mode ──────────────────────────── */
+    .suggestions-wrap.patha-mode .suggestion-card { background: rgba(99,102,241,0.03); border-style: dashed; border-color: rgba(99,102,241,0.12); opacity: 0.72; }
+    .suggestions-wrap.patha-mode .suggestion-card:hover { background: rgba(99,102,241,0.08); border-color: rgba(99,102,241,0.24); opacity: 1; }
+    .suggestions-wrap.patha-mode .suggestion-card.selected { background: rgba(99,102,241,0.12); border-color: rgba(99,102,241,0.38); opacity: 1; border-style: solid; }
+    .suggestions-wrap.patha-mode .suggestions-label { font-size: 12px; font-style: italic; color: rgba(232,234,240,0.30); }
+
     /* ─── State: offer analysis ──────────────────────────────────── */
     #state-offer-analysis { justify-content: flex-start; flex: 1; min-height: 0; }
     .oa-header { flex-shrink: 0; width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 4px; }
@@ -1376,7 +1382,13 @@
         const apiTiles = await tilePromises[q.id];
         if (navVersion !== thisNav) return;
         const tiles = (apiTiles?.length > 0) ? apiTiles : (HARDCODED_TILES[q.id] || []);
-        if (tiles.length > 0) showSuggestionTiles(tiles);
+        if (tiles.length > 0) {
+          showSuggestionTiles(tiles);
+          // Path A: speak inspiration hint after tiles appear
+          if (['qa2','qa3','qa4','qa5'].includes(q.id)) {
+            await speak("I have added a few ideas below in case you need inspiration — but feel free to answer in your own words.", document.getElementById('iv-question'));
+          }
+        }
       } catch {}
 
       // Pre-fetch next valid question's tiles while the owner is answering
@@ -1481,8 +1493,8 @@
         await runPathBIntro();
       }
 
-      // After qb6: run Hormozi analysis and let owner pick original or iteration
-      if (q.id === 'qb6') {
+      // After qb6 or qa5: run Hormozi analysis and let owner pick original or iteration
+      if (q.id === 'qb6' || q.id === 'qa5') {
         await runOfferAnalysis();
       }
 
@@ -1690,12 +1702,19 @@
 
       const q = QUESTIONS[interviewState.currentQIndex];
       const isPathB = q && ['qb2','qb3','qb4','qb5','qb6'].includes(q.id);
+      const isPathA = q && ['qa2','qa3','qa4','qa5'].includes(q.id);
       const label = wrap.querySelector('.suggestions-label');
       if (isPathB) {
         wrap.classList.add('pathb-mode');
+        wrap.classList.remove('patha-mode');
         if (label) label.textContent = 'Pick one — or type your own below:';
+      } else if (isPathA) {
+        wrap.classList.add('patha-mode');
+        wrap.classList.remove('pathb-mode');
+        if (label) label.textContent = 'Need inspiration? Choose one or type your own answer below.';
       } else {
         wrap.classList.remove('pathb-mode');
+        wrap.classList.remove('patha-mode');
         if (label) label.textContent = 'Tap a suggestion to fill your answer — edit or submit as is:';
       }
 
@@ -1749,14 +1768,16 @@
       ta.value = text;
       ta.focus();
       document.getElementById('submit-btn').disabled = false;
-      // Tile click is always a complete answer everywhere in the interview
       isTileSelection = true;
-      submitAnswer();
+      // Path A inspiration tiles populate the textarea only — owner edits and submits manually
+      const q = QUESTIONS[interviewState.currentQIndex];
+      const isPathAInspiration = q && ['qa2','qa3','qa4','qa5'].includes(q.id);
+      if (!isPathAInspiration) submitAnswer();
     }
 
     function hideSuggestions() {
       const wrap = document.getElementById('suggestions-wrap');
-      if (wrap) { wrap.classList.add('hidden'); wrap.classList.remove('pathb-mode'); }
+      if (wrap) { wrap.classList.add('hidden'); wrap.classList.remove('pathb-mode'); wrap.classList.remove('patha-mode'); }
       const container = document.getElementById('suggestion-cards-container');
       if (container) container.innerHTML = '';
     }
@@ -1813,6 +1834,7 @@
 
     async function runOfferAnalysis() {
       const thisNav = ++navVersion;
+      const isPathA = interviewState.section1Path === 'A';
       showState('state-offer-analysis');
 
       document.getElementById('oa-assembled').classList.add('hidden');
@@ -1821,21 +1843,30 @@
       const speakEl = document.getElementById('oa-speak');
       if (speakEl) speakEl.innerHTML = '';
 
-      await speak("Here is the offer you built. Now let me see if I can make it stronger.", speakEl);
+      if (isPathA) {
+        await speak("Let me take a look at what you have and see if I can make it stronger.", speakEl);
+      } else {
+        await speak("Here is the offer you built. Now let me see if I can make it stronger.", speakEl);
+      }
       if (navVersion !== thisNav) return;
 
-      // Show assembled offer from current answers immediately
       const a = interviewState.answers;
-      const originalOffer = {
-        duration: a.qb2 || '21 days',
-        price: a.qb3 || '$0',
-        included: a.qb4 || 'Unlimited classes',
-        guarantee: a.qb5 || 'Satisfaction guarantee',
-        differentiator: a.qb6 || 'Personalized coaching',
-      };
-      renderOfferFields('oa-assembled-fields', originalOffer);
-      document.getElementById('oa-assembled').classList.remove('hidden');
-      await sleep(400);
+
+      // Path B: show assembled offer immediately from structured answers
+      // Path A: show loading first — need API to extract structured offer from free-form
+      let originalOffer;
+      if (!isPathA) {
+        originalOffer = {
+          duration: a.qb2 || '21 days',
+          price: a.qb3 || '$0',
+          included: a.qb4 || 'Unlimited classes',
+          guarantee: a.qb5 || 'Satisfaction guarantee',
+          differentiator: a.qb6 || 'Personalized coaching',
+        };
+        renderOfferFields('oa-assembled-fields', originalOffer);
+        document.getElementById('oa-assembled').classList.remove('hidden');
+        await sleep(400);
+      }
       document.getElementById('oa-loading').classList.remove('hidden');
 
       // Call analyze-offer
@@ -1852,13 +1883,44 @@
       if (navVersion !== thisNav) return;
       document.getElementById('oa-loading').classList.add('hidden');
 
+      // Path A: render extracted offer after API returns
+      if (isPathA) {
+        originalOffer = analysisData?.original || {
+          duration: '21 days', price: '$0', included: 'Unlimited classes',
+          guarantee: 'Full refund if not satisfied', differentiator: 'Personalized coaching',
+        };
+        renderOfferFields('oa-assembled-fields', originalOffer);
+        document.getElementById('oa-assembled').classList.remove('hidden');
+        await sleep(400);
+      }
+
+      // Path A allAbove7 shortcut — offer is already strong, skip iteration tiles
+      if (isPathA && analysisData?.allAbove7) {
+        await speak("Your offer is already well structured. I am writing it exactly as you described.", speakEl);
+        if (navVersion !== thisNav) return;
+        if (originalOffer.duration)       interviewState.answers.qb2 = originalOffer.duration;
+        if (originalOffer.price)          interviewState.answers.qb3 = originalOffer.price;
+        if (originalOffer.included)       interviewState.answers.qb4 = originalOffer.included;
+        if (originalOffer.guarantee)      interviewState.answers.qb5 = originalOffer.guarantee;
+        if (originalOffer.differentiator) interviewState.answers.qb6 = originalOffer.differentiator;
+        try {
+          await fetch(`/api/onboarding/sessions/${sessionId}/select-offer`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ offer: originalOffer }),
+          });
+        } catch {}
+        saveAnswers().catch(() => {});
+        await speak("Perfect. Your offer is locked in. Now let me learn more about who you are built for.", speakEl);
+        interviewState.sectionIntroSpoken = true;
+        return;
+      }
+
       // Build iteration tiles — 3 iterations + keep original
       const iterations = analysisData?.iterations || [];
       const tilesContainer = document.getElementById('oa-iter-tiles');
       tilesContainer.innerHTML = '';
 
       if (iterations.length > 0) {
-        // Speak AHRI's analysis before showing tiles
         await speak(analysisData.ahriAnalysis || "I found a few dimensions I can strengthen.", speakEl);
         if (navVersion !== thisNav) return;
 
