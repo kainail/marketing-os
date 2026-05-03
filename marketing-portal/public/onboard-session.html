@@ -1436,9 +1436,7 @@
         return `Is there anything happening in ${city} right now — events, school calendar, local news — that your ideal member is thinking about?`;
       }
       if (q.id === 'q8') {
-        const rev = (researchData?.googleReviews || [])[0];
-        if (rev) return `When you read through your Google reviews, which ones make you the happiest? What do they say? "${rev.text?.substring(0, 70)}..."`;
-        return 'Which of your Google reviews do you feel best represents your gym to new members?';
+        return 'When you read through your Google reviews, which ones make you the happiest? What do they say?';
       }
       return '—';
     }
