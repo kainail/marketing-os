@@ -3636,6 +3636,86 @@ Never sound like: "${a.q16 || '[not captured]'}"
   return msg.content[0].text.trim();
 }
 
+// POST /api/onboarding/sessions/:sessionId/live-preview-hook — generate 1-2 hooks mid-interview
+app.post('/api/onboarding/sessions/:sessionId/live-preview-hook', async (req, res) => {
+  const { sessionId } = req.params;
+  const { phase, answers } = req.body;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  if (!phase || !answers) return res.status(400).json({ error: 'phase and answers required' });
+
+  const [session, research] = await Promise.all([
+    r2GetShared(`onboarding/sessions/${sessionId}/session.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`),
+  ]);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) return res.status(503).json({ error: 'No API key' });
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const gym = session.gymName || 'Gym';
+    const city = session.city || 'your city';
+    const gap = (research?.marketGaps || [])[0] || '';
+    const a = answers;
+
+    let prompt;
+    if (phase === 'section2') {
+      prompt = `Write exactly 1 marketing hook for ${gym} in ${city}.
+
+Avatar data: ${a.q3 || '[not captured]'}
+Member voice (their exact words): ${a.q4 || '[not captured]'}
+Market gap: ${gap}
+
+Rules:
+- Use the member's OWN words from q4 where possible
+- Do NOT mention the gym by name
+- No generic fitness language (no "lose weight", "get fit", "transform")
+- One sentence, 10-18 words, punchy
+
+Return JSON only: {"hooks": [{"text": "..."}]}`;
+    } else if (phase === 'section3') {
+      prompt = `Write exactly 2 marketing hooks for ${gym} in ${city}.
+
+Hook 1 — differentiator angle:
+What makes them different: ${a.q5 || '[not captured]'}
+
+Hook 2 — objection reframe:
+The objection + response: ${a.q6 || '[not captured]'}
+
+Rules:
+- Hook 1: lead with the specific differentiator — concrete, not vague
+- Hook 2: take the exact objection language and flip it into a reason to join
+- No gym names, no generic fitness language
+- One sentence each, 10-18 words
+
+Return JSON only: {"hooks": [{"text": "..."}, {"text": "..."}]}`;
+    } else {
+      return res.status(400).json({ error: 'Unknown phase' });
+    }
+
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    let hooks = [];
+    try {
+      const raw = msg.content[0].text.trim();
+      const jsonStr = raw.match(/\{[\s\S]*\}/)?.[0] || raw;
+      hooks = JSON.parse(jsonStr).hooks || [];
+    } catch { hooks = []; }
+
+    console.log(`[onboarding] live-preview-hook phase=${phase} → ${hooks.length} hooks`);
+    res.json({ hooks });
+  } catch (err) {
+    console.error(`[onboarding] live-preview-hook failed:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/onboarding/sessions/:sessionId/kb-preview/:fileKey — first 10 lines of a written KB file
 app.get('/api/onboarding/sessions/:sessionId/kb-preview/:fileKey', async (req, res) => {
   const { sessionId, fileKey } = req.params;

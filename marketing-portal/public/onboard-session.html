@@ -1380,10 +1380,14 @@
       const nextSection = nextIdx >= 0 ? QUESTIONS[nextIdx].section : null;
 
       if (nextSection !== null && nextSection !== q.section) {
-        // Section completed — write KB + speak section transition
+        // Section completed — write KB, show live preview hooks for sections 2+3, speak transition
         await writeSectionKB(q.section);
         interviewState.completedSections.add(q.section);
+        if (q.section === 2 || q.section === 3) {
+          await showLivePreviewHooks(q.section === 2 ? 'section2' : 'section3');
+        }
         if (SECTION_INTRO[nextSection] && !interviewState.sectionIntroSpoken) {
+          showState('state-interview');
           await speak(SECTION_INTRO[nextSection], document.getElementById('iv-question'));
           await sleep(400);
         }
@@ -1784,6 +1788,61 @@
       const wrap = document.getElementById('tile-builder-wrap');
       if (wrap) wrap.remove();
       await advanceInterview();
+    }
+
+    // ─── Live preview hooks (after sections 2 and 3) ─────────────────────────
+
+    async function showLivePreviewHooks(phase) {
+      const preNav = navVersion;
+      let hooks = [];
+      try {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/live-preview-hook`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phase, answers: interviewState.answers }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          hooks = data.hooks || [];
+        }
+      } catch {}
+
+      if (navVersion !== preNav || hooks.length === 0) return;
+
+      showState('state-hook-reveal');
+      const counter = document.getElementById('hook-counter');
+      const cardWrap = document.querySelector('.hook-card-wrap');
+      const hookSpeakEl = document.getElementById('hook-speaking-text');
+      counter.textContent = '';
+      if (cardWrap) cardWrap.innerHTML = '';
+      if (hookSpeakEl) { hookSpeakEl.style.opacity = '1'; hookSpeakEl.innerHTML = ''; }
+
+      const intro = phase === 'section2'
+        ? 'Based on what you just told me — here is a hook I can already write.'
+        : 'Here are two hooks from your edge. One from your differentiator. One from the objection you just gave me.';
+      await speak(intro, hookSpeakEl);
+      if (navVersion !== preNav) return;
+      if (hookSpeakEl) hookSpeakEl.style.opacity = '0';
+      cancelWordReveal();
+
+      for (let i = 0; i < hooks.length; i++) {
+        const hookText = typeof hooks[i] === 'string' ? hooks[i] : (hooks[i].text || hooks[i].hook || '');
+        if (!hookText) continue;
+        if (hooks.length > 1) counter.textContent = `Hook ${i + 1} of ${hooks.length}`;
+
+        if (cardWrap) {
+          cardWrap.innerHTML = `<div class="hook-card" id="hc-live-${i}"><div class="hook-text">${esc(hookText)}</div></div>`;
+          await sleep(60);
+          document.getElementById(`hc-live-${i}`)?.classList.add('visible');
+        }
+        await speak(hookText);
+        if (navVersion !== preNav) return;
+        await sleep(600);
+      }
+
+      counter.textContent = '';
+      if (cardWrap) { cardWrap.querySelectorAll('.hook-card').forEach(c => c.classList.remove('visible')); }
+      await sleep(400);
     }
 
     // ─── Path B offer building helpers ───────────────────────────────────────
