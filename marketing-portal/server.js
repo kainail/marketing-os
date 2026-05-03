@@ -2462,6 +2462,48 @@ app.get('/api/admin/r2-test', requireAdmin, async (req, res) => {
   }
 });
 
+// POST /api/admin/test-email/credentials — send a test credentials email
+app.post('/api/admin/test-email/credentials', requireAdmin, async (req, res) => {
+  const { email, firstName } = req.body || {};
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid email required' });
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) return res.status(500).json({ error: 'RESEND_API_KEY not set' });
+  const name = firstName || 'Test User';
+  const fakeSession = { ownerEmail: email, ownerName: name, gymName: 'Test Gym', city: 'Test City' };
+  const fakePassword = 'TestPass#2025!';
+  try {
+    await sendCredentialsEmail(fakeSession, fakePassword);
+    console.log(`[TestEmail] credentials email sent → ${email}`);
+    res.json({ success: true, to: email });
+  } catch (err) {
+    console.error(`[TestEmail] credentials email FAILED → ${email}:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/test-email/post-session — send a test post-session owner email
+app.post('/api/admin/test-email/post-session', requireAdmin, async (req, res) => {
+  const { email, firstName } = req.body || {};
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'valid email required' });
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) return res.status(500).json({ error: 'RESEND_API_KEY not set' });
+  const name = firstName || 'Test User';
+  const fakeSession = { ownerEmail: email, ownerName: name, gymName: 'Test Gym', city: 'Test City', state: 'IL' };
+  const fakeSessionId = 'test-session-00000000';
+  const fakeHooks = [
+    { hook: 'Stop guessing. Start growing. Your next 30 members are already in your zip code.' },
+    { hook: 'Most gyms in Test City spend more on ads than they make back. Here\'s how we fixed that.' },
+  ];
+  try {
+    await sendOwnerEmail(fakeSession, fakeSessionId, fakeHooks);
+    console.log(`[TestEmail] post-session email sent → ${email}`);
+    res.json({ success: true, to: email });
+  } catch (err) {
+    console.error(`[TestEmail] post-session email FAILED → ${email}:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Onboarding page routes ────────────────────────────────────────────────────
 // Auth is enforced client-side in each HTML page (same pattern as /dashboard).
 // The JWT lives in localStorage — direct browser navigation never sends Authorization headers,
