@@ -4468,7 +4468,7 @@ async function sendOwnerEmail(session, sessionId, hooks) {
 
   const axios = require('axios');
   await axios.post('https://api.resend.com/emails', {
-    from: 'AHRI <notifications@gymsuite.ai>',
+    from: 'AHRI <onboarding@resend.dev>',
     to: [ownerEmail],
     subject: `Your marketing system is ready, ${firstName}`,
     html,
@@ -4548,7 +4548,7 @@ async function sendCredentialsEmail(session, tempPassword) {
 </html>`;
   const axios = require('axios');
   await axios.post('https://api.resend.com/emails', {
-    from: 'AHRI <notifications@gymsuite.ai>',
+    from: 'AHRI <onboarding@resend.dev>',
     to: [ownerEmail],
     subject: 'Your GymSuite AI Portal Access',
     html,
