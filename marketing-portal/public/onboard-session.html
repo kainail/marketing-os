@@ -311,7 +311,6 @@
           <div class="hook-card-wrap">
             <div class="hook-card" id="hook-card"></div>
           </div>
-          <button class="continue-btn" id="lets-talk-btn" onclick="onLetsTalkClick()">Let's talk →</button>
         </div>
 
         <!-- State 5: interview -->
@@ -726,22 +725,9 @@
       }
 
       await speak('This is the language we are going to use.', speakEl);
-      await sleep(3000);
-      await awaitContinue();
-
-      // ── Hook reveal ─────────────────────────────────────────────────────────
       setActLabel('');
-      try {
-        const hRes = await fetch(`/api/onboarding/sessions/${sessionId}/preview-hooks`);
-        if (hRes.ok) {
-          const hData = await hRes.json();
-          if (hData.hooks && hData.hooks.length > 0) {
-            await revealHooks(hData.hooks, s.gymName);
-            return;
-          }
-        }
-      } catch {}
-
+      await sleep(600);
+      await speak("That is what I found about your market. Now I need to learn about your gym — because what I build next is specific to you, not just your market. Let's talk.", speakEl);
       briefingStarted = false;
       await startInterview();
     }
@@ -838,76 +824,6 @@
         setTimeout(() => { btn.style.display = 'none'; }, 350);
       }
       if (continueResolve) { const r = continueResolve; continueResolve = null; r(); }
-    }
-
-    // ─── Reveal preview hooks — new pacing with "Let's talk" button ──────────
-    async function revealHooks(hooks, gymName) {
-      showState('state-hook-reveal');
-      renderActControls();
-      const card = document.getElementById('hook-card');
-      const counter = document.getElementById('hook-counter');
-      const letsTalkBtn = document.getElementById('lets-talk-btn');
-
-      if (letsTalkBtn) letsTalkBtn.style.display = 'none';
-      counter.textContent = '';
-      card.className = 'hook-card';
-      card.innerHTML = '';
-
-      const hookSpeakEl = document.getElementById('hook-speaking-text');
-      if (hookSpeakEl) { hookSpeakEl.style.opacity = '1'; hookSpeakEl.innerHTML = ''; }
-
-      const intro1 = "Now let me show you something. Based entirely on public information — your Google reviews, your competitors' ads, and what nobody in your market is saying — I wrote these hooks for your gym. I have not asked you a single question yet.";
-      await speak(intro1, hookSpeakEl);
-      await sleep(2000);
-      const intro2 = "Here are three hooks ready to run right now.";
-      await speak(intro2, hookSpeakEl);
-      await sleep(1500);
-
-      if (hookSpeakEl) hookSpeakEl.style.opacity = '0';
-      cancelWordReveal();
-
-      for (let i = 0; i < hooks.length; i++) {
-        const h = hooks[i];
-        counter.textContent = `Hook ${i + 1} of ${hooks.length}`;
-        card.classList.remove('visible');
-        await sleep(280);
-        card.innerHTML = `<div class="hook-text">${esc(h.text)}</div><div class="hook-meta">${esc((h.framework || 'hook').replace(/_/g, ' '))} · Awareness ${h.awareness || 3}</div>`;
-        card.classList.add('visible');
-        await sleep(380);
-        await speak(h.text);
-        await sleep(1500);
-      }
-
-      counter.textContent = '';
-      card.classList.remove('visible');
-      await sleep(3000);
-
-      const outroText = 'That is what I build from public data alone. Imagine what I can build when we talk.';
-      card.innerHTML = `<div class="hook-intro-text" id="hook-outro-text"></div>`;
-      card.classList.add('visible');
-      await speak(outroText, document.getElementById('hook-outro-text'));
-      await sleep(2000);
-
-      if (letsTalkBtn) {
-        letsTalkBtn.style.display = 'inline-flex';
-        letsTalkBtn.style.opacity = '0';
-        letsTalkBtn.style.transform = 'translateY(8px)';
-        requestAnimationFrame(() => setTimeout(() => {
-          letsTalkBtn.style.opacity = '1';
-          letsTalkBtn.style.transform = 'translateY(0)';
-        }, 20));
-      }
-    }
-
-    async function onLetsTalkClick() {
-      stopAudio();
-      const btn = document.getElementById('lets-talk-btn');
-      if (btn) {
-        btn.style.opacity = '0';
-        btn.style.transform = 'translateY(8px)';
-        setTimeout(() => { btn.style.display = 'none'; }, 350);
-      }
-      await startInterview();
     }
 
     // ─── TTS text normalization — runs before every ElevenLabs call ──────────
@@ -1331,8 +1247,6 @@
       showState('state-interview');
       updateStatusPip('active', 'Interview in progress');
       startInterviewPoll();
-      await speak("Now I want to learn from you. The better your answers, the sharper your marketing system gets. Watch the panel on the right — you will see it being built as we talk. Let's start.", document.getElementById('iv-question'));
-      await sleep(500);
       await askQuestion(0);
     }
 
@@ -2011,7 +1925,7 @@
 
       const hookSpeakEl = document.getElementById('hook-speaking-text');
       if (hookSpeakEl) { hookSpeakEl.style.opacity = '1'; hookSpeakEl.innerHTML = ''; }
-      await speak("Remember the first three hooks I generated from public data alone? Here's what I build now that I know your story.", hookSpeakEl);
+      await speak("These are your hooks. Built from your offer, your differentiator, and the exact words your members use.", hookSpeakEl);
       if (hookSpeakEl) hookSpeakEl.style.opacity = '0';
       await sleep(600);
 
