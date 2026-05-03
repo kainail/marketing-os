@@ -2883,8 +2883,9 @@ STRICT RULES — any violation fails:
 - Must NEVER start with: I, Got, Perfect, Great, Interesting, That, Thanks, Awesome, Excellent, Noted
 - Must NEVER be generic — every word must be specific to this gym and this market
 - Must sound like natural spoken speech — no bullet points, no formal language, no hedging
-- Ends with a natural forward lean — implies the next question matters even more
+- Ends with a confident statement that leans forward toward what comes next
 - 1-2 sentences only — never more
+- Do not ask any questions. Do not end with a question. End with a confident statement that leans forward toward what comes next.
 
 Output only the 1-2 sentence response. No quotes. No preamble.`;
 
@@ -2893,7 +2894,14 @@ Output only the 1-2 sentence response. No quotes. No preamble.`;
     max_tokens: 250,
     messages: [{ role: 'user', content: prompt }],
   });
-  return msg.content[0].text.trim().replace(/^["']|["']$/g, '');
+  let ack = msg.content[0].text.trim().replace(/^["']|["']$/g, '');
+
+  // Safety net: if Haiku still produced a question, strip from the last '?' onward and close with a period
+  if (ack.includes('?')) {
+    ack = ack.substring(0, ack.lastIndexOf('?')).trimEnd().replace(/[,;:\s]+$/, '') + '.';
+  }
+
+  return ack;
 }
 
 /** Generate context-specific tiles when an owner doesn't have a guarantee (qa4) or differentiator (qa3). */
