@@ -204,32 +204,38 @@
     .sug-text { font-size: 14px; color: rgba(232,234,240,0.85); line-height: 1.45; }
     .sug-sub { font-size: 11px; color: rgba(232,234,240,0.38); margin-top: 3px; }
 
-    /* ─── Mic test state ─────────────────────────────────────────── */
-    /* ─── Path B offer intro tiles (shown in speaking pane) ─────────── */
-    .intro-tiles-wrap { width: 100%; max-width: 460px; margin-top: 18px; }
-    .intro-tiles-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.25); margin-bottom: 10px; }
-    .intro-tile { background: rgba(124,58,237,0.06); border: 1px solid rgba(124,58,237,0.14); border-radius: 10px; padding: 12px 15px; margin-bottom: 8px; opacity: 0; transform: translateY(6px); transition: opacity 0.3s ease, transform 0.3s ease, background 0.15s, border-color 0.15s; cursor: pointer; }
-    .intro-tile.intro-tile-visible { opacity: 1; transform: translateY(0); }
-    .intro-tile:hover { background: rgba(124,58,237,0.12); border-color: rgba(124,58,237,0.28); }
-    .intro-tile.intro-tile-selected { background: rgba(124,58,237,0.18); border-color: rgba(124,58,237,0.5); }
-    .intro-tile-text { font-size: 13px; font-weight: 600; color: rgba(232,234,240,0.78); line-height: 1.4; }
-    .intro-tile-sub { font-size: 11px; color: rgba(232,234,240,0.33); margin-top: 4px; }
+    /* ─── Path B suggestion tile mode ───────────────────────────── */
+    .suggestions-wrap.pathb-mode .suggestion-card { background: rgba(124,58,237,0.07); border-color: rgba(124,58,237,0.17); }
+    .suggestions-wrap.pathb-mode .suggestion-card:hover { background: rgba(124,58,237,0.13); border-color: rgba(124,58,237,0.3); }
+    .suggestions-wrap.pathb-mode .suggestion-card.selected { background: rgba(124,58,237,0.2); border-color: rgba(124,58,237,0.5); }
+    .suggestions-wrap.pathb-mode .suggestions-label { font-size: 13px; font-weight: 500; color: rgba(232,234,240,0.55); }
 
-    /* ─── Path B offer edit fields ───────────────────────────────── */
-    .offer-edit-fields { width: 100%; max-width: 480px; text-align: left; margin-top: 10px; }
-    .offer-edit-header { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 16px; }
-    .offer-edit-row { margin-bottom: 12px; }
-    .offer-field-label { display: block; font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: rgba(232,234,240,0.35); margin-bottom: 5px; }
-    .offer-field-input, .offer-field-textarea { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 9px 12px; font-family: inherit; font-size: 14px; color: #e8eaf0; outline: none; transition: border-color 0.15s, background 0.15s; }
-    .offer-field-input:focus, .offer-field-textarea:focus { border-color: rgba(124,58,237,0.4); background: rgba(124,58,237,0.04); }
-    .offer-field-textarea { resize: vertical; min-height: 58px; line-height: 1.5; }
-
-    /* ─── Offer confirm actions ──────────────────────────────────────── */
-    .offer-confirm-actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 24px; width: 100%; max-width: 380px; }
-    .offer-confirm-btn { background: #6366f1; border: none; border-radius: 10px; padding: 13px 32px; font-family: inherit; font-size: 15px; font-weight: 700; color: #fff; cursor: pointer; transition: background 0.15s; width: 100%; box-shadow: 0 0 24px rgba(99,102,241,0.25); }
-    .offer-confirm-btn:hover { background: #4f46e5; }
-    .offer-adjust-btn { background: transparent; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 10px 20px; font-family: inherit; font-size: 13px; color: rgba(232,234,240,0.4); cursor: pointer; transition: border-color 0.15s, color 0.15s; width: 100%; }
-    .offer-adjust-btn:hover { border-color: rgba(255,255,255,0.2); color: rgba(232,234,240,0.6); }
+    /* ─── State: offer analysis ──────────────────────────────────── */
+    #state-offer-analysis { justify-content: flex-start; flex: 1; min-height: 0; }
+    .oa-header { flex-shrink: 0; width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 4px; }
+    .oa-scroll { flex: 1; width: 100%; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; align-items: center; padding-bottom: 8px; }
+    .oa-speak { font-size: 22px; color: rgba(232,234,240,0.9); width: 100%; max-width: 560px; line-height: 1.6; font-weight: 400; text-align: center; margin-bottom: 20px; }
+    .oa-assembled { width: 100%; max-width: 500px; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; }
+    .oa-assembled-label { font-size: 10px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.28); margin-bottom: 12px; }
+    .oa-field-row { margin-bottom: 10px; }
+    .oa-field-row:last-child { margin-bottom: 0; }
+    .oa-field-label { font-size: 10px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: rgba(232,234,240,0.32); margin-bottom: 3px; }
+    .oa-field-value { font-size: 14px; color: rgba(232,234,240,0.8); line-height: 1.45; }
+    .oa-field-highlighted .oa-field-label { color: #a78bfa; }
+    .oa-field-highlighted .oa-field-value { color: #e8eaf0; background: rgba(124,58,237,0.1); border-radius: 6px; padding: 4px 8px; border: 1px solid rgba(124,58,237,0.2); display: inline-block; }
+    .oa-loading { width: 100%; max-width: 500px; text-align: center; padding: 16px 0; }
+    .oa-loading-text { font-size: 13px; color: rgba(232,234,240,0.35); letter-spacing: 0.3px; animation: shimmer 2.5s ease-in-out infinite; }
+    .oa-iterations { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
+    .oa-iter-card { background: rgba(124,58,237,0.06); border: 1px solid rgba(124,58,237,0.16); border-radius: 12px; padding: 16px 18px; }
+    .oa-iter-tag { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #a78bfa; margin-bottom: 12px; }
+    .oa-iter-reason { font-size: 12px; color: rgba(232,234,240,0.45); margin-top: 10px; font-style: italic; line-height: 1.5; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px; }
+    .oa-choices { flex-shrink: 0; width: 100%; padding: 12px 0 8px; }
+    .oa-choices-label { font-size: 12px; color: rgba(232,234,240,0.4); margin-bottom: 10px; text-align: center; }
+    .oa-choice-row { display: flex; gap: 8px; justify-content: center; max-width: 500px; margin: 0 auto; }
+    .oa-choice-tile { flex: 1; background: rgba(99,102,241,0.07); border: 1px solid rgba(99,102,241,0.16); border-radius: 10px; padding: 12px 10px; cursor: pointer; transition: background 0.15s, border-color 0.15s; text-align: center; }
+    .oa-choice-tile:hover { background: rgba(99,102,241,0.14); border-color: rgba(99,102,241,0.32); }
+    .oa-choice-tile.selected { background: rgba(99,102,241,0.2); border-color: rgba(99,102,241,0.5); }
+    .oa-choice-name { font-size: 13px; font-weight: 600; color: rgba(232,234,240,0.85); }
   </style>
 </head>
 <body>
@@ -288,40 +294,6 @@
           </div>
           <div class="speaking-text-container" id="speaking-text-container">
             <p class="speaking-text" id="speaking-text"></p>
-            <!-- Path B intro: offer template tiles shown briefly before qb2 -->
-            <div class="intro-tiles-wrap hidden" id="intro-tiles-wrap">
-              <div class="intro-tiles-label">What's working in your market:</div>
-              <div id="intro-tiles-container"></div>
-            </div>
-            <!-- Path B offer edit fields — shown after synthesis speech -->
-            <div class="offer-edit-fields hidden" id="offer-edit-fields">
-              <div class="offer-edit-header">Review and edit your offer</div>
-              <div class="offer-edit-row">
-                <label class="offer-field-label">Trial duration</label>
-                <input type="text" class="offer-field-input" id="oef-duration" placeholder="e.g. 21 days" />
-              </div>
-              <div class="offer-edit-row">
-                <label class="offer-field-label">Entry price</label>
-                <input type="text" class="offer-field-input" id="oef-price" placeholder="e.g. $0 down" />
-              </div>
-              <div class="offer-edit-row">
-                <label class="offer-field-label">What's included</label>
-                <textarea class="offer-field-textarea" id="oef-inclusions" placeholder="e.g. 3 coached sessions per week, nutrition check-in..."></textarea>
-              </div>
-              <div class="offer-edit-row">
-                <label class="offer-field-label">Guarantee</label>
-                <textarea class="offer-field-textarea" id="oef-guarantee" placeholder="e.g. Love it or full refund, no questions asked..."></textarea>
-              </div>
-              <div class="offer-edit-row">
-                <label class="offer-field-label">Core differentiator</label>
-                <textarea class="offer-field-textarea" id="oef-differentiator" placeholder="e.g. Personal coaching you can't get at a big box gym..."></textarea>
-              </div>
-            </div>
-            <!-- Offer confirmation after Path B synthesis -->
-            <div class="offer-confirm-actions" id="offer-confirm-actions" style="display:none">
-              <button class="offer-confirm-btn" onclick="confirmOffer()">Sounds good →</button>
-              <button class="offer-adjust-btn" onclick="adjustOffer()">Let me adjust something</button>
-            </div>
           </div>
           <div class="act-nav-row" id="act-nav-row">
             <button class="continue-btn" id="continue-btn" onclick="onContinueClick()">Continue →</button>
@@ -364,6 +336,44 @@
           <div class="suggestions-wrap hidden" id="suggestions-wrap">
             <div class="suggestions-label">Or choose an option based on your market:</div>
             <div id="suggestion-cards-container"></div>
+          </div>
+        </div>
+
+        <!-- State: offer analysis (Path B — after qb6) -->
+        <div class="state-pane hidden" id="state-offer-analysis">
+          <div class="oa-header">
+            <div class="act-label">Your Offer — Analysis</div>
+            <div class="speaking-who"><span class="speaking-who-dot"></span>AHRI</div>
+          </div>
+          <div class="oa-scroll" id="oa-scroll">
+            <p class="oa-speak" id="oa-speak"></p>
+            <div class="oa-assembled hidden" id="oa-assembled">
+              <div class="oa-assembled-label">Your assembled offer</div>
+              <div id="oa-assembled-fields"></div>
+            </div>
+            <div class="oa-loading hidden" id="oa-loading">
+              <div class="oa-loading-text">Scoring against Hormozi value equation...</div>
+            </div>
+            <div class="oa-iterations hidden" id="oa-iterations">
+              <div class="oa-iter-card" id="oa-iter-a">
+                <div class="oa-iter-tag">Iteration A</div>
+                <div id="oa-iter-a-fields"></div>
+                <div class="oa-iter-reason" id="oa-iter-a-reason"></div>
+              </div>
+              <div class="oa-iter-card" id="oa-iter-b">
+                <div class="oa-iter-tag">Iteration B</div>
+                <div id="oa-iter-b-fields"></div>
+                <div class="oa-iter-reason" id="oa-iter-b-reason"></div>
+              </div>
+            </div>
+          </div>
+          <div class="oa-choices hidden" id="oa-choices">
+            <div class="oa-choices-label">Pick one to write to your marketing system:</div>
+            <div class="oa-choice-row" id="oa-choice-row">
+              <div class="oa-choice-tile" data-choice="original"><div class="oa-choice-name">Keep original</div></div>
+              <div class="oa-choice-tile" data-choice="a"><div class="oa-choice-name">Iteration A</div></div>
+              <div class="oa-choice-tile" data-choice="b"><div class="oa-choice-name">Iteration B</div></div>
+            </div>
           </div>
         </div>
 
@@ -493,6 +503,7 @@
         return;
       }
       setupTileDelegation();
+      setupOfferChoiceDelegation();
       await loadSession();
       startStepCycle();
       // Only poll if session isn't already past the research stage
@@ -1091,11 +1102,6 @@
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
-    function showOfferConfirmButtons(visible) {
-      const el = document.getElementById('offer-confirm-actions');
-      if (!el) return;
-      el.style.display = visible ? 'flex' : 'none';
-    }
 
     // Act controls: Continue + Skip row. Call at the start of every act.
     function renderActControls() {
@@ -1103,7 +1109,6 @@
       actAdvanceNow = false;
       actTextRevealed = false;
       actFullText = '';
-      showOfferConfirmButtons(false);
       const row = document.getElementById('act-nav-row');
       if (row) row.style.display = 'flex';
       const cb = document.getElementById('continue-btn');
@@ -1112,22 +1117,14 @@
       if (sb) { sb.style.display = 'inline-flex'; sb.textContent = 'Skip'; }
     }
 
-    // Offer confirm controls: two-button state for Path B synthesis only.
-    function renderOfferConfirmControls() {
-      const row = document.getElementById('act-nav-row');
-      if (row) row.style.display = 'none';
-      showOfferConfirmButtons(true);
-    }
-
     function showState(id) {
       actSkipActive = false;
       actAdvanceNow = false;
       actTextRevealed = false;
       cancelWordReveal();
-      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-interview', 'state-complete']
+      ['state-preparing', 'state-reveal-ready', 'state-speaking', 'state-hook-reveal', 'state-interview', 'state-offer-analysis', 'state-complete']
         .forEach(s => document.getElementById(s).classList.add('hidden'));
       document.getElementById(id).classList.remove('hidden');
-      showOfferConfirmButtons(false);
       const row = document.getElementById('act-nav-row');
       if (row) row.style.display = 'none';
     }
@@ -1490,10 +1487,9 @@
         await runPathBIntro();
       }
 
-      // After qb6: synthesize built offer and confirm with owner before writing KB
+      // After qb6: run Hormozi analysis and let owner pick original or iteration
       if (q.id === 'qb6') {
-        const confirmed = await synthesizeAndConfirmOffer();
-        if (!confirmed) return; // adjustOffer() handles navigation back to qb2
+        await runOfferAnalysis();
       }
 
       const nextIdx = nextValidIdx(interviewState.currentQIndex);
@@ -1691,8 +1687,18 @@
       if (!wrap || !container) return;
       container.innerHTML = '';
       wrap.classList.remove('hidden');
+
+      const q = QUESTIONS[interviewState.currentQIndex];
+      const isPathB = q && ['qb2','qb3','qb4','qb5','qb6'].includes(q.id);
       const label = wrap.querySelector('.suggestions-label');
-      if (label) label.textContent = 'Tap a suggestion to fill your answer — edit or submit as is:';
+      if (isPathB) {
+        wrap.classList.add('pathb-mode');
+        if (label) label.textContent = 'Pick one — or type your own below:';
+      } else {
+        wrap.classList.remove('pathb-mode');
+        if (label) label.textContent = 'Tap a suggestion to fill your answer — edit or submit as is:';
+      }
+
       tiles.forEach((s, i) => {
         const card = document.createElement('div');
         card.className = 'suggestion-card';
@@ -1728,7 +1734,7 @@
 
     function hideSuggestions() {
       const wrap = document.getElementById('suggestions-wrap');
-      if (wrap) wrap.classList.add('hidden');
+      if (wrap) { wrap.classList.add('hidden'); wrap.classList.remove('pathb-mode'); }
       const container = document.getElementById('suggestion-cards-container');
       if (container) container.innerHTML = '';
     }
@@ -1737,151 +1743,127 @@
 
     async function runPathBIntro() {
       showState('state-speaking');
-      // No renderActControls — no buttons visible during intro
       setActLabel('Section 1 — Building Your Offer');
-      const introText = "No problem at all — this is actually one of the most valuable things we will do today. I am going to help you build an offer right now using what I already know about your market. Based on what I found, here is what is working for gyms in similar markets.";
-      const templatesPromise = fetchOfferTemplateTiles();
+      const introText = "No problem at all — this is one of the most valuable things we will do today. I am going to help you build your offer right now using what I already know about your market. I will ask you five quick questions — pick from market-matched options or type your own answer for each one.";
       await speak(introText, document.getElementById('speaking-text'));
+      await sleep(800);
+    }
 
-      let templates = [];
-      try { templates = await templatesPromise; } catch {}
-      if (templates.length === 0) return; // no tiles — proceed straight to qb2
+    let _offerChoiceResolve = null;
 
-      const wrap = document.getElementById('intro-tiles-wrap');
-      const container = document.getElementById('intro-tiles-container');
-      if (!wrap || !container) return;
-
-      container.innerHTML = '';
-
-      // Event delegation — single listener on container, data-tile-index on each card
-      let introAdvance = null;
-      const introPromise = new Promise(r => { introAdvance = r; });
-
-      function handleIntroTileClick(e) {
-        const tile = e.target.closest('[data-tile-index]');
-        if (!tile) return;
-        const idx = parseInt(tile.dataset.tileIndex, 10);
-        console.log('[IntroTile clicked]', idx, tile.querySelector('.intro-tile-text')?.textContent?.slice(0, 50));
-        container.querySelectorAll('[data-tile-index]').forEach(c => c.classList.remove('intro-tile-selected'));
-        tile.classList.add('intro-tile-selected');
-        if (!interviewState.preFill) interviewState.preFill = {};
-        interviewState.preFill['qb2'] = templates[idx].text;
-        container.removeEventListener('click', handleIntroTileClick);
-        if (introAdvance) { const r = introAdvance; introAdvance = null; r(); }
-      }
-      container.addEventListener('click', handleIntroTileClick);
-
-      templates.forEach((t, i) => {
-        const card = document.createElement('div');
-        card.className = 'intro-tile';
-        card.dataset.tileIndex = String(i);
-        card.innerHTML = `<div class="intro-tile-text">${esc(t.text)}</div>${t.subtext ? `<div class="intro-tile-sub">${esc(t.subtext)}</div>` : ''}`;
-        container.appendChild(card);
-        setTimeout(() => card.classList.add('intro-tile-visible'), 60 + i * 130);
+    function setupOfferChoiceDelegation() {
+      const row = document.getElementById('oa-choice-row');
+      if (!row) return;
+      row.addEventListener('click', function(e) {
+        const tile = e.target.closest('[data-choice]');
+        if (!tile || !_offerChoiceResolve) return;
+        const choice = tile.dataset.choice;
+        document.querySelectorAll('.oa-choice-tile').forEach(t => t.classList.remove('selected'));
+        tile.classList.add('selected');
+        const r = _offerChoiceResolve;
+        _offerChoiceResolve = null;
+        r(choice);
       });
-      wrap.classList.remove('hidden');
-
-      // Wait for tile selection — no timeout, tiles stay until owner picks one
-      await introPromise;
-      await sleep(350); // brief pause for visual confirmation before advancing
-      wrap.classList.add('hidden');
-
-      // Transition speech — reframes what happens next before qb2 begins
-      await speak(
-        "Great — now that we have a template to work from, let me help you customize it for your specific gym and market. I will ask you a few quick questions and we will shape this into an offer that is uniquely yours.",
-        document.getElementById('speaking-text')
-      );
-      await sleep(1500);
     }
 
-    async function fetchOfferTemplateTiles() {
-      try {
-        const res = await fetch(`/api/onboarding/sessions/${sessionId}/question-suggestions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ questionId: 'pathb-intro', questionText: 'offer template inspiration for path B', section: 1 }),
-        });
-        if (!res.ok) return [];
-        const data = await res.json();
-        return data.suggestions || [];
-      } catch { return []; }
+    function renderOfferFields(containerId, offerData, highlightField) {
+      const el = document.getElementById(containerId);
+      if (!el || !offerData) return;
+      const fields = [
+        { key: 'duration',      label: 'Trial duration',    value: offerData.duration },
+        { key: 'price',         label: 'Entry price',       value: offerData.price },
+        { key: 'inclusions',    label: "What's included",   value: offerData.inclusions },
+        { key: 'guarantee',     label: 'Guarantee',         value: offerData.guarantee },
+        { key: 'differentiator',label: 'Core differentiator',value: offerData.differentiator },
+      ];
+      el.innerHTML = fields.map(f => {
+        const isHighlighted = highlightField === f.key;
+        return `<div class="oa-field-row${isHighlighted ? ' oa-field-highlighted' : ''}">
+          <div class="oa-field-label">${esc(f.label)}</div>
+          <div class="oa-field-value">${esc(f.value || '—')}</div>
+        </div>`;
+      }).join('');
     }
 
-    let offerConfirmResolve = null;
+    async function runOfferAnalysis() {
+      const thisNav = ++navVersion;
+      showState('state-offer-analysis');
 
-    async function synthesizeAndConfirmOffer() {
-      showState('state-speaking');
-      setActLabel('Your Offer — Review');
+      document.getElementById('oa-assembled').classList.add('hidden');
+      document.getElementById('oa-loading').classList.add('hidden');
+      document.getElementById('oa-iterations').classList.add('hidden');
+      document.getElementById('oa-choices').classList.add('hidden');
+      const speakEl = document.getElementById('oa-speak');
+      if (speakEl) speakEl.innerHTML = '';
 
+      await speak("Here is the offer you built. Now let me see if I can make it stronger.", speakEl);
+      if (navVersion !== thisNav) return;
+
+      // Show assembled offer from current answers immediately
       const a = interviewState.answers;
-      let summary = buildLocalOfferSummary();
+      renderOfferFields('oa-assembled-fields', {
+        duration: a.qb2, price: a.qb3, inclusions: a.qb4, guarantee: a.qb5, differentiator: a.qb6,
+      });
+      document.getElementById('oa-assembled').classList.remove('hidden');
+      await sleep(400);
+      document.getElementById('oa-loading').classList.remove('hidden');
+
+      // Call analyze-offer
+      let analysisData = null;
       try {
-        const res = await fetch(`/api/onboarding/sessions/${sessionId}/synthesize-offer`, {
+        const res = await fetch(`/api/onboarding/sessions/${sessionId}/analyze-offer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ answers: a }),
         });
-        if (res.ok) { const d = await res.json(); if (d.summary) summary = d.summary; }
+        if (res.ok) analysisData = await res.json();
       } catch {}
 
-      await speak(summary, document.getElementById('speaking-text'));
-      await sleep(600);
+      if (navVersion !== thisNav) return;
+      document.getElementById('oa-loading').classList.add('hidden');
 
-      cancelWordReveal();
-      const speakEl = document.getElementById('speaking-text');
-      if (speakEl) speakEl.innerHTML = '';
-
-      document.getElementById('oef-duration').value = a.qb2 || '';
-      document.getElementById('oef-price').value = a.qb3 || '';
-      document.getElementById('oef-inclusions').value = a.qb4 || '';
-      document.getElementById('oef-guarantee').value = a.qb5 || '';
-      document.getElementById('oef-differentiator').value = a.qb6 || '';
-      document.getElementById('offer-edit-fields').classList.remove('hidden');
-      renderOfferConfirmControls();
-
-      return new Promise(resolve => { offerConfirmResolve = resolve; });
-    }
-
-    function confirmOffer() {
-      stopAudio();
-      const val = id => document.getElementById(id)?.value.trim() || '';
-      const dur = val('oef-duration'), price = val('oef-price'),
-            inc = val('oef-inclusions'), guar = val('oef-guarantee'), diff = val('oef-differentiator');
-      if (dur)   interviewState.answers.qb2 = dur;
-      if (price) interviewState.answers.qb3 = price;
-      if (inc)   interviewState.answers.qb4 = inc;
-      if (guar)  interviewState.answers.qb5 = guar;
-      if (diff)  interviewState.answers.qb6 = diff;
-      saveAnswers().catch(() => {});
-      showOfferConfirmButtons(false);
-      document.getElementById('offer-edit-fields')?.classList.add('hidden');
-      if (offerConfirmResolve) { const r = offerConfirmResolve; offerConfirmResolve = null; r(true); }
-    }
-
-    async function adjustOffer() {
-      stopAudio();
-      showOfferConfirmButtons(false);
-      document.getElementById('offer-edit-fields')?.classList.add('hidden');
-      if (offerConfirmResolve) { const r = offerConfirmResolve; offerConfirmResolve = null; r(false); }
-      const qb2Idx = QUESTIONS.findIndex(q => q.id === 'qb2');
-      if (qb2Idx >= 0) {
-        stopAudio(); navVersion++; interviewState.submitting = false;
-        interviewState.currentQIndex = qb2Idx;
-        showState('state-interview');
-        await askQuestion(qb2Idx);
+      if (!analysisData || (!analysisData.iterationA && !analysisData.iterationB)) {
+        // No analysis returned — show only "Keep original" and move on
+        document.getElementById('oa-choices').classList.remove('hidden');
+        await new Promise(resolve => { _offerChoiceResolve = resolve; });
+        return;
       }
-    }
 
-    function buildLocalOfferSummary() {
-      const a = interviewState.answers;
-      const gymName = sessionData?.session?.gymName || 'your gym';
-      const durationRaw = a.qb2 || '21 days';
-      const days = (durationRaw.match(/(\d+)/) || ['','21'])[1];
-      const price = a.qb3 ? ` for ${a.qb3}` : '';
-      const inclusions = a.qb4 || 'access to all classes';
-      const guarantee = a.qb5 || 'satisfaction guarantee';
-      const differentiator = a.qb6 || 'a personalized experience you cannot get at a big box gym';
-      return `Here is the offer we just built for ${gymName}. A ${days}-day trial${price}. What is included: ${inclusions}. The guarantee: ${guarantee}. And the one thing that makes it different from every gym nearby: ${differentiator}. Does this feel right?`;
+      // Speak AHRI's analysis
+      await speak(analysisData.ahriAnalysis || "I found one dimension I can strengthen.", speakEl);
+      if (navVersion !== thisNav) return;
+
+      // Render iteration cards
+      const iterA = analysisData.iterationA;
+      const iterB = analysisData.iterationB;
+      if (iterA) {
+        renderOfferFields('oa-iter-a-fields', iterA, iterA.highlight);
+        const reasonEl = document.getElementById('oa-iter-a-reason');
+        if (reasonEl) reasonEl.textContent = iterA.reason || '';
+      }
+      if (iterB) {
+        renderOfferFields('oa-iter-b-fields', iterB, iterB.highlight);
+        const reasonEl = document.getElementById('oa-iter-b-reason');
+        if (reasonEl) reasonEl.textContent = iterB.reason || '';
+      }
+      document.getElementById('oa-iterations').classList.remove('hidden');
+
+      // Show choice tiles and wait for selection
+      document.getElementById('oa-choices').classList.remove('hidden');
+      const choice = await new Promise(resolve => { _offerChoiceResolve = resolve; });
+
+      if (navVersion !== thisNav) return;
+
+      // Write chosen iteration back to answers
+      const chosen = choice === 'a' ? iterA : choice === 'b' ? iterB : null;
+      if (chosen) {
+        if (chosen.duration)       interviewState.answers.qb2 = chosen.duration;
+        if (chosen.price)          interviewState.answers.qb3 = chosen.price;
+        if (chosen.inclusions)     interviewState.answers.qb4 = chosen.inclusions;
+        if (chosen.guarantee)      interviewState.answers.qb5 = chosen.guarantee;
+        if (chosen.differentiator) interviewState.answers.qb6 = chosen.differentiator;
+        saveAnswers().catch(() => {});
+      }
     }
 
     // ─── Finish interview ─────────────────────────────────────────────────────
