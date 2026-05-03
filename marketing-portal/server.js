@@ -3769,6 +3769,7 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
     await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
 
     await sendKaiNotification(session, sessionId, hooks, brainState);
+    scheduleOwnerEmail(session, sessionId, hooks);
     console.log(`[onboarding] session ${sessionId} complete — ${hooks.length} hooks, ${posts.length} posts`);
     res.json({ success: true, hooks, posts });
   } catch (err) {
@@ -3883,6 +3884,101 @@ async function sendKaiNotification(session, sessionId, hooks, brainState) {
   } catch (err) {
     console.error('[onboarding] Kai notification failed:', err.message);
   }
+}
+
+/** Schedule owner confirmation email 5 minutes after session complete. */
+function scheduleOwnerEmail(session, sessionId, hooks) {
+  const ownerEmail = session.ownerEmail;
+  if (!ownerEmail || !ownerEmail.includes('@')) {
+    console.warn(`[onboarding] no owner email on session ${sessionId} — skipping owner email`);
+    return;
+  }
+  // setTimeout fires once; if the server restarts before 5 min the email won't send.
+  // Acceptable for now — a durable job queue would be needed for guaranteed delivery.
+  setTimeout(() => {
+    sendOwnerEmail(session, sessionId, hooks).catch(err =>
+      console.error('[onboarding] owner email failed:', err.message)
+    );
+  }, 5 * 60 * 1000);
+  console.log(`[onboarding] owner email scheduled in 5 min → ${ownerEmail}`);
+}
+
+/** Send post-sale confirmation email to gym owner via Resend. */
+async function sendOwnerEmail(session, sessionId, hooks) {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) { console.warn('[onboarding] RESEND_API_KEY not set — skipping owner email'); return; }
+
+  const gym = session.gymName || 'your gym';
+  const city = session.city || '';
+  const ownerEmail = session.ownerEmail;
+  const firstName = (session.ownerName || 'there').split(' ')[0];
+  const baseUrl = process.env.BASE_URL || 'https://marketing-os-production-2b85.up.railway.app';
+  const soloLink = `${baseUrl}/onboard/solo/${sessionId}`;
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Your marketing system is ready</title>
+</head>
+<body style="margin:0;padding:0;background:#0D0F14;font-family:'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0D0F14;">
+    <tr><td align="center" style="padding:48px 24px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+
+        <tr><td style="padding-bottom:36px;">
+          <table cellpadding="0" cellspacing="0"><tr>
+            <td style="width:8px;height:8px;background:#7c3aed;border-radius:50%;vertical-align:middle;"></td>
+            <td style="padding-left:8px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.35);vertical-align:middle;">AHRI — GymSuite AI</td>
+          </tr></table>
+        </td></tr>
+
+        <tr><td style="padding-bottom:20px;">
+          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.9);line-height:1.7;">${esc(firstName)} —</p>
+        </td></tr>
+
+        <tr><td style="padding-bottom:20px;">
+          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">Everything we built today is waiting for you inside your dashboard.</p>
+        </td></tr>
+
+        <tr><td style="padding-bottom:20px;">
+          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">Your avatar. Your hooks. Your market intelligence. Your first campaign brief. All of it — specific to ${esc(gym)} and ${esc(city)}.</p>
+        </td></tr>
+
+        <tr><td style="padding-bottom:32px;">
+          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">I have one more set of questions that will make everything significantly more powerful. It takes about 10 minutes and you can do it on your phone whenever you have a free moment.</p>
+        </td></tr>
+
+        <tr><td style="padding-bottom:36px;">
+          <a href="${soloLink}" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:10px;letter-spacing:0.2px;">Continue the conversation →</a>
+        </td></tr>
+
+        <tr><td style="border-top:1px solid rgba(255,255,255,0.07);padding-top:24px;padding-bottom:28px;">
+          <p style="margin:0 0 6px;font-size:13px;color:rgba(232,234,240,0.35);line-height:1.7;">Your technical setup begins within 24 hours.</p>
+          <p style="margin:0;font-size:13px;color:rgba(232,234,240,0.35);line-height:1.7;">Your first campaign will be live within 72 hours.</p>
+        </td></tr>
+
+        <tr><td>
+          <p style="margin:0 0 5px;font-size:14px;color:rgba(232,234,240,0.65);font-weight:600;">— AHRI</p>
+          <p style="margin:0;font-size:11px;color:rgba(232,234,240,0.28);letter-spacing:0.5px;text-transform:uppercase;">Your GymSuite AI Marketing Brain</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const axios = require('axios');
+  await axios.post('https://api.resend.com/emails', {
+    from: 'AHRI <notifications@gymsuite.ai>',
+    to: [ownerEmail],
+    subject: `Your marketing system is ready, ${firstName}`,
+    html,
+  }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
+  console.log(`[onboarding] owner email sent → ${ownerEmail} (session ${sessionId})`);
 }
 
 // GET /api/onboarding/sessions/:sessionId/portal-data — structured data for portal page
