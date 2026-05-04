@@ -420,17 +420,24 @@ const state = {
 // INIT
 // ════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
-  const status = await api('/api/status');
-  if (status) {
-    state.gymName = status.gym_name;
-    document.title = `AHRI — ${status.gym_name}`;
-    document.getElementById('ops-link').href = status.ops_url;
-    document.querySelector('.location-select').innerHTML = `<option>${status.gym_name}</option>`;
+  const _initToken = localStorage.getItem('gymsuite_token');
+  const _initUser = _initToken ? (() => { try { return JSON.parse(atob(_initToken.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch { return null; } })() : null;
+  const _isOwner = _initUser && _initUser.role === 'owner';
+
+  if (!_isOwner) {
+    const status = await api('/api/status');
+    if (status) {
+      state.gymName = status.gym_name;
+      document.title = `AHRI — ${status.gym_name}`;
+      document.getElementById('ops-link').href = status.ops_url;
+      document.querySelector('.location-select').innerHTML = `<option>${status.gym_name}</option>`;
+    }
+    await loadOverview();
+    setInterval(refreshAlerts, 60000);
+    setInterval(loadOverview, 300000);
   }
-  await loadOverview();
+
   ahriGreeting();
-  setInterval(refreshAlerts, 60000);
-  setInterval(loadOverview, 300000);
   setupKeyboardShortcuts();
 });
 
@@ -489,6 +496,9 @@ function navigate(section) {
 // OVERVIEW
 // ════════════════════════════════════════════
 async function loadOverview() {
+  const _token = localStorage.getItem('gymsuite_token');
+  const _u = _token ? (() => { try { return JSON.parse(atob(_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch { return null; } })() : null;
+  if (_u && _u.role === 'owner') return;
   const data = await api('/api/overview');
   if (!data) return;
   state.overview = data;
