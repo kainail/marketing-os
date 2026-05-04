@@ -423,6 +423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _initToken = localStorage.getItem('gymsuite_token');
   const _initUser = _initToken ? (() => { try { return JSON.parse(atob(_initToken.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch { return null; } })() : null;
   const _isOwner = _initUser && _initUser.role === 'owner';
+  console.log('[DOMContentLoaded] isOwner:', _isOwner, '| role:', _initUser?.role ?? 'no token');
 
   if (!_isOwner) {
     const status = await api('/api/status');
@@ -498,6 +499,7 @@ function navigate(section) {
 async function loadOverview() {
   const _token = localStorage.getItem('gymsuite_token');
   const _u = _token ? (() => { try { return JSON.parse(atob(_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch { return null; } })() : null;
+  console.log('[loadOverview] called, user role:', _u?.role ?? 'no token');
   if (_u && _u.role === 'owner') return;
   const data = await api('/api/overview');
   if (!data) return;
@@ -2115,6 +2117,7 @@ function parseJwt(token) {
 let ownerPortalData = null;
 
 async function loadOwnerPortalData() {
+  console.log('[ownerPortal] starting data load');
   try {
     const token = localStorage.getItem('gymsuite_token');
     const res = await fetch('/api/portal/session-data', {
@@ -2208,6 +2211,7 @@ function populateOwnerOverview(data) {
     banner.textContent = 'These are projected metrics based on your market. Real data populates when your campaign goes live.';
     perfEl.insertBefore(banner, perfEl.firstChild);
   }
+  console.log('[ownerPortal] populate complete');
 }
 
 // ── Demo locks ───────────────────────────────────────────────────────────────
