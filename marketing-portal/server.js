@@ -9,6 +9,7 @@ const cron = require('node-cron');
 const { r2Get, r2Put, r2List, r2ListShared, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists } = require('./lib/r2');
 const { requireAuth, requireAdmin, requireLocation, generateToken, hashPassword, comparePassword, loginLimiter } = require('./lib/auth');
 const { getUsers, saveUsers, invalidate: invalidateUserCache } = require('./lib/userCache');
+const { Resend } = require('resend');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -4420,13 +4421,14 @@ async function sendKaiNotification(session, sessionId, hooks, brainState) {
   const brainSnippet = typeof brainState === 'string' ? brainState.split('\n').slice(0, 15).join('\n') : '';
 
   try {
-    const axios = require('axios');
-    await axios.post('https://api.resend.com/emails', {
+    const resend = new Resend(resendKey);
+    const { error: kaiErr } = await resend.emails.send({
       from: 'AHRI <notifications@gymsuite.ai>',
       to: ['kaialexandernail@gmail.com'],
       subject: `New Gym Onboarded: ${gym} — ${city}`,
       text: `Onboarding complete.\n\nGym: ${gym}\nOwner: ${owner}\nCity: ${city}\nSession: ${sessionId}\n\nFINAL HOOKS:\n${hookLines}\n\nBRAIN STATE (first 15 lines):\n${brainSnippet}\n\nPortal: https://marketing-os-production-2b85.up.railway.app/onboard/portal/${sessionId}`,
-    }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
+    });
+    if (kaiErr) throw new Error(JSON.stringify(kaiErr));
     console.log(`[onboarding] Kai notification sent for session ${sessionId}`);
   } catch (err) {
     console.error('[onboarding] Kai notification failed:', err.message);
@@ -4526,21 +4528,21 @@ async function sendOwnerEmail(session, sessionId, hooks) {
 </body>
 </html>`;
 
-  const axios = require('axios');
   const ownerFrom = 'AHRI <onboarding@resend.dev>';
   console.log(`[Email] Sending owner email to ${ownerEmail} from ${ownerFrom}`);
   try {
-    const ownerRes = await axios.post('https://api.resend.com/emails', {
+    const resend = new Resend(resendKey);
+    const { data: ownerData, error: ownerErr } = await resend.emails.send({
       from: ownerFrom,
       to: [ownerEmail],
       subject: `Your marketing system is ready, ${firstName}`,
       html,
-    }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
-    console.log(`[Email] Resend response (owner): ${ownerRes.status} ${JSON.stringify(ownerRes.data)}`);
+    });
+    if (ownerErr) throw new Error(JSON.stringify(ownerErr));
+    console.log(`[Email] Resend response (owner): ${JSON.stringify(ownerData)}`);
     console.log(`[Email] owner email sent → ${ownerEmail} (session ${sessionId})`);
   } catch (err) {
     console.error(`[Email] Error sending owner email: ${err.message}`);
-    if (err.response) console.error(`[Email] Resend error body: ${JSON.stringify(err.response.data)}`);
     throw err;
   }
 }
@@ -4620,21 +4622,21 @@ async function sendCredentialsEmail(session, tempPassword) {
   </table>
 </body>
 </html>`;
-  const axios = require('axios');
   const credFrom = 'AHRI <onboarding@resend.dev>';
   console.log(`[Email] Sending credentials email to ${ownerEmail} from ${credFrom}`);
   try {
-    const credRes = await axios.post('https://api.resend.com/emails', {
+    const resend = new Resend(resendKey);
+    const { data: credData, error: credErr } = await resend.emails.send({
       from: credFrom,
       to: [ownerEmail],
       subject: 'Your GymSuite AI Portal Access',
       html,
-    }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
-    console.log(`[Email] Resend response (credentials): ${credRes.status} ${JSON.stringify(credRes.data)}`);
+    });
+    if (credErr) throw new Error(JSON.stringify(credErr));
+    console.log(`[Email] Resend response (credentials): ${JSON.stringify(credData)}`);
     console.log(`[Email] credentials email sent → ${ownerEmail}`);
   } catch (err) {
     console.error(`[Email] Error sending credentials email: ${err.message}`);
-    if (err.response) console.error(`[Email] Resend error body: ${JSON.stringify(err.response.data)}`);
     throw err;
   }
 }
@@ -4795,13 +4797,14 @@ async function sendActivationEmail(user) {
     </table>
   </td></tr></table>
 </body></html>`;
-  const axios = require('axios');
-  await axios.post('https://api.resend.com/emails', {
+  const resend = new Resend(resendKey);
+  const { error: activationErr } = await resend.emails.send({
     from: 'AHRI <onboarding@resend.dev>',
     to: [user.email],
     subject: `Your GymSuite AI account is now live, ${firstName}`,
     html,
-  }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
+  });
+  if (activationErr) throw new Error(JSON.stringify(activationErr));
   console.log(`[activation-email] sent → ${user.email}`);
 }
 
