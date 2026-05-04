@@ -547,6 +547,7 @@ async function loadOverview() {
   `;
 
   // Morning brief
+  console.log('[override] loadOverview writing to overview-brief');
   const brief = data.morning_brief;
   const briefEl = document.getElementById('overview-brief');
   if (brief && brief.content) {
@@ -2114,17 +2115,19 @@ function parseJwt(token) {
 let ownerPortalData = null;
 
 async function loadOwnerPortalData() {
-  console.log('[ownerPortal] starting data load');
+  console.log('[owner] starting load');
   try {
     const token = localStorage.getItem('gymsuite_token');
     const res = await fetch('/api/portal/session-data', {
       headers: { Authorization: 'Bearer ' + token },
     });
+    console.log('[owner] API status:', res.status);
     if (!res.ok) return;
     ownerPortalData = await res.json();
     populateOwnerOverview(ownerPortalData);
+    console.log('[owner] populate complete');
   } catch (err) {
-    console.error('[owner-portal] load failed:', err);
+    console.error('[owner] load failed:', err);
   }
 }
 
@@ -2140,6 +2143,7 @@ function populateOwnerOverview(data) {
   document.title = `AHRI — ${session.gymName || 'Your Gym'}`;
 
   // Overview brief card
+  console.log('[override] populateOwnerOverview writing to overview-brief');
   const briefEl = document.getElementById('overview-brief');
   if (briefEl) {
     const avatarFirst = avatar ? avatar.split('\n').filter(l => l.trim() && !l.startsWith('#')).slice(0, 2).join(' ').substring(0, 200) : '';
