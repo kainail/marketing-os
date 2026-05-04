@@ -661,16 +661,67 @@ app.use((req, res, next) => {
   requireAuth(req, res, next);
 });
 
-// TEMP — no-auth email smoke test. Remove after confirming delivery.
+// TEMP — no-auth smoke test for Steph. Sends both emails + upserts owner account. Remove after confirming delivery.
 app.get('/api/test-email-now', async (req, res) => {
-  const fakeSession = { ownerEmail: 'kaialexandernail@gmail.com', ownerName: 'Kai', gymName: 'Test Gym', city: 'Test City' };
+  const TEST_EMAIL = 'pancakekojo@gmail.com';
+  const TEST_NAME = 'Steph';
+  const TEST_SESSION_ID = '863cacdd-c279-44cd-b6bd-cef8a1c58152';
+  const TEST_PASSWORD = 'Test1234';
+
   try {
-    await sendCredentialsEmail(fakeSession, 'TestPass#2025!');
-    console.log('[TestEmail] smoke-test credentials email sent → kaialexandernail@gmail.com');
-    res.send('Email sent. Check kaialexandernail@gmail.com.');
+    // 1. Upsert test owner account
+    const passwordHash = await hashPassword(TEST_PASSWORD);
+    let users = await getUsers();
+    const existingIdx = users.findIndex(u => u.email === TEST_EMAIL);
+    if (existingIdx >= 0) {
+      users[existingIdx].name = TEST_NAME;
+      users[existingIdx].passwordHash = passwordHash;
+      users[existingIdx].sessionId = TEST_SESSION_ID;
+      users[existingIdx].gymId = TEST_SESSION_ID;
+      users[existingIdx].status = 'demo';
+      users[existingIdx].role = 'owner';
+    } else {
+      users.push({
+        id: crypto.randomUUID(),
+        name: TEST_NAME,
+        email: TEST_EMAIL,
+        passwordHash,
+        role: 'owner',
+        locations: [TEST_SESSION_ID],
+        permissions: { hasAHRI: true, hasOPS: false },
+        status: 'demo',
+        sessionId: TEST_SESSION_ID,
+        gymId: TEST_SESSION_ID,
+        gymName: 'Test Gym',
+        city: 'Test City',
+        createdAt: new Date().toISOString(),
+      });
+    }
+    await saveUsers(users);
+    console.log(`[TestEmail] owner account upserted → ${TEST_EMAIL}`);
+
+    // 2. Fetch real session + hooks from R2
+    const r2Session = await r2GetShared(`onboarding/sessions/${TEST_SESSION_ID}/session.json`);
+    const hooksData = await r2GetShared(`onboarding/sessions/${TEST_SESSION_ID}/hooks.json`);
+    const hooks = Array.isArray(hooksData?.hooks) ? hooksData.hooks : [];
+    const session = {
+      ...(r2Session || {}),
+      ownerEmail: TEST_EMAIL,
+      ownerName: TEST_NAME,
+    };
+
+    // 3. Send credentials email
+    await sendCredentialsEmail(session, TEST_PASSWORD);
+    console.log(`[TestEmail] credentials email sent → ${TEST_EMAIL}`);
+
+    // 4. Send owner summary email
+    await sendOwnerEmail(session, TEST_SESSION_ID, hooks);
+    console.log(`[TestEmail] owner summary email sent → ${TEST_EMAIL}`);
+
+    res.send(`Both emails sent to ${TEST_EMAIL}. Account upserted with password: ${TEST_PASSWORD}`);
   } catch (err) {
-    console.error('[TestEmail] smoke-test FAILED:', err.message);
-    res.status(500).send('Email failed: ' + err.message);
+    console.error('[TestEmail] FAILED:', err.message);
+    res.status(500).send('Failed: ' + err.message);
   }
 });
 
