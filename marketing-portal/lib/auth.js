@@ -63,6 +63,8 @@ function generateToken(user) {
       role: user.role,
       locations: user.locations,
       permissions: user.permissions,
+      sessionId: user.sessionId ?? null,
+      status: user.status ?? null,
     },
     JWT_SECRET
   );

@@ -2123,11 +2123,12 @@ function populateOwnerOverview(data) {
   if (!data || !data.session) return;
   const { session, hooks, selectedOffer, brainState, avatar, research, contentPosts } = data;
 
-  // Gym name in header
+  // Gym name in header + tab title
   const locSelect = document.getElementById('location-select');
   if (locSelect) {
     locSelect.innerHTML = `<option>${session.gymName || 'Your Gym'} — ${session.city || ''}</option>`;
   }
+  document.title = `AHRI — ${session.gymName || 'Your Gym'}`;
 
   // Overview brief card
   const briefEl = document.getElementById('overview-brief');
