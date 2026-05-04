@@ -442,6 +442,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupKeyboardShortcuts();
 });
 
+function esc(v) {
+  return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ════════════════════════════════════════════
 // API
 // ════════════════════════════════════════════
@@ -2164,6 +2168,47 @@ function populateOwnerOverview(data) {
       </div>`;
   }
 
+
+  // Hook library
+  if (Array.isArray(hooks) && hooks.length > 0) {
+    const hookLibraryEl = document.getElementById('hooks-list');
+    if (hookLibraryEl) {
+      hookLibraryEl.innerHTML = hooks.map((h, i) => `
+        <div class="card mb-12" style="padding:16px 20px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+            <div>
+              <div style="font-size:14px;color:rgba(232,234,240,0.85);line-height:1.5">${esc(h.hook || h)}</div>
+              ${h.framework ? `<div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(232,234,240,0.28);margin-top:6px">${esc(h.framework)}</div>` : ''}
+            </div>
+            <div style="font-size:11px;color:rgba(232,234,240,0.3);white-space:nowrap;padding-top:2px">Pending</div>
+          </div>
+        </div>`).join('');
+    }
+  }
+
+  // Content calendar — first 3 posts
+  if (Array.isArray(contentPosts) && contentPosts.length > 0) {
+    const calEl = document.getElementById('calendar-grid');
+    if (calEl) {
+      const now = new Date();
+      calEl.insertAdjacentHTML('afterbegin', contentPosts.slice(0, 3).map((p, i) => {
+        const d = new Date(now.getTime() + (i * 2 + 3) * 24 * 3600 * 1000);
+        const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return `<div class="card mb-12" style="padding:16px 20px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+            <div style="flex:1">
+              <div style="font-size:13px;color:rgba(232,234,240,0.75);line-height:1.5">${esc(p.content || p.caption || p.text || 'Content post')}</div>
+              ${p.platform ? `<div style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(232,234,240,0.28);margin-top:6px">${esc(p.platform)}</div>` : ''}
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-size:11px;color:rgba(232,234,240,0.4)">${dateStr}</div>
+              <div style="font-size:10px;color:rgba(245,158,11,0.7);margin-top:3px">Pending</div>
+            </div>
+          </div>
+        </div>`;
+      }).join(''));
+    }
+  }
 
   console.log('[ownerPortal] populate complete');
 }
