@@ -468,6 +468,7 @@ async function apiPost(url, body) {
 // NAVIGATION
 // ════════════════════════════════════════════
 function navigate(section) {
+  console.trace('[navigate] called:', section);
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const el = document.getElementById(`section-${section}`);
@@ -497,6 +498,7 @@ function navigate(section) {
 // OVERVIEW
 // ════════════════════════════════════════════
 async function loadOverview() {
+  console.log('[post-load] loadOverview');
   const data = await api('/api/overview');
   if (!data) return;
   state.overview = data;
@@ -909,6 +911,7 @@ async function loadCalendar() {
 // PERFORMANCE
 // ════════════════════════════════════════════
 async function loadPerformance() {
+  console.log('[post-load] loadPerformance');
   document.getElementById('perf-metrics').innerHTML = '<div class="skeleton skeleton-value"></div>'.repeat(5);
   const data = await api('/api/performance');
   if (!data) return;
@@ -1117,6 +1120,7 @@ async function loadPerfAttribution() {
 // DECISION LAYER
 // ════════════════════════════════════════════
 async function loadDecision() {
+  console.log('[post-load] loadDecision');
   const [perfData, testsData, attrData] = await Promise.all([
     api('/api/performance'), api('/api/ab-tests'), api('/api/attribution/report')
   ]);
