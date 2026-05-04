@@ -127,16 +127,7 @@
         if (localRes.ok) {
           const data = await localRes.json();
           localStorage.setItem('gymsuite_token', data.token);
-          if (data.user?.role === 'owner') {
-            if (data.user.sessionId) {
-              window.location.href = `/onboard/portal/${data.user.sessionId}`;
-            } else {
-              console.warn('[login] owner has no sessionId — falling back to /dashboard');
-              window.location.href = '/dashboard';
-            }
-          } else {
-            window.location.href = '/dashboard';
-          }
+          window.location.href = '/dashboard';
           return;
         }
         if (localRes.status === 401) {
