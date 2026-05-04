@@ -4283,22 +4283,6 @@ async function createOnboardingAccount(session, sessionId) {
   return { userId, tempPassword };
 }
 
-/** Middleware: re-reads user status from R2 on every request. Blocks demo users on mutation routes. */
-async function checkDemoStatus(req, res, next) {
-  if (!req.user || req.user.role === 'admin') return next();
-  try {
-    const users = await getUsers();
-    const live = users.find(u => u.id === req.user.userId);
-    if (!live) return res.status(401).json({ error: 'Account not found' });
-    if (live.status === 'demo') {
-      return res.status(403).json({ error: 'Your account is in demo mode. Contact your GymSuite AI representative to activate full access.' });
-    }
-    next();
-  } catch (err) {
-    console.error('[checkDemoStatus]', err.message);
-    next(); // fail open — don't block if R2 is down
-  }
-}
 
 // POST /api/onboarding/sessions/:sessionId/complete — generate final hooks, mark done, email Kai
 app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {

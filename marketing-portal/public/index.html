@@ -467,21 +467,7 @@ async function apiPost(url, body) {
 // ════════════════════════════════════════════
 // NAVIGATION
 // ════════════════════════════════════════════
-const OWNER_ALLOWED_SECTIONS = new Set(['overview','queue','calendar','performance','decision','hooks','journey','nurture','manus']);
-
 function navigate(section) {
-  const _navToken = localStorage.getItem('gymsuite_token');
-  const _navUser = _navToken ? (() => { try { return JSON.parse(atob(_navToken.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch { return null; } })() : null;
-  if (_navUser && _navUser.role === 'owner') {
-    if (!ownerUserInteracted) {
-      console.log('[navigate] blocked auto-trigger for owner:', section);
-      return;
-    }
-    if (!OWNER_ALLOWED_SECTIONS.has(section)) {
-      console.log('[navigate] blocked admin section for owner:', section);
-      return;
-    }
-  }
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const el = document.getElementById(`section-${section}`);
@@ -511,10 +497,6 @@ function navigate(section) {
 // OVERVIEW
 // ════════════════════════════════════════════
 async function loadOverview() {
-  const _token = localStorage.getItem('gymsuite_token');
-  const _u = _token ? (() => { try { return JSON.parse(atob(_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch { return null; } })() : null;
-  console.log('[loadOverview] called, user role:', _u?.role ?? 'no token');
-  if (_u && _u.role === 'owner') return;
   const data = await api('/api/overview');
   if (!data) return;
   state.overview = data;
@@ -2078,10 +2060,6 @@ document.addEventListener('click', (e) => {
   }
 });
 
-// Track first real user interaction — used to block auto-triggered navigation for owners
-// isTrusted=true only for genuine input events; synthetic .click() and dispatchEvent are false
-let ownerUserInteracted = false;
-document.addEventListener('click', (e) => { if (e.isTrusted) ownerUserInteracted = true; }, { capture: true });
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 const OPS_URL = 'https://gymsuiteai-dashboard-production.up.railway.app';
@@ -2126,7 +2104,7 @@ function parseJwt(token) {
     if (e.key === 'gymsuite_token' && !e.newValue) window.location.href = '/login';
   });
 
-  // Gym owners: load session data and apply demo locks
+  // Gym owners: load session data into overview
   if (user.role === 'owner') {
     loadOwnerPortalData();
   }
@@ -2145,7 +2123,6 @@ async function loadOwnerPortalData() {
     if (!res.ok) return;
     ownerPortalData = await res.json();
     populateOwnerOverview(ownerPortalData);
-    applyDemoLocks(ownerPortalData.status);
   } catch (err) {
     console.error('[owner-portal] load failed:', err);
   }
@@ -2222,57 +2199,7 @@ function populateOwnerOverview(data) {
     }
   }
 
-  // Demo performance metrics banner
-  const perfEl = document.getElementById('section-performance');
-  if (perfEl) {
-    const banner = document.createElement('div');
-    banner.style.cssText = 'background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:rgba(245,158,11,0.8)';
-    banner.textContent = 'These are projected metrics based on your market. Real data populates when your campaign goes live.';
-    perfEl.insertBefore(banner, perfEl.firstChild);
-  }
   console.log('[ownerPortal] populate complete');
-}
-
-// ── Demo locks ───────────────────────────────────────────────────────────────
-function applyDemoLocks(status) {
-  if (status === 'active') {
-    document.querySelectorAll('.demo-locked').forEach(el => {
-      el.classList.remove('demo-locked');
-      el.style.pointerEvents = '';
-      el.style.opacity = '';
-    });
-    document.querySelectorAll('.demo-lock-icon').forEach(el => el.remove());
-    return;
-  }
-
-  // status === 'demo': lock action elements in specific sections
-  const LOCK_SECTIONS = ['section-queue', 'section-manus', 'section-hooks', 'section-calendar', 'section-nurture', 'section-journey'];
-  const LOCK_SELECTORS = 'button:not(.nav-btn), input[type="checkbox"], input[type="radio"], select';
-  const TIP = 'This feature activates once your account is set up. Setup begins within 24 hours of confirming your subscription.';
-
-  LOCK_SECTIONS.forEach(secId => {
-    const sec = document.getElementById(secId);
-    if (!sec) return;
-
-    // Add lock icon to section header
-    const title = sec.querySelector('.section-title');
-    if (title && !title.querySelector('.demo-lock-icon')) {
-      const icon = document.createElement('span');
-      icon.className = 'demo-lock-icon';
-      icon.title = TIP;
-      icon.style.cssText = 'margin-left:8px;font-size:12px;cursor:default;opacity:0.5';
-      icon.textContent = '🔒';
-      title.appendChild(icon);
-    }
-
-    // Lock action elements — content stays readable
-    sec.querySelectorAll(LOCK_SELECTORS).forEach(el => {
-      el.classList.add('demo-locked');
-      el.style.pointerEvents = 'none';
-      el.style.opacity = '0.4';
-      el.title = TIP;
-    });
-  });
 }
 
 // ── Account Access (admin) ────────────────────────────────────────────────────
