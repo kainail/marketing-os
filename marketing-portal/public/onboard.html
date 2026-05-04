@@ -152,28 +152,6 @@
   </div>
 
   <script>
-    // ── Client-side admin guard ───────────────────────────────────────────────
-    (function() {
-      function parseJwt(t) {
-        try {
-          // base64url → base64: replace URL-safe chars and restore padding
-          const b64 = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-          const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
-          return JSON.parse(atob(padded));
-        } catch { return null; }
-      }
-      const token = localStorage.getItem('gymsuite_token');
-      if (!token) { window.location.href = '/login'; return; }
-      const user = parseJwt(token);
-      if (!user) { localStorage.removeItem('gymsuite_token'); window.location.href = '/login'; return; }
-      if (user.role !== 'admin' && !user.permissions?.hasOPS) {
-        console.warn('[AHRI] onboard guard: role is', JSON.stringify(user.role), '— expected "admin". Redirecting.');
-        window.location.href = '/login';
-        return;
-      }
-      window.addEventListener('storage', e => { if (e.key === 'gymsuite_token' && !e.newValue) window.location.href = '/login'; });
-    })();
-    // ─────────────────────────────────────────────────────────────────────────
 
     function authHeaders() {
       const t = localStorage.getItem('gymsuite_token');
