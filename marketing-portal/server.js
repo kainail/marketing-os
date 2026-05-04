@@ -4436,24 +4436,28 @@ async function sendKaiNotification(session, sessionId, hooks, brainState) {
 /** Schedule owner confirmation email 5 minutes after session complete. */
 function scheduleOwnerEmail(session, sessionId, hooks) {
   const ownerEmail = session.ownerEmail;
+  console.log(`[Email] scheduleOwnerEmail called for ${ownerEmail || '(no email)'} session=${sessionId}`);
   if (!ownerEmail || !ownerEmail.includes('@')) {
-    console.warn(`[onboarding] no owner email on session ${sessionId} — skipping owner email`);
+    console.warn(`[Email] no valid owner email on session ${sessionId} — skipping owner email`);
     return;
   }
   // setTimeout fires once; if the server restarts before 5 min the email won't send.
   // Acceptable for now — a durable job queue would be needed for guaranteed delivery.
   setTimeout(() => {
-    sendOwnerEmail(session, sessionId, hooks).catch(err =>
-      console.error('[onboarding] owner email failed:', err.message)
-    );
+    sendOwnerEmail(session, sessionId, hooks).catch(err => {
+      console.error('[Email] owner email failed:', err.message);
+      if (err.response) console.error('[Email] Resend error body:', JSON.stringify(err.response.data));
+    });
   }, 5 * 60 * 1000);
-  console.log(`[onboarding] owner email scheduled in 5 min → ${ownerEmail}`);
+  console.log(`[Email] owner email scheduled in 5 min → ${ownerEmail}`);
 }
 
 /** Send post-sale confirmation email to gym owner via Resend. */
 async function sendOwnerEmail(session, sessionId, hooks) {
+  console.log(`[Email] sendOwnerEmail called for ${session.ownerEmail} session=${sessionId}`);
   const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) { console.warn('[onboarding] RESEND_API_KEY not set — skipping owner email'); return; }
+  console.log(`[Email] Resend API key present: ${!!resendKey}`);
+  if (!resendKey) { console.warn('[Email] RESEND_API_KEY not set — skipping owner email'); return; }
 
   const gym = session.gymName || 'your gym';
   const city = session.city || '';
@@ -4523,21 +4527,35 @@ async function sendOwnerEmail(session, sessionId, hooks) {
 </html>`;
 
   const axios = require('axios');
-  await axios.post('https://api.resend.com/emails', {
-    from: 'AHRI <onboarding@resend.dev>',
-    to: [ownerEmail],
-    subject: `Your marketing system is ready, ${firstName}`,
-    html,
-  }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
-  console.log(`[onboarding] owner email sent → ${ownerEmail} (session ${sessionId})`);
+  const ownerFrom = 'AHRI <onboarding@resend.dev>';
+  console.log(`[Email] Sending owner email to ${ownerEmail} from ${ownerFrom}`);
+  try {
+    const ownerRes = await axios.post('https://api.resend.com/emails', {
+      from: ownerFrom,
+      to: [ownerEmail],
+      subject: `Your marketing system is ready, ${firstName}`,
+      html,
+    }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
+    console.log(`[Email] Resend response (owner): ${ownerRes.status} ${JSON.stringify(ownerRes.data)}`);
+    console.log(`[Email] owner email sent → ${ownerEmail} (session ${sessionId})`);
+  } catch (err) {
+    console.error(`[Email] Error sending owner email: ${err.message}`);
+    if (err.response) console.error(`[Email] Resend error body: ${JSON.stringify(err.response.data)}`);
+    throw err;
+  }
 }
 
 /** Send portal credentials immediately at session complete. Separate from the 5-min post-sale email. */
 async function sendCredentialsEmail(session, tempPassword) {
+  console.log(`[Email] sendCredentialsEmail called for ${session.ownerEmail}`);
   const resendKey = process.env.RESEND_API_KEY;
-  if (!resendKey) { console.warn('[onboarding] RESEND_API_KEY not set — skipping credentials email'); return; }
+  console.log(`[Email] Resend API key present: ${!!resendKey}`);
+  if (!resendKey) { console.warn('[Email] RESEND_API_KEY not set — skipping credentials email'); return; }
   const ownerEmail = session.ownerEmail;
-  if (!ownerEmail || !ownerEmail.includes('@')) return;
+  if (!ownerEmail || !ownerEmail.includes('@')) {
+    console.warn(`[Email] sendCredentialsEmail: invalid or missing ownerEmail "${ownerEmail}" — skipping`);
+    return;
+  }
   const firstName = (session.ownerName || 'there').split(' ')[0];
   const loginUrl = 'https://marketing-os-production-2b85.up.railway.app/login';
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -4603,13 +4621,22 @@ async function sendCredentialsEmail(session, tempPassword) {
 </body>
 </html>`;
   const axios = require('axios');
-  await axios.post('https://api.resend.com/emails', {
-    from: 'AHRI <onboarding@resend.dev>',
-    to: [ownerEmail],
-    subject: 'Your GymSuite AI Portal Access',
-    html,
-  }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
-  console.log(`[onboarding] credentials email sent → ${ownerEmail}`);
+  const credFrom = 'AHRI <onboarding@resend.dev>';
+  console.log(`[Email] Sending credentials email to ${ownerEmail} from ${credFrom}`);
+  try {
+    const credRes = await axios.post('https://api.resend.com/emails', {
+      from: credFrom,
+      to: [ownerEmail],
+      subject: 'Your GymSuite AI Portal Access',
+      html,
+    }, { headers: { Authorization: `Bearer ${resendKey}`, 'Content-Type': 'application/json' } });
+    console.log(`[Email] Resend response (credentials): ${credRes.status} ${JSON.stringify(credRes.data)}`);
+    console.log(`[Email] credentials email sent → ${ownerEmail}`);
+  } catch (err) {
+    console.error(`[Email] Error sending credentials email: ${err.message}`);
+    if (err.response) console.error(`[Email] Resend error body: ${JSON.stringify(err.response.data)}`);
+    throw err;
+  }
 }
 
 // GET /api/onboarding/sessions/:sessionId/portal-data — structured data for portal page
