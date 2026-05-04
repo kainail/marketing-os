@@ -468,6 +468,12 @@ async function apiPost(url, body) {
 // NAVIGATION
 // ════════════════════════════════════════════
 function navigate(section) {
+  const _navToken = localStorage.getItem('gymsuite_token');
+  const _navUser = _navToken ? (() => { try { return JSON.parse(atob(_navToken.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch { return null; } })() : null;
+  if (_navUser && _navUser.role === 'owner') {
+    console.log('[navigate] blocked for owner, section:', section);
+    return;
+  }
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const el = document.getElementById(`section-${section}`);
