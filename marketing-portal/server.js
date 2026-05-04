@@ -10,6 +10,8 @@ const { r2Get, r2Put, r2List, r2ListShared, r2Delete, r2GetShared, r2PutShared, 
 const { requireAuth, requireAdmin, requireLocation, generateToken, hashPassword, comparePassword, loginLimiter } = require('./lib/auth');
 const { getUsers, saveUsers, invalidate: invalidateUserCache } = require('./lib/userCache');
 const { Resend } = require('resend');
+const { createGymFolderStructure } = require('./services/googleDrive');
+const { generateOnboardingCreative, generateContentSchedule } = require('./services/creativeGenerator');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -4333,6 +4335,53 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
     scheduleOwnerEmail(session, sessionId, hooks);
     console.log(`[onboarding] session ${sessionId} complete — ${hooks.length} hooks, ${posts.length} posts`);
     res.json({ success: true, hooks, posts, accountCreated });
+
+    // Google Drive creative pipeline — non-blocking, runs after response is sent
+    setImmediate(async () => {
+      try {
+        const driveFolders = await createGymFolderStructure(
+          session.gymName, session.city, session.state, session.ownerEmail, sessionId
+        );
+        if (!driveFolders) return;
+
+        // Persist folder IDs to session.json and a Drive config for AHRI's pipeline
+        const gymId = (session.gymName || sessionId).toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const updatedSession = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+        if (updatedSession) {
+          updatedSession.driveFolders = driveFolders;
+          await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, updatedSession);
+        }
+        await r2PutShared(`drive-config/${gymId}.json`, {
+          gymId,
+          sessionId,
+          gymName: session.gymName,
+          driveFolders,
+          GOOGLE_DRIVE_RAW_FOLDER_ID: `GOOGLE_DRIVE_RAW_FOLDER_ID_${gymId.toUpperCase()}`,
+          photosUrl: `https://drive.google.com/drive/folders/${driveFolders.photos}`,
+          generatedUrl: `https://drive.google.com/drive/folders/${driveFolders.generated}`,
+          createdAt: new Date().toISOString(),
+        });
+        console.log(`[Drive] config written to R2 for gym ${gymId}`);
+
+        // Generate creative and shot list concurrently
+        await Promise.allSettled([
+          generateOnboardingCreative(sessionId, driveFolders.generated),
+          generateContentSchedule(sessionId, driveFolders.contentSchedule),
+        ]);
+        console.log(`[Drive] creative pipeline complete for session ${sessionId}`);
+
+        // Re-read session and attach Drive URLs for email (if email not yet sent)
+        // The scheduleOwnerEmail fires 5 min after session complete — Drive config is ready by then
+        const finalSession = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+        if (finalSession) {
+          finalSession.driveFolders = driveFolders;
+          finalSession.driveReady = true;
+          await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, finalSession);
+        }
+      } catch (err) {
+        console.error(`[Drive] creative pipeline error (session ${sessionId}):`, err.message);
+      }
+    });
   } catch (err) {
     console.error('[onboarding] complete failed:', err.message);
     res.status(500).json({ error: err.message });
@@ -4635,6 +4684,34 @@ async function sendOwnerEmail(session, sessionId, hooks) {
             <tr><td style="padding:20px 24px;">
               <p style="margin:0 0 12px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.3);">Active Avatar</p>
               <p style="margin:0;font-size:13px;color:rgba(232,234,240,0.6);line-height:1.8;font-family:'Courier New',Courier,monospace;">${escPre(typeof avatar === 'string' ? avatar : JSON.stringify(avatar, null, 2))}</p>
+            </td></tr>
+          </table>
+        </td></tr>` : ''}
+
+        <!-- Google Drive creative folder -->
+        ${session.driveFolders ? `
+        <tr><td style="padding-top:36px;padding-bottom:16px;">
+          <p style="margin:0;font-size:18px;font-weight:700;color:rgba(232,234,240,0.95);">Your Creative Folder</p>
+        </td></tr>
+        <tr><td style="padding-bottom:32px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;">
+            <tr><td style="padding:24px 28px;">
+              <p style="margin:0 0 16px;font-size:14px;color:rgba(232,234,240,0.65);line-height:1.6;">Your creative folder is ready. Drop photos here and AHRI will select the best ones for your ads.</p>
+              <table cellpadding="0" cellspacing="0" style="margin-bottom:16px;">
+                <tr><td style="padding-right:12px;vertical-align:middle;">
+                  <div style="width:8px;height:8px;background:#7c3aed;border-radius:50%;"></div>
+                </td><td>
+                  <a href="https://drive.google.com/drive/folders/${session.driveFolders.photos}" style="color:#a78bfa;font-size:14px;font-weight:600;text-decoration:none;">→ Drop photos here (Photos folder)</a>
+                </td></tr>
+              </table>
+              <p style="margin:0 0 12px;font-size:14px;color:rgba(232,234,240,0.65);line-height:1.6;">AHRI has already generated starter creative for you — ready to review before your first campaign.</p>
+              <table cellpadding="0" cellspacing="0">
+                <tr><td style="padding-right:12px;vertical-align:middle;">
+                  <div style="width:8px;height:8px;background:#10b981;border-radius:50%;"></div>
+                </td><td>
+                  <a href="https://drive.google.com/drive/folders/${session.driveFolders.generated}" style="color:#6ee7b7;font-size:14px;font-weight:600;text-decoration:none;">→ View starter creative (Generated folder)</a>
+                </td></tr>
+              </table>
             </td></tr>
           </table>
         </td></tr>` : ''}
