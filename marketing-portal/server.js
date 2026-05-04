@@ -5186,6 +5186,49 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// ============================================================
+// TEST-ONLY — REMOVE AFTER DRIVE VERIFICATION
+// POST /api/test/drive/:sessionId — no auth, smoke-tests
+// createGymFolderStructure + generateOnboardingCreative
+// ============================================================
+app.post('/api/test/drive/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+
+  try {
+    const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+    if (!session) return res.status(404).json({ error: 'Session not found in R2' });
+
+    console.log(`[TEST/drive] creating folders for session ${sessionId} — ${session.gymName}`);
+    const driveFolders = await createGymFolderStructure(
+      session.gymName, session.city, session.state, session.ownerEmail, sessionId
+    );
+    if (!driveFolders) return res.status(500).json({ error: 'createGymFolderStructure returned null — check GOOGLE_CREDENTIALS_B64' });
+
+    // Persist folder IDs so creative generator can read them
+    session.driveFolders = driveFolders;
+    await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
+    console.log(`[TEST/drive] folders created, running generateOnboardingCreative`);
+
+    const creativeResults = await generateOnboardingCreative(sessionId, driveFolders.generated);
+
+    res.json({
+      _test: true,
+      _warning: 'REMOVE THIS ROUTE AFTER DRIVE VERIFICATION',
+      sessionId,
+      gymName: session.gymName,
+      driveFolders,
+      creative: {
+        uploaded: creativeResults.length,
+        files: creativeResults,
+      },
+    });
+  } catch (err) {
+    console.error('[TEST/drive] failed:', err.message);
+    res.status(500).json({ error: err.message, stack: err.stack?.split('\n').slice(0, 5) });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`AHRI Marketing Command Center running on port ${PORT}`);
   console.log(`  Gym: ${locationConfig.getLocation('bloomington').gymName || 'GymSuite AI'}`);
