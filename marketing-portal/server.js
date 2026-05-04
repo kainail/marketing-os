@@ -665,7 +665,7 @@ app.use((req, res, next) => {
 app.get('/api/test-email-now', async (req, res) => {
   const TEST_EMAIL = 'pancakekojo@gmail.com';
   const TEST_NAME = 'Steph';
-  const TEST_SESSION_ID = '863cacdd-c279-44cd-b6bd-cef8a1c58152';
+  const TEST_SESSION_ID = '13b2ee58-a3e5-4fd4-bb99-b8d0c1c85be4';
   const TEST_PASSWORD = 'Test1234';
 
   try {
