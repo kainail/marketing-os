@@ -714,11 +714,15 @@ app.get('/api/test-email-now', async (req, res) => {
     await sendCredentialsEmail(session, TEST_PASSWORD);
     console.log(`[TestEmail] credentials email sent → ${TEST_EMAIL}`);
 
-    // 4. Send owner summary email
+    // 4. Send owner summary email → Steph
     await sendOwnerEmail(session, TEST_SESSION_ID, hooks);
     console.log(`[TestEmail] owner summary email sent → ${TEST_EMAIL}`);
 
-    res.send(`Both emails sent to ${TEST_EMAIL}. Account upserted with password: ${TEST_PASSWORD}`);
+    // 5. Send owner summary email → Kai
+    await sendOwnerEmail({ ...(r2Session || {}), ownerEmail: 'kaialexandernail@gmail.com', ownerName: 'Kai' }, TEST_SESSION_ID, hooks);
+    console.log(`[TestEmail] owner summary email sent → kaialexandernail@gmail.com`);
+
+    res.send(`Emails sent to ${TEST_EMAIL} and kaialexandernail@gmail.com. Account upserted with password: ${TEST_PASSWORD}`);
   } catch (err) {
     console.error('[TestEmail] FAILED:', err.message);
     res.status(500).send('Failed: ' + err.message);
