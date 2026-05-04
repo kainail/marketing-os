@@ -4454,70 +4454,185 @@ function scheduleOwnerEmail(session, sessionId, hooks) {
   console.log(`[Email] owner email scheduled in 5 min → ${ownerEmail}`);
 }
 
-/** Send post-sale confirmation email to gym owner via Resend. */
+/** Send post-session summary email to gym owner — portal-style summary with hooks and knowledge base. */
 async function sendOwnerEmail(session, sessionId, hooks) {
   console.log(`[Email] sendOwnerEmail called for ${session.ownerEmail} session=${sessionId}`);
   const resendKey = process.env.RESEND_API_KEY;
   console.log(`[Email] Resend API key present: ${!!resendKey}`);
   if (!resendKey) { console.warn('[Email] RESEND_API_KEY not set — skipping owner email'); return; }
 
-  const gym = session.gymName || 'your gym';
-  const city = session.city || '';
   const ownerEmail = session.ownerEmail;
-  const firstName = (session.ownerName || 'there').split(' ')[0];
-  const baseUrl = process.env.BASE_URL || 'https://marketing-os-production-2b85.up.railway.app';
-  const soloLink = `${baseUrl}/onboard/solo/${sessionId}`;
-  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const gym = session.gymName || 'Your Gym';
+  const owner = session.ownerName || session.managerName || 'Owner';
+  const location = [session.city, session.state].filter(Boolean).join(', ');
+  const completedAt = session.completed_at
+    ? new Date(session.completed_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : 'Today';
+
+  const [brainState, avatar] = await Promise.all([
+    r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/brain-state/current-state.md`),
+    r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/lifestyle-avatar.md`),
+  ]);
+
+  const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escPre = s => esc(s).replace(/\n/g, '<br>');
+
+  const hooksHtml = (hooks || []).slice(0, 5).map((h, i) => {
+    const hookText = h.hook || h.text || String(h);
+    const framework = h.framework || '';
+    return `
+            <tr><td style="padding-bottom:12px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;">
+                <tr><td style="padding:20px 24px;">
+                  <table cellpadding="0" cellspacing="0" width="100%"><tr>
+                    <td style="width:28px;vertical-align:top;padding-top:1px;">
+                      <span style="display:inline-block;width:22px;height:22px;background:#7c3aed;border-radius:50%;font-size:11px;font-weight:700;color:#fff;text-align:center;line-height:22px;">${i + 1}</span>
+                    </td>
+                    <td style="padding-left:12px;vertical-align:top;">
+                      <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:rgba(232,234,240,0.95);line-height:1.5;">${esc(hookText)}</p>
+                      ${framework ? `<p style="margin:0;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(124,58,237,0.8);">${esc(framework)}</p>` : ''}
+                    </td>
+                  </tr></table>
+                </td></tr>
+              </table>
+            </td></tr>`;
+  }).join('');
 
   const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Your marketing system is ready</title>
+  <title>Your marketing brain is ready</title>
 </head>
 <body style="margin:0;padding:0;background:#0D0F14;font-family:'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#0D0F14;">
     <tr><td align="center" style="padding:48px 24px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
 
-        <tr><td style="padding-bottom:36px;">
+        <!-- AHRI brand -->
+        <tr><td style="padding-bottom:32px;">
           <table cellpadding="0" cellspacing="0"><tr>
             <td style="width:8px;height:8px;background:#7c3aed;border-radius:50%;vertical-align:middle;"></td>
             <td style="padding-left:8px;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.35);vertical-align:middle;">AHRI — GymSuite AI</td>
           </tr></table>
         </td></tr>
 
-        <tr><td style="padding-bottom:20px;">
-          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.9);line-height:1.7;">${esc(firstName)} —</p>
+        <!-- Header -->
+        <tr><td style="padding-bottom:8px;">
+          <p style="margin:0;font-size:28px;font-weight:700;color:rgba(232,234,240,0.95);line-height:1.2;">${esc(gym)}</p>
         </td></tr>
-
-        <tr><td style="padding-bottom:20px;">
-          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">Everything we built today is waiting for you inside your dashboard.</p>
-        </td></tr>
-
-        <tr><td style="padding-bottom:28px;">
-          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">Your avatar. Your hooks. Your market intelligence. Your first campaign brief — all of it specific to ${esc(gym)} in ${esc(city)}.</p>
-        </td></tr>
-
         <tr><td style="padding-bottom:36px;">
-          <a href="${baseUrl}/login" style="display:inline-block;background:#7c3aed;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:10px;letter-spacing:0.2px;">Log into your dashboard →</a>
+          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.45);">${esc(owner)} · ${esc(location)}</p>
         </td></tr>
 
+        <!-- Overview cards -->
         <tr><td style="padding-bottom:32px;">
-          <p style="margin:0;font-size:15px;color:rgba(232,234,240,0.72);line-height:1.75;">I have one more set of questions that will make everything significantly more powerful. It takes about 10 minutes and you can do it whenever you have a free moment:</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:14px;">
+            <tr><td style="padding:24px 28px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="width:50%;padding-bottom:20px;vertical-align:top;">
+                    <p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.28);">Gym</p>
+                    <p style="margin:0;font-size:14px;color:rgba(232,234,240,0.85);">${esc(gym)}</p>
+                  </td>
+                  <td style="width:50%;padding-bottom:20px;vertical-align:top;">
+                    <p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.28);">Owner / Manager</p>
+                    <p style="margin:0;font-size:14px;color:rgba(232,234,240,0.85);">${esc(owner)}</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="width:50%;padding-bottom:20px;vertical-align:top;">
+                    <p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.28);">City</p>
+                    <p style="margin:0;font-size:14px;color:rgba(232,234,240,0.85);">${esc(location)}</p>
+                  </td>
+                  <td style="width:50%;padding-bottom:20px;vertical-align:top;">
+                    <p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.28);">Status</p>
+                    <p style="margin:0;font-size:14px;font-weight:600;color:#4ade80;">● Complete</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="vertical-align:top;">
+                    <p style="margin:0 0 4px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.28);">Completed</p>
+                    <p style="margin:0;font-size:14px;color:rgba(232,234,240,0.85);">${esc(completedAt)}</p>
+                  </td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
         </td></tr>
 
-        <tr><td style="padding-bottom:36px;">
-          <a href="${soloLink}" style="display:inline-block;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.4);color:#a78bfa;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:10px;letter-spacing:0.2px;">Complete your profile →</a>
+        <!-- Hooks -->
+        <tr><td style="padding-bottom:8px;">
+          <p style="margin:0;font-size:18px;font-weight:700;color:rgba(232,234,240,0.95);">Your 5 Final Hooks</p>
         </td></tr>
-
-        <tr><td style="border-top:1px solid rgba(255,255,255,0.07);padding-top:24px;padding-bottom:28px;">
-          <p style="margin:0 0 6px;font-size:13px;color:rgba(232,234,240,0.35);line-height:1.7;">Your technical setup begins within 24 hours.</p>
-          <p style="margin:0;font-size:13px;color:rgba(232,234,240,0.35);line-height:1.7;">Your first campaign will be live within 72 hours.</p>
+        <tr><td style="padding-bottom:16px;">
+          <p style="margin:0;font-size:13px;color:rgba(232,234,240,0.45);">Generated from your complete interview — ready to run.</p>
         </td></tr>
-
         <tr><td>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            ${hooksHtml}
+          </table>
+        </td></tr>
+
+        <!-- Knowledge Base -->
+        <tr><td style="padding-top:36px;padding-bottom:16px;">
+          <p style="margin:0;font-size:18px;font-weight:700;color:rgba(232,234,240,0.95);">Marketing Brain</p>
+        </td></tr>
+
+        ${brainState ? `
+        <tr><td style="padding-bottom:16px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;">
+            <tr><td style="padding:20px 24px;">
+              <p style="margin:0 0 12px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.3);">Brain State</p>
+              <p style="margin:0;font-size:13px;color:rgba(232,234,240,0.6);line-height:1.8;font-family:'Courier New',Courier,monospace;">${escPre(typeof brainState === 'string' ? brainState : JSON.stringify(brainState, null, 2))}</p>
+            </td></tr>
+          </table>
+        </td></tr>` : ''}
+
+        ${avatar ? `
+        <tr><td style="padding-bottom:16px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:12px;">
+            <tr><td style="padding:20px 24px;">
+              <p style="margin:0 0 12px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.3);">Active Avatar</p>
+              <p style="margin:0;font-size:13px;color:rgba(232,234,240,0.6);line-height:1.8;font-family:'Courier New',Courier,monospace;">${escPre(typeof avatar === 'string' ? avatar : JSON.stringify(avatar, null, 2))}</p>
+            </td></tr>
+          </table>
+        </td></tr>` : ''}
+
+        <!-- What happens next -->
+        <tr><td style="padding-top:36px;padding-bottom:16px;">
+          <p style="margin:0;font-size:18px;font-weight:700;color:rgba(232,234,240,0.95);">What happens next</p>
+        </td></tr>
+        <tr><td style="padding-bottom:40px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:12px;">
+            <tr><td style="padding:24px 28px;">
+              <table cellpadding="0" cellspacing="0">
+                <tr><td style="padding-bottom:14px;vertical-align:top;">
+                  <table cellpadding="0" cellspacing="0"><tr>
+                    <td style="width:6px;height:6px;background:#7c3aed;border-radius:50%;vertical-align:middle;padding-top:7px;"></td>
+                    <td style="padding-left:12px;font-size:14px;color:rgba(232,234,240,0.78);line-height:1.6;">AHRI runs your first campaign brief against these hooks and your offer.</td>
+                  </tr></table>
+                </td></tr>
+                <tr><td style="padding-bottom:14px;vertical-align:top;">
+                  <table cellpadding="0" cellspacing="0"><tr>
+                    <td style="width:6px;height:6px;background:#7c3aed;border-radius:50%;vertical-align:middle;padding-top:7px;"></td>
+                    <td style="padding-left:12px;font-size:14px;color:rgba(232,234,240,0.78);line-height:1.6;">Content calendar is generated — 30 pieces for the active avatar.</td>
+                  </tr></table>
+                </td></tr>
+                <tr><td style="vertical-align:top;">
+                  <table cellpadding="0" cellspacing="0"><tr>
+                    <td style="width:6px;height:6px;background:#7c3aed;border-radius:50%;vertical-align:middle;padding-top:7px;"></td>
+                    <td style="padding-left:12px;font-size:14px;color:rgba(232,234,240,0.78);line-height:1.6;">Technical setup completed within 3 days — you go live.</td>
+                  </tr></table>
+                </td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="border-top:1px solid rgba(255,255,255,0.07);padding-top:24px;">
           <p style="margin:0 0 5px;font-size:14px;color:rgba(232,234,240,0.65);font-weight:600;">— AHRI</p>
           <p style="margin:0;font-size:11px;color:rgba(232,234,240,0.28);letter-spacing:0.5px;text-transform:uppercase;">Your GymSuite AI Marketing Brain</p>
         </td></tr>
@@ -4535,7 +4650,7 @@ async function sendOwnerEmail(session, sessionId, hooks) {
     const { data: ownerData, error: ownerErr } = await resend.emails.send({
       from: ownerFrom,
       to: [ownerEmail],
-      subject: `Your marketing system is ready, ${firstName}`,
+      subject: `Your marketing system is ready — ${gym}`,
       html,
     });
     if (ownerErr) throw new Error(JSON.stringify(ownerErr));
