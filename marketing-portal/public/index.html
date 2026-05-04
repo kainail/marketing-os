@@ -472,7 +472,6 @@ async function apiPost(url, body) {
 // NAVIGATION
 // ════════════════════════════════════════════
 function navigate(section) {
-  console.trace('[navigate] called:', section);
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const el = document.getElementById(`section-${section}`);
@@ -502,7 +501,6 @@ function navigate(section) {
 // OVERVIEW
 // ════════════════════════════════════════════
 async function loadOverview() {
-  console.log('[post-load] loadOverview');
   const data = await api('/api/overview');
   if (!data) return;
   state.overview = data;
@@ -553,7 +551,6 @@ async function loadOverview() {
   `;
 
   // Morning brief
-  console.log('[override] loadOverview writing to overview-brief');
   const brief = data.morning_brief;
   const briefEl = document.getElementById('overview-brief');
   if (brief && brief.content) {
@@ -938,7 +935,6 @@ async function loadCalendar() {
 // PERFORMANCE
 // ════════════════════════════════════════════
 async function loadPerformance() {
-  console.log('[post-load] loadPerformance');
   document.getElementById('perf-metrics').innerHTML = '<div class="skeleton skeleton-value"></div>'.repeat(5);
   const data = await api('/api/performance');
   if (!data) return;
@@ -1147,7 +1143,6 @@ async function loadPerfAttribution() {
 // DECISION LAYER
 // ════════════════════════════════════════════
 async function loadDecision() {
-  console.log('[post-load] loadDecision');
   const [perfData, testsData, attrData] = await Promise.all([
     api('/api/performance'), api('/api/ab-tests'), api('/api/attribution/report')
   ]);
@@ -2163,17 +2158,14 @@ function parseJwt(token) {
 let ownerPortalData = null;
 
 async function loadOwnerPortalData() {
-  console.log('[owner] starting load');
   try {
     const token = localStorage.getItem('gymsuite_token');
     const res = await fetch('/api/portal/session-data', {
       headers: { Authorization: 'Bearer ' + token },
     });
-    console.log('[owner] API status:', res.status);
     if (!res.ok) return;
     ownerPortalData = await res.json();
     populateOwnerOverview(ownerPortalData);
-    console.log('[owner] populate complete');
   } catch (err) {
     console.error('[owner] load failed:', err);
   }
@@ -2191,7 +2183,6 @@ function populateOwnerOverview(data) {
   document.title = `AHRI — ${session.gymName || 'Your Gym'}`;
 
   // Overview brief card
-  console.log('[override] populateOwnerOverview writing to overview-brief');
   const briefEl = document.getElementById('overview-brief');
   if (briefEl) {
     const avatarFirst = avatar ? avatar.split('\n').filter(l => l.trim() && !l.startsWith('#')).slice(0, 2).join(' ').substring(0, 200) : '';
@@ -2209,7 +2200,6 @@ function populateOwnerOverview(data) {
   }
 
 
-  console.log('[ownerPortal] populate complete');
 }
 
 // ── Account Access (admin) ────────────────────────────────────────────────────
