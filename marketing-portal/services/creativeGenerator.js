@@ -27,9 +27,16 @@ const HOOK_IMAGE_CATEGORY = {
 };
 
 function getFalApiKey() {
-  const key = process.env.FAL_KEY || process.env.FAL_AI_API_KEY;
-  if (!key) throw new Error('[Creative] FAL_KEY not set');
-  return key;
+  if (process.env.FAL_KEY) {
+    console.log('[Creative] FAL key source: FAL_KEY (set, length=' + process.env.FAL_KEY.length + ')');
+    return process.env.FAL_KEY;
+  }
+  if (process.env.FAL_AI_API_KEY) {
+    console.log('[Creative] FAL key source: FAL_AI_API_KEY (set, length=' + process.env.FAL_AI_API_KEY.length + ')');
+    return process.env.FAL_AI_API_KEY;
+  }
+  console.error('[Creative] FATAL: neither FAL_KEY nor FAL_AI_API_KEY is set in env');
+  throw new Error('[Creative] FAL_KEY not set');
 }
 
 /**
@@ -171,28 +178,53 @@ Respond with JSON only: {"score": 7, "passes": true, "reason": "one sentence"}`,
  * Returns array of { fileId, webViewLink, score, reason } for uploaded images.
  */
 async function generateOnboardingCreative(sessionId, generatedFolderId) {
+  console.log(`[Creative] ── generateOnboardingCreative START session=${sessionId} generatedFolderId=${generatedFolderId}`);
   try {
+    // ── Step 1: FAL key
     const falKey = getFalApiKey();
     fal.config({ credentials: falKey });
+    console.log('[Creative] fal.config() called with key');
 
+    // ── Step 2: Load session KB from R2
+    console.log('[Creative] loading session context from R2...');
     const ctx = await loadSessionContext(sessionId);
-    const category = pickImageCategory(ctx.confirmedHooks);
+    console.log('[Creative] R2 context loaded:', {
+      hasBrainState: !!ctx.brainState,
+      hasAvatar: !!ctx.avatar,
+      hasObjVault: !!ctx.objections,
+      hasResearch: !!ctx.research,
+      hasConfirmedHooks: !!ctx.confirmedHooks,
+      confirmedHooksType: Array.isArray(ctx.confirmedHooks) ? 'array' : typeof ctx.confirmedHooks,
+    });
 
+    // ── Step 3: Pick image category
+    const category = pickImageCategory(ctx.confirmedHooks);
+    console.log(`[Creative] image category selected: ${category}`);
+
+    // ── Step 4: Anthropic client
+    const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY_BLOOMINGTON;
+    if (!anthropicKey) throw new Error('No Anthropic API key available (checked ANTHROPIC_API_KEY, ANTHROPIC_API_KEY_BLOOMINGTON)');
+    console.log('[Creative] Anthropic key source:', process.env.ANTHROPIC_API_KEY ? 'ANTHROPIC_API_KEY' : 'ANTHROPIC_API_KEY_BLOOMINGTON');
     const Anthropic = require('@anthropic-ai/sdk');
-    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY_BLOOMINGTON;
-    if (!apiKey) throw new Error('No Anthropic API key available');
-    const client = new Anthropic({ apiKey });
+    const client = new Anthropic({ apiKey: anthropicKey });
 
     async function generateAndGate(attempt) {
+      console.log(`[Creative] generateAndGate attempt=${attempt + 1}`);
       const results = [];
 
-      // Generate 5 images concurrently
+      // Build and validate prompts first
+      const prompts = Array.from({ length: 5 }, (_, i) => {
+        const prompt = buildImagePrompt(ctx, category, i + (attempt * 5));
+        const passes = passesComplianceGate(prompt);
+        console.log(`[Creative] prompt ${i + 1} compliance: ${passes ? 'PASS' : 'FAIL'} (${prompt.substring(0, 80)}...)`);
+        return { prompt, passes, idx: i };
+      });
+
+      // Generate images via fal.ai
+      console.log(`[Creative] calling fal.subscribe on model ${FAL_MODEL} for ${prompts.length} images...`);
       const generations = await Promise.allSettled(
-        Array.from({ length: 5 }, (_, i) => {
-          const prompt = buildImagePrompt(ctx, category, i + (attempt * 5));
-          if (!passesComplianceGate(prompt)) {
-            return Promise.reject(new Error('Prompt failed compliance gate'));
-          }
+        prompts.map(({ prompt, passes }) => {
+          if (!passes) return Promise.reject(new Error('Prompt failed compliance gate'));
           return fal.subscribe(FAL_MODEL, {
             input: {
               prompt,
@@ -207,46 +239,65 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
       );
 
       for (let i = 0; i < generations.length; i++) {
-        if (generations[i].status === 'rejected') {
-          console.warn(`[Creative] image ${i + 1} generation failed:`, generations[i].reason?.message);
+        const gen = generations[i];
+        if (gen.status === 'rejected') {
+          console.warn(`[Creative] image ${i + 1} REJECTED by fal.ai:`, gen.reason?.message, gen.reason?.stack?.split('\n')[1] || '');
           continue;
         }
 
-        const imageUrl = generations[i].value?.images?.[0]?.url;
-        if (!imageUrl) { console.warn(`[Creative] image ${i + 1}: no URL in response`); continue; }
+        console.log(`[Creative] image ${i + 1} fal.ai response keys:`, Object.keys(gen.value || {}));
+        const imageUrl = gen.value?.images?.[0]?.url;
+        if (!imageUrl) {
+          console.warn(`[Creative] image ${i + 1}: no URL in fal.ai response. Full value:`, JSON.stringify(gen.value)?.substring(0, 300));
+          continue;
+        }
+        console.log(`[Creative] image ${i + 1} URL received: ${imageUrl.substring(0, 80)}...`);
 
+        // Authenticity gate
+        console.log(`[Creative] image ${i + 1}: running authenticityGate...`);
         const gate = await authenticityGate(imageUrl, client);
-        console.log(`[Creative] image ${i + 1}: score=${gate.score} passes=${gate.passes} — ${gate.reason}`);
-
+        console.log(`[Creative] image ${i + 1}: score=${gate.score} passes=${gate.passes} reason="${gate.reason}"`);
         if (!gate.passes) continue;
 
-        // Download and upload to Drive
+        // Download
+        console.log(`[Creative] image ${i + 1}: downloading from fal.ai URL...`);
         const fetchRes = await fetch(imageUrl);
-        if (!fetchRes.ok) { console.warn(`[Creative] failed to download image ${i + 1}`); continue; }
+        if (!fetchRes.ok) {
+          console.warn(`[Creative] image ${i + 1}: download failed — HTTP ${fetchRes.status}`);
+          continue;
+        }
         const buffer = Buffer.from(await fetchRes.arrayBuffer());
+        console.log(`[Creative] image ${i + 1}: downloaded ${buffer.length} bytes`);
 
+        // Upload to Drive
         const fileName = `creative-${attempt + 1}-${i + 1}-score${gate.score}.jpg`;
+        console.log(`[Creative] image ${i + 1}: uploading to Drive folder ${generatedFolderId} as ${fileName}...`);
         const uploaded = await uploadFileToDrive(generatedFolderId, fileName, buffer, 'image/jpeg');
         if (uploaded) {
+          console.log(`[Creative] image ${i + 1}: Drive upload OK — fileId=${uploaded.id}`);
           results.push({ fileId: uploaded.id, webViewLink: uploaded.webViewLink, score: gate.score, reason: gate.reason });
+        } else {
+          console.warn(`[Creative] image ${i + 1}: Drive upload returned null — see Drive logs above`);
         }
       }
 
+      console.log(`[Creative] attempt ${attempt + 1} complete: ${results.length}/${generations.length} uploaded`);
       return results;
     }
 
     let passed = await generateAndGate(0);
 
     if (passed.length < 2) {
-      console.log(`[Creative] only ${passed.length} passed on attempt 1 — regenerating`);
+      console.log(`[Creative] only ${passed.length} passed on attempt 1 — running attempt 2`);
       const second = await generateAndGate(1);
       passed = [...passed, ...second];
     }
 
-    console.log(`[Creative] session ${sessionId}: ${passed.length} images uploaded to Generated folder`);
+    console.log(`[Creative] ── generateOnboardingCreative DONE session=${sessionId}: ${passed.length} images uploaded`);
     return passed;
   } catch (err) {
-    console.error(`[Creative] generateOnboardingCreative failed (session ${sessionId}):`, err.message);
+    console.error(`[Creative] generateOnboardingCreative FATAL (session ${sessionId}): ${err.message}`);
+    console.error('[Creative] stack:', err.stack);
     return [];
   }
 }
