@@ -472,9 +472,15 @@ const OWNER_ALLOWED_SECTIONS = new Set(['overview','queue','calendar','performan
 function navigate(section) {
   const _navToken = localStorage.getItem('gymsuite_token');
   const _navUser = _navToken ? (() => { try { return JSON.parse(atob(_navToken.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); } catch { return null; } })() : null;
-  if (_navUser && _navUser.role === 'owner' && !OWNER_ALLOWED_SECTIONS.has(section)) {
-    console.log('[navigate] blocked admin section for owner:', section);
-    return;
+  if (_navUser && _navUser.role === 'owner') {
+    if (!ownerUserInteracted) {
+      console.log('[navigate] blocked auto-trigger for owner:', section);
+      return;
+    }
+    if (!OWNER_ALLOWED_SECTIONS.has(section)) {
+      console.log('[navigate] blocked admin section for owner:', section);
+      return;
+    }
   }
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -2071,6 +2077,11 @@ document.addEventListener('click', (e) => {
     document.getElementById('notif-dropdown').classList.remove('open');
   }
 });
+
+// Track first real user interaction — used to block auto-triggered navigation for owners
+// isTrusted=true only for genuine input events; synthetic .click() and dispatchEvent are false
+let ownerUserInteracted = false;
+document.addEventListener('click', (e) => { if (e.isTrusted) ownerUserInteracted = true; }, { capture: true });
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 const OPS_URL = 'https://gymsuiteai-dashboard-production.up.railway.app';
