@@ -245,4 +245,172 @@ Respond with JSON only: {"score": 7, "reason": "one sentence"}`,
   }
 }
 
-module.exports = { createGymFolderStructure, uploadFileToDrive, analyzeAndSelectBestPhoto, SHARED_DRIVE_ID };
+/**
+ * List all files (non-trashed) in a Shared Drive folder.
+ * Returns array of { id, name, mimeType, createdTime }.
+ */
+async function listDriveFolder(folderId) {
+  try {
+    const drive = getDriveClient();
+    const list = await drive.files.list({
+      q: `'${folderId}' in parents and trashed = false`,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      driveId: SHARED_DRIVE_ID,
+      corpora: 'drive',
+      fields: 'files(id, name, mimeType, createdTime)',
+      pageSize: 100,
+      orderBy: 'createdTime desc',
+    });
+    return list.data.files || [];
+  } catch (err) {
+    console.error(`[Drive] listDriveFolder failed for ${folderId}:`, err.message);
+    return [];
+  }
+}
+
+/**
+ * Score all photos in the Photos folder, run compliance gate, copy passing images
+ * (score >= 6) into the Generated folder, and return full results.
+ *
+ * Returns { analyzed, approved, photos: [{id, name, score, reason, approved, movedFileId}] }
+ */
+async function scoreAndSelectPhotos(photosFolderId, generatedFolderId, sessionId) {
+  try {
+    const drive = getDriveClient();
+    const files = await listDriveFolder(photosFolderId);
+    const imageFiles = files.filter(f => f.mimeType && f.mimeType.startsWith('image/'));
+
+    if (imageFiles.length === 0) {
+      console.log(`[Drive] scoreAndSelectPhotos: no images in Photos folder (session ${sessionId})`);
+      return { analyzed: 0, approved: 0, photos: [] };
+    }
+
+    const [brainState, avatar, confirmedHooks, research] = await Promise.all([
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/brain-state/current-state.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/lifestyle-avatar.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`),
+      r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`),
+    ]);
+
+    const hooks = Array.isArray(confirmedHooks)
+      ? confirmedHooks
+      : Array.isArray(confirmedHooks?.selected) ? confirmedHooks.selected
+      : Array.isArray(confirmedHooks?.hooks) ? confirmedHooks.hooks
+      : [];
+
+    const brainLines = (typeof brainState === 'string' ? brainState : '').split('\n');
+    const marketGap = brainLines.find(l => l.toLowerCase().startsWith('market gap:'))?.replace(/market gap:\s*/i, '').trim() || '';
+    const hookAngle = hooks[0]?.hook || '';
+
+    const avatarLines = (typeof avatar === 'string' ? avatar : '').split('\n');
+    const triggerMoment = avatarLines
+      .slice(avatarLines.findIndex(l => l.includes('## The Moment')) + 1)
+      .filter(l => l.trim() && !l.startsWith('#'))
+      .slice(0, 1).join(' ').substring(0, 150);
+
+    const offerLine = brainLines.find(l => l.toLowerCase().startsWith('name:'))?.replace(/name:\s*/i, '').trim() || '';
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const apiKey = process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY_BLOOMINGTON;
+    if (!apiKey) throw new Error('No Anthropic API key available');
+    const client = new Anthropic({ apiKey });
+
+    const results = [];
+
+    for (const file of imageFiles) {
+      try {
+        const dlRes = await drive.files.get(
+          { fileId: file.id, alt: 'media', supportsAllDrives: true },
+          { responseType: 'arraybuffer' }
+        );
+        const base64 = Buffer.from(dlRes.data).toString('base64');
+        const mediaType = file.mimeType.startsWith('image/') ? file.mimeType : 'image/jpeg';
+
+        const msg = await client.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 300,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+              {
+                type: 'text',
+                text: `Score this photo for gym Facebook/Instagram ads targeting this specific avatar.
+
+AVATAR TRIGGER MOMENT: ${triggerMoment || 'busy adult who let fitness slip'}
+CONFIRMED HOOK ANGLE: ${hookAngle || 'community over performance'}
+OFFER DIFFERENTIATOR: ${offerLine || ''}
+MARKET GAP: ${marketGap || 'community and belonging'}
+
+Score 1-10 on THREE dimensions:
+1. Authenticity: Does it look like a real phone photo (not stock)?
+2. Avatar match: Does it visually represent the trigger moment or avatar lifestyle?
+3. Hook alignment: Does it visually support the hook angle above?
+
+AUTOMATIC DISQUALIFY (set approved: false regardless of scores):
+- Before/after body transformation framing
+- Exposed physiques or fitness model body focus
+- Body shaming imagery
+
+Average the three scores for overall. Only approve if average >= 6 AND not disqualified.
+
+Respond with JSON only:
+{"authenticity": 7, "avatarMatch": 6, "hookAlignment": 7, "overall": 6.7, "approved": true, "reason": "one sentence", "disqualified": false}`,
+              },
+            ],
+          }],
+        });
+
+        const raw = msg.content[0]?.text?.trim() || '{}';
+        const parsed = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] || '{}');
+        const approved = parsed.approved === true && parsed.disqualified !== true && (parsed.overall || 0) >= 6;
+
+        let movedFileId = null;
+        if (approved) {
+          try {
+            const copyRes = await drive.files.copy({
+              fileId: file.id,
+              supportsAllDrives: true,
+              requestBody: {
+                name: `photo-approved-${file.name}`,
+                parents: [generatedFolderId],
+              },
+              fields: 'id',
+            });
+            movedFileId = copyRes.data.id;
+            console.log(`[Drive] approved photo ${file.name} copied to Generated: ${movedFileId}`);
+          } catch (copyErr) {
+            console.error(`[Drive] copy to Generated failed for ${file.name}:`, copyErr.message);
+          }
+        }
+
+        results.push({
+          id: file.id,
+          name: file.name,
+          overall: parsed.overall || 0,
+          authenticity: parsed.authenticity || 0,
+          avatarMatch: parsed.avatarMatch || 0,
+          hookAlignment: parsed.hookAlignment || 0,
+          approved,
+          reason: parsed.reason || '',
+          movedFileId,
+        });
+
+        console.log(`[Drive] scored ${file.name}: overall=${parsed.overall} approved=${approved}`);
+      } catch (err) {
+        console.error(`[Drive] scoring failed for ${file.name}:`, err.message);
+        results.push({ id: file.id, name: file.name, overall: 0, approved: false, reason: 'Scoring failed', movedFileId: null });
+      }
+    }
+
+    const approved = results.filter(r => r.approved);
+    console.log(`[Drive] scoreAndSelectPhotos: ${results.length} analyzed, ${approved.length} approved (session ${sessionId})`);
+    return { analyzed: results.length, approved: approved.length, photos: results };
+  } catch (err) {
+    console.error(`[Drive] scoreAndSelectPhotos failed (session ${sessionId}):`, err.message);
+    return { analyzed: 0, approved: 0, photos: [], error: err.message };
+  }
+}
+
+module.exports = { createGymFolderStructure, uploadFileToDrive, analyzeAndSelectBestPhoto, listDriveFolder, scoreAndSelectPhotos, getDriveClient, SHARED_DRIVE_ID };

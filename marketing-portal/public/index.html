@@ -51,6 +51,9 @@
   <div class="nav-item" onclick="navigate('calendar')" data-section="calendar">
     <span class="nav-icon">📅</span> Content Calendar
   </div>
+  <div class="nav-item owner-only" onclick="navigate('creative')" data-section="creative" style="display:none">
+    <span class="nav-icon">📷</span> Creative
+  </div>
   <div class="nav-section-label">Intelligence</div>
   <div class="nav-item" onclick="navigate('performance')" data-section="performance">
     <span class="nav-icon">📊</span> Performance
@@ -309,6 +312,29 @@
     <div id="archive-list"></div>
   </div>
 
+  <!-- Section: Creative (owner only) -->
+  <div id="section-creative" class="section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+      <div class="section-title" style="margin-bottom:0">CREATIVE</div>
+      <button class="btn" onclick="loadCreative()" style="font-size:12px">↻ Refresh</button>
+    </div>
+
+    <div class="section-title" style="margin-top:4px;margin-bottom:16px;font-size:10px">YOUR CREATIVE LIBRARY</div>
+    <div id="creative-library"><div class="text-muted">Loading...</div></div>
+
+    <div class="section-title" style="margin-top:36px;margin-bottom:16px;font-size:10px">UPLOAD YOUR PHOTOS</div>
+    <div id="creative-upload"></div>
+
+    <div class="section-title" style="margin-top:36px;margin-bottom:16px;font-size:10px">ANALYZE</div>
+    <div id="creative-analyze">
+      <div class="card" style="padding:24px 28px">
+        <p style="margin:0 0 20px;font-size:14px;color:rgba(232,234,240,0.65);line-height:1.6">Once you've dropped photos in your folder, AHRI will score each one on authenticity, avatar match, and hook alignment. Top-scoring photos move into your Creative Library automatically.</p>
+        <button class="btn" id="analyze-btn" onclick="analyzePhotos()" style="background:#7c3aed;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">Analyze my photos →</button>
+        <div id="analyze-result" style="margin-top:16px"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Section: Account Access (admin only) -->
   <div id="section-account-access" class="section">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -494,6 +520,7 @@ function navigate(section) {
     case 'manus': loadManusTasks(); break;
     case 'archive': loadArchive(); break;
     case 'account-access': loadAccountAccess(); break;
+    case 'creative': loadCreative(); break;
   }
 }
 
@@ -2143,6 +2170,11 @@ function parseJwt(token) {
     document.querySelectorAll('.admin-only').forEach(el => { el.style.display = ''; });
   }
 
+  // Show owner-only nav items
+  if (user.role === 'owner') {
+    document.querySelectorAll('.owner-only').forEach(el => { el.style.display = ''; });
+  }
+
   // Multi-tab logout
   window.addEventListener('storage', e => {
     if (e.key === 'gymsuite_token' && !e.newValue) window.location.href = '/login';
@@ -2200,6 +2232,123 @@ function populateOwnerOverview(data) {
   }
 
 
+}
+
+// ── Creative (owner) ─────────────────────────────────────────────────────────
+async function loadCreative() {
+  // Upload section — needs driveFolders.photos from session
+  const photosId = ownerPortalData?.session?.driveFolders?.photos;
+  const uploadEl = document.getElementById('creative-upload');
+  if (uploadEl) {
+    if (photosId) {
+      uploadEl.innerHTML = `
+        <div class="card" style="padding:24px 28px">
+          <p style="margin:0 0 20px;font-size:14px;color:rgba(232,234,240,0.65);line-height:1.6">Drop your real member photos here. The more authentic the better — candid moments, real reactions, coaches with members.</p>
+          <a href="https://drive.google.com/drive/folders/${esc(photosId)}" target="_blank"
+             style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:16px">Open my photo folder →</a>
+          <p style="margin:0;font-size:13px;color:rgba(232,234,240,0.4);line-height:1.5">Once you've uploaded, click Analyze to let AHRI pick the best ones for your ads.</p>
+        </div>`;
+    } else {
+      uploadEl.innerHTML = `<div class="card" style="padding:20px 24px"><p class="text-muted">Drive folder not ready — contact support.</p></div>`;
+    }
+  }
+
+  // Creative library
+  const libraryEl = document.getElementById('creative-library');
+  if (libraryEl) {
+    libraryEl.innerHTML = '<div class="text-muted">Loading...</div>';
+    const data = await api('/api/onboard/creative-files');
+    if (!data || !data.files) {
+      libraryEl.innerHTML = '<div class="text-muted">Could not load creative files.</div>';
+    } else if (data.files.length === 0) {
+      libraryEl.innerHTML = `
+        <div class="card" style="padding:32px 28px;text-align:center">
+          <div style="font-size:32px;margin-bottom:12px">📷</div>
+          <p style="margin:0;font-size:14px;color:rgba(232,234,240,0.45)">AHRI is generating your starter creative — check back in a few minutes.</p>
+        </div>`;
+    } else {
+      renderCreativeLibrary(data.files);
+    }
+  }
+
+  // Restore prior analyze results if available
+  if (ownerPortalData?.photoScores) {
+    showAnalyzeResults(ownerPortalData.photoScores);
+  }
+}
+
+function renderCreativeLibrary(files) {
+  const el = document.getElementById('creative-library');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px">
+      ${files.map(f => {
+        const isAI = /^creative-\d/.test(f.name);
+        const badge = isAI
+          ? `<span style="display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);font-size:10px;font-weight:600;letter-spacing:.5px;color:#a78bfa">AI Generated</span>`
+          : `<span style="display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);font-size:10px;font-weight:600;letter-spacing:.5px;color:#10b981">Your Photo</span>`;
+        return `
+          <div class="card" style="padding:0;overflow:hidden;cursor:pointer" onclick="window.open('/api/onboard/creative-file/${esc(f.id)}','_blank')">
+            <img src="/api/onboard/creative-file/${esc(f.id)}"
+                 style="width:100%;height:140px;object-fit:cover;display:block;background:rgba(255,255,255,0.04)"
+                 loading="lazy"
+                 onerror="this.style.height='48px'">
+            <div style="padding:10px 12px">
+              ${badge}
+              <div style="font-size:11px;color:rgba(232,234,240,0.3);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(f.name)}</div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+async function analyzePhotos() {
+  const btn = document.getElementById('analyze-btn');
+  const resultEl = document.getElementById('analyze-result');
+  if (btn) { btn.disabled = true; btn.textContent = 'Analyzing...'; }
+  if (resultEl) resultEl.innerHTML = `<p style="font-size:14px;color:rgba(232,234,240,0.45);margin:0">AHRI is reviewing your photos...</p>`;
+
+  try {
+    const token = localStorage.getItem('gymsuite_token');
+    const res = await fetch('/api/onboard/analyze-photos', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Analysis failed');
+    showAnalyzeResults(data);
+    // Refresh library — approved photos now appear in Generated folder
+    const libraryData = await api('/api/onboard/creative-files');
+    if (libraryData?.files?.length > 0) renderCreativeLibrary(libraryData.files);
+  } catch (err) {
+    if (resultEl) resultEl.innerHTML = `<p style="font-size:13px;color:#fb7185;margin:0">Something went wrong — try again or contact support.</p>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Analyze my photos →'; }
+  }
+}
+
+function showAnalyzeResults(data) {
+  const resultEl = document.getElementById('analyze-result');
+  if (!resultEl || !data) return;
+  const approvedPhotos = (data.photos || []).filter(p => p.approved);
+  resultEl.innerHTML = `
+    <div style="margin-bottom:16px">
+      <span style="font-size:14px;color:rgba(232,234,240,0.6)">${data.analyzed || 0} analyzed · </span>
+      <span style="font-size:14px;font-weight:600;color:#10b981">${data.approved || 0} approved</span>
+      ${data.analyzedAt ? `<span style="font-size:11px;color:rgba(232,234,240,0.28);margin-left:10px">${new Date(data.analyzedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span>` : ''}
+    </div>
+    ${approvedPhotos.length > 0 ? `
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        ${approvedPhotos.slice(0, 8).map(p => `
+          <div style="width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid rgba(16,185,129,0.3);cursor:pointer"
+               onclick="window.open('/api/onboard/creative-file/${esc(p.movedFileId || p.id)}','_blank')"
+               title="${esc(p.reason)}">
+            <img src="/api/onboard/creative-file/${esc(p.movedFileId || p.id)}"
+                 style="width:100%;height:100%;object-fit:cover"
+                 loading="lazy"
+                 onerror="this.style.display='none'">
+          </div>`).join('')}
+      </div>` : `<p style="font-size:13px;color:rgba(232,234,240,0.4);margin:0">No photos approved — try uploading more authentic, candid shots.</p>`}`;
 }
 
 // ── Account Access (admin) ────────────────────────────────────────────────────

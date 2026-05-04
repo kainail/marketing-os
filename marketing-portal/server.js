@@ -10,7 +10,7 @@ const { r2Get, r2Put, r2List, r2ListShared, r2Delete, r2GetShared, r2PutShared, 
 const { requireAuth, requireAdmin, requireLocation, generateToken, hashPassword, comparePassword, loginLimiter } = require('./lib/auth');
 const { getUsers, saveUsers, invalidate: invalidateUserCache } = require('./lib/userCache');
 const { Resend } = require('resend');
-const { createGymFolderStructure } = require('./services/googleDrive');
+const { createGymFolderStructure, listDriveFolder, scoreAndSelectPhotos, getDriveClient, SHARED_DRIVE_ID } = require('./services/googleDrive');
 const { generateOnboardingCreative, generateContentSchedule } = require('./services/creativeGenerator');
 
 const app = express();
@@ -4920,7 +4920,7 @@ app.get('/api/portal/session-data', requireAuth, async (req, res) => {
   if (role === 'admin') return res.status(400).json({ error: 'Admin must use /api/onboarding/sessions/:id/portal-data' });
   if (!sessionId) return res.status(400).json({ error: 'No sessionId linked to this account — contact support' });
 
-  const [session, research, hooksData, confirmedHooks, selectedOffer, contentPosts, brainState, avatar] = await Promise.all([
+  const [session, research, hooksData, confirmedHooks, selectedOffer, contentPosts, brainState, avatar, photoScores] = await Promise.all([
     r2GetShared(`onboarding/sessions/${sessionId}/session.json`),
     r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`),
     r2GetShared(`onboarding/sessions/${sessionId}/hooks.json`),
@@ -4929,6 +4929,7 @@ app.get('/api/portal/session-data', requireAuth, async (req, res) => {
     r2GetShared(`onboarding/sessions/${sessionId}/content-posts.json`),
     r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/brain-state/current-state.md`),
     r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/lifestyle-avatar.md`),
+    r2GetShared(`onboarding/sessions/${sessionId}/photo-scores.json`),
   ]);
 
   if (!session) return res.status(404).json({ error: 'Session data not found' });
@@ -4948,7 +4949,92 @@ app.get('/api/portal/session-data', requireAuth, async (req, res) => {
     contentPosts: contentPosts?.posts || [],
     brainState: brainState || null,
     avatar: avatar || null,
+    photoScores: photoScores || null,
   });
+});
+
+// GET /api/onboard/creative-files — list files in the owner's Generated Drive folder
+app.get('/api/onboard/creative-files', requireAuth, async (req, res) => {
+  const { sessionId, role } = req.user;
+  if (role !== 'owner') return res.status(403).json({ error: 'Owner access only' });
+  if (!sessionId) return res.status(400).json({ error: 'No sessionId on account' });
+
+  try {
+    const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+    const folderId = session?.driveFolders?.generated;
+    if (!folderId) return res.json({ files: [] });
+
+    const files = await listDriveFolder(folderId);
+    const imageFiles = files
+      .filter(f => f.mimeType && f.mimeType.startsWith('image/'))
+      .map(f => ({ id: f.id, name: f.name, mimeType: f.mimeType, createdTime: f.createdTime }));
+
+    res.json({ files: imageFiles });
+  } catch (err) {
+    console.error('[creative-files] failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/onboard/creative-file/:fileId — proxy a Drive image through the backend
+app.get('/api/onboard/creative-file/:fileId', requireAuth, async (req, res) => {
+  const { fileId } = req.params;
+  if (!fileId || fileId.length < 10) return res.status(400).json({ error: 'Invalid fileId' });
+
+  try {
+    const drive = getDriveClient();
+
+    // Get mime type first
+    const meta = await drive.files.get({
+      fileId,
+      supportsAllDrives: true,
+      fields: 'mimeType, name',
+    });
+    const mimeType = meta.data.mimeType || 'image/jpeg';
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+
+    const dlRes = await drive.files.get(
+      { fileId, alt: 'media', supportsAllDrives: true },
+      { responseType: 'stream' }
+    );
+    dlRes.data.pipe(res);
+  } catch (err) {
+    console.error('[creative-file] proxy failed:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Could not load file' });
+  }
+});
+
+// POST /api/onboard/analyze-photos — score Photos folder, copy approved to Generated
+app.post('/api/onboard/analyze-photos', requireAuth, async (req, res) => {
+  const { sessionId, role } = req.user;
+  if (role !== 'owner') return res.status(403).json({ error: 'Owner access only' });
+  if (!sessionId) return res.status(400).json({ error: 'No sessionId on account' });
+
+  try {
+    const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    const photosFolderId = session?.driveFolders?.photos;
+    const generatedFolderId = session?.driveFolders?.generated;
+    if (!photosFolderId || !generatedFolderId) {
+      return res.status(400).json({ error: 'Drive folders not ready — contact support' });
+    }
+
+    const results = await scoreAndSelectPhotos(photosFolderId, generatedFolderId, sessionId);
+
+    // Persist scores to R2
+    await r2PutShared(`onboarding/sessions/${sessionId}/photo-scores.json`, {
+      ...results,
+      analyzedAt: new Date().toISOString(),
+    });
+
+    res.json(results);
+  } catch (err) {
+    console.error('[analyze-photos] failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /api/admin/users — list onboarding-created gym owners (admin only)
