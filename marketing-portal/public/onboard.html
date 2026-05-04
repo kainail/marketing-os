@@ -166,7 +166,7 @@
       if (!token) { window.location.href = '/login'; return; }
       const user = parseJwt(token);
       if (!user) { localStorage.removeItem('gymsuite_token'); window.location.href = '/login'; return; }
-      if (user.role !== 'admin') {
+      if (user.role !== 'admin' && !user.permissions?.hasOPS) {
         console.warn('[AHRI] onboard guard: role is', JSON.stringify(user.role), '— expected "admin". Redirecting.');
         window.location.href = '/login';
         return;
