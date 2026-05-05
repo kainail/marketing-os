@@ -325,7 +325,12 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
               aspect_ratio: '4:5',
               image_quality: '2K',
             }),
-          }).then(res => res.json());
+          }).then(async res => {
+            console.log('[Creative] kie.ai status:', res.status);
+            const text = await res.text();
+            console.log('[Creative] kie.ai raw response:', text.substring(0, 500));
+            return JSON.parse(text);
+          });
         })
       );
 
