@@ -66,6 +66,7 @@ async function kieGenerateImage(prompt, kieApiKey) {
     }),
   });
   const createData = await createRes.json();
+  console.log(`[Creative] kie.ai createTask raw:`, JSON.stringify(createData).substring(0, 300));
   const taskId = createData?.data?.taskId;
   console.log(`[Creative] kie.ai task created: ${taskId}`);
 
