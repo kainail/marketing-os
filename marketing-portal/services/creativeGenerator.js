@@ -87,11 +87,15 @@ function pickImageCategory(confirmedHooks) {
 }
 
 /**
- * Build a fal.ai image prompt from session context using AHRI's R2 knowledge base data.
- * Pulls confirmed hook text, full avatar description, market gap, and competitor ad styles
- * so every gym gets prompts specific to their onboarding data — not generic fitness imagery.
+ * Build a fal.ai image prompt from session context using AHRI's three-tier awareness system.
  *
- * category: 'object' | 'environment' | 'interrupted_action'
+ * Tier is driven by variant position within the 5-image set (variant % 5):
+ *   0–1 → Cold (Level 1–2): life context only, no gym visible
+ *   2–3 → Warm (Level 3–4): gym visible but not focal point
+ *   4   → Offer (Level 5): clean dark graphic, text only
+ *
+ * Within the cold tier, category (object vs environment) selects the shot type.
+ * All data comes from AHRI's R2 knowledge base files written at session complete.
  */
 function buildImagePrompt(ctx, category, variant) {
   const { brainState, avatar, research, confirmedHooks } = ctx;
@@ -100,20 +104,21 @@ function buildImagePrompt(ctx, category, variant) {
   const brainLines = (typeof brainState === 'string' ? brainState : '').split('\n');
   const city = brainLines.find(l => l.toLowerCase().startsWith('city:'))?.replace(/city:\s*/i, '').trim() || '';
   const brainMarketGap = brainLines.find(l => l.toLowerCase().startsWith('market gap:'))?.replace(/market gap:\s*/i, '').trim() || '';
+  const activeOffer = brainLines.find(l => l.toLowerCase().startsWith('active offer:'))?.replace(/active offer:\s*/i, '').trim() || '';
 
-  // ── knowledge-base/fitness/lifestyle-avatar.md → full avatar description
+  // ── knowledge-base/fitness/lifestyle-avatar.md → avatar description + trigger moment
   const avatarLines = (typeof avatar === 'string' ? avatar : '').split('\n');
   const whoIdx = avatarLines.findIndex(l => /##\s*(who they are|the avatar)/i.test(l));
   const momentIdx = avatarLines.findIndex(l => /##\s*the moment/i.test(l));
 
   const avatarDescription = (whoIdx !== -1 ? avatarLines.slice(whoIdx + 1) : avatarLines)
     .filter(l => l.trim() && !l.startsWith('#'))
-    .slice(0, 3).join(' ').substring(0, 300)
-    || 'busy adult who let fitness slip and is ready to make a change';
+    .slice(0, 3).join(' ').substring(0, 250)
+    || 'woman, early 40s, average build, slightly tired, ordinary clothes';
 
   const triggerMoment = momentIdx !== -1
     ? avatarLines.slice(momentIdx + 1).filter(l => l.trim() && !l.startsWith('#')).slice(0, 2).join(' ').substring(0, 200)
-    : avatarDescription.substring(0, 200);
+    : '';
 
   // ── confirmed-hooks.json → active hook text
   const hooks = Array.isArray(confirmedHooks)
@@ -121,43 +126,57 @@ function buildImagePrompt(ctx, category, variant) {
     : Array.isArray(confirmedHooks?.selected) ? confirmedHooks.selected
     : Array.isArray(confirmedHooks?.hooks) ? confirmedHooks.hooks
     : [];
-  const confirmedHook = hooks[0]?.hook || hooks[0]?.text || hooks[0]?.headline || triggerMoment;
+  const confirmedHook = hooks[0]?.hook || hooks[0]?.text || hooks[0]?.headline || triggerMoment || 'the moment they decided something had to change';
 
-  // ── prospect-research.json → competitors and their ad styles
+  // ── prospect-research.json → competitors, styles, market gap
   const competitorList = (research?.competitors || []).slice(0, 3);
   const competitorNames = competitorList.map(c => c.name).join(', ') || 'typical gyms';
-  const competitorStyles = competitorList.length
-    ? competitorList.map(c => `${c.name} (shows: ${(c.adThemes || c.themes || []).slice(0, 2).join(', ') || 'generic fitness imagery'})`).join('; ')
-    : 'typical gym stock photography';
-
-  // Market gap — prefer research.json if it has a richer value, fall back to brain-state
   const marketGap = research?.marketGap || research?.market_gap || brainMarketGap || 'community over performance';
 
-  // Variant tweaks so 5 generations differ meaningfully
-  const variantNotes = [
-    'morning light, golden hour',
-    'candid mid-movement, slightly blurred',
-    'wide shot showing the whole space',
-    'close-up on one person in conversation',
-    'overhead angle, group dynamic',
-  ];
+  // Determine awareness tier from position within the 5-image set
+  const pos = variant % 5;
+  const tier = pos <= 1 ? 'cold' : pos <= 3 ? 'warm' : 'offer';
 
-  const categoryDirections = {
-    object: `Object shot: A meaningful object from the avatar's daily life — coffee mug, car keys, work laptop, kid's backpack. Represents the life ${avatarDescription.substring(0, 80)} is living. NOT gym equipment.`,
-    environment: `Environment shot: The gym space as a supporting character. Real, slightly imperfect, community feel. People visible in background. NOT the polished look of ${competitorNames}.`,
-    interrupted_action: `Interrupted action shot: A real member caught mid-moment — not posed. They look like ${avatarDescription.substring(0, 80)}, not a fitness model. Authentic, unguarded.`,
-  };
+  // ── COLD (Level 1–2) — no gym, life context only
+  if (tier === 'cold') {
+    // category=object → object-focused life moment; category=environment → setting-first life moment
+    if (category === 'object') {
+      return `Candid phone photo. ${avatarDescription}. Kitchen counter or car dashboard, late afternoon light. Real objects from her daily life in the foreground — car keys, a cooling coffee cup, maybe a kid's permission slip. She's partially visible in the background, slightly out of focus, moving through her afternoon. Not aware of camera. Mood: ordinary. Natural side light, slightly imperfect frame. Looks like a real memory, not an advertisement.
 
-  return `Photorealistic ${category.replace('_', ' ')} shot for fitness ad in ${city || 'a midwestern city'}.
+Hook this image captures: ${confirmedHook}
 
-Avatar: ${avatarDescription}
-Hook angle: ${confirmedHook}
-Market gap: ${marketGap} — do NOT show: ${competitorStyles}
-Style: ${variantNotes[variant % variantNotes.length]}, authentic, candid, real phone photo aesthetic, not stock photo
+NO: fitness model physique, staged poses, professional lighting, stock photo composition, before/after framing, gym, fitness equipment, artificial skin smoothing, too-perfect framing.`.trim();
+    }
 
-${categoryDirections[category] || categoryDirections.environment}
+    return `Candid phone photo. ${avatarDescription}. Soccer field sideline, late afternoon golden light, other parents blurred in background. She's watching the field, arms loosely crossed, phone in her other hand. Not sad — just the ordinary tiredness of someone doing everything. Caught mid-moment, not aware of camera. Mood: ordinary. Background slightly out of focus, foreground sharp. Looks like a real memory someone saved on their phone.
 
-NO: before/after framing, fitness model physiques, gym equipment as hero, staged poses`.trim();
+Hook this image captures: ${confirmedHook}
+
+NO: gym, fitness equipment, model physique, staged poses, professional lighting, stock photo aesthetic, before/after framing, artificial skin smoothing, too-perfect framing.`.trim();
+  }
+
+  // ── WARM (Level 3–4) — gym visible but not focal point
+  if (tier === 'warm') {
+    const gymLocation = city ? `${city} community gym` : 'small community gym';
+
+    if (pos === 2) {
+      // Coaching moment — accountability relationship
+      return `Candid phone photo. Coach and member mid-conversation, not mid-workout. ${gymLocation} visible but out of focus in background. Coach listening, leaning slightly in. Member ${avatarDescription.substring(0, 80)}, gym clothes but not performance wear. Natural window light from the left, slightly imperfect angle like someone nearby took it without them noticing. Mood: seen. What ${competitorNames} are NOT showing: ${marketGap}.
+
+NO: staged workout poses, fitness model physiques, perfect lighting setup, before/after framing, gym equipment as focal point, artificial skin smoothing, stock photo aesthetic.`.trim();
+    }
+
+    // Community warm moment — two regulars
+    return `Candid phone photo. Two members who know each other, mid-conversation between sets. ${gymLocation} visible but out of focus in background. Real builds, real ages 35–55, genuine conversation energy. Natural light, slightly imperfect angle — looks like someone nearby took it without them noticing. Not a staged group photo — a natural moment of two regulars. Mood: belonging. Hook: ${confirmedHook}.
+
+NO: staged workout poses, fitness model physiques, perfect lighting setup, before/after framing, gym equipment as focal point, artificial skin smoothing, stock photo aesthetic.`.trim();
+  }
+
+  // ── OFFER (Level 5) — direct graphic, no people
+  const offerText = activeOffer || '$1 for your first 30 days — fully coached';
+  return `Clean dark graphic. Deep charcoal background, slight texture. Bold white headline under 6 words. Offer details below in slightly smaller weight: "${offerText}". One sentence guarantee at bottom, smallest text. High contrast, confident. No people. Looks like a premium brand announcement, not a discount ad.
+
+NO: bright colors, stock photo elements, cluttered layout, more than 3 text elements, fitness imagery, people, lifestyle photography.`.trim();
 }
 
 /**
