@@ -72,7 +72,7 @@ async function kieGenerateImage(prompt, kieApiKey) {
   let imageUrl = null;
   for (let i = 0; i < 24; i++) {
     await new Promise(r => setTimeout(r, 5000));
-    const pollRes = await fetch(`${KIE_QUERY_URL}?taskId=${taskId}`, {
+    const pollRes = await fetch(`${KIE_QUERY_URL}/${taskId}`, {
       headers: { 'Authorization': `Bearer ${kieApiKey}` },
     });
     const pollText = await pollRes.text();
