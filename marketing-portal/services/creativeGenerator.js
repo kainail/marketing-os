@@ -27,6 +27,10 @@ const HOOK_IMAGE_CATEGORY = {
 };
 
 function getFalApiKey() {
+  if (process.env.FAL_API_KEY_BLOOMINGTON) {
+    console.log('[Creative] FAL key source: FAL_API_KEY_BLOOMINGTON (set, length=' + process.env.FAL_API_KEY_BLOOMINGTON.length + ')');
+    return process.env.FAL_API_KEY_BLOOMINGTON;
+  }
   if (process.env.FAL_KEY) {
     console.log('[Creative] FAL key source: FAL_KEY (set, length=' + process.env.FAL_KEY.length + ')');
     return process.env.FAL_KEY;
@@ -35,7 +39,7 @@ function getFalApiKey() {
     console.log('[Creative] FAL key source: FAL_AI_API_KEY (set, length=' + process.env.FAL_AI_API_KEY.length + ')');
     return process.env.FAL_AI_API_KEY;
   }
-  console.error('[Creative] FATAL: neither FAL_KEY nor FAL_AI_API_KEY is set in env');
+  console.error('[Creative] FATAL: neither FAL_API_KEY_BLOOMINGTON nor FAL_KEY nor FAL_AI_API_KEY is set in env');
   throw new Error('[Creative] FAL_KEY not set');
 }
 
