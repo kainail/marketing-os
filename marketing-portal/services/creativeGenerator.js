@@ -122,15 +122,42 @@ CRITICAL: No before/after framing. No fitness models with six-packs. No gym equi
 /**
  * Stage 1 compliance gate — rules that automatically disqualify an image prompt.
  * Returns true if the prompt passes (is compliant).
+ *
+ * Prohibited categories (strict):
+ *   1. Before/after comparison framing
+ *   2. Fitness model physiques or body transformation claims
+ *   3. Body shaming language
+ *   4. Weight loss percentage claims
+ *
+ * General gym language, location names, photorealistic descriptions, and
+ * "gym marketing" phrasing are explicitly allowed.
  */
 function passesComplianceGate(prompt) {
   const lower = prompt.toLowerCase();
   const violations = [
-    'before.*after', 'transformation', 'six.?pack', 'abs', 'weight loss',
-    'shredded', 'ripped', 'toned body', 'body fat', 'physique',
-    'before and after', 'results',
+    // Category 1 — before/after comparison framing
+    /\bbefore\s*(and\s*)?after\b/,
+    /\bside[- ]by[- ]side\s*(comparison|result)/,
+
+    // Category 2 — fitness model physiques / body transformation claims
+    /\b(six|6)[- ]?pack\b/,
+    /\bshredded\b/,
+    /\bripped\b/,
+    /\bbody\s*(transformation|fat\s*percentage|fat%)\b/,
+    /\bfitness\s*model\s*physique\b/,
+    /\bmuscle\s*definition\s*reveal\b/,
+
+    // Category 3 — body shaming language
+    /\b(fat|overweight|obese|flabby|ugly|embarrassed?\s*by\s*(your|my|their)\s*body)\b/,
+    /\bhate\s*(your|my|their)\s*body\b/,
+    /\blose\s+(the\s+)?(belly|gut|flab)\b/,
+
+    // Category 4 — weight loss percentage / numeric claims
+    /\blose\s+\d+\s*(lbs?|pounds?|kg|kilos?)\b/,
+    /\b\d+\s*%\s*(body\s*fat|weight\s*loss)\b/,
+    /\bdrop\s+\d+\s*(lbs?|pounds?|kg)\b/,
   ];
-  return !violations.some(v => new RegExp(v).test(lower));
+  return !violations.some(v => v.test(lower));
 }
 
 /**
