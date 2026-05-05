@@ -5209,20 +5209,22 @@ app.post('/api/test/drive/:sessionId', async (req, res) => {
     // Persist folder IDs so creative generator can read them
     session.driveFolders = driveFolders;
     await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
-    console.log(`[TEST/drive] folders created, running generateOnboardingCreative`);
+    console.log(`[TEST/drive] folders created, firing generateOnboardingCreative async`);
 
-    const creativeResults = await generateOnboardingCreative(sessionId, driveFolders.generated);
+    // Don't await — fire and forget
+    setImmediate(() => {
+      generateOnboardingCreative(sessionId, driveFolders.generated)
+        .then(result => console.log(`[TEST/drive] creative done:`, result))
+        .catch(err => console.log(`[TEST/drive] creative error:`, err.message));
+    });
 
+    // Return immediately with folder IDs
     res.json({
       _test: true,
       _warning: 'REMOVE THIS ROUTE AFTER DRIVE VERIFICATION',
       sessionId,
       gymName: session.gymName,
       driveFolders,
-      creative: {
-        uploaded: creativeResults.length,
-        files: creativeResults,
-      },
     });
   } catch (err) {
     console.error('[TEST/drive] failed:', err.message);
