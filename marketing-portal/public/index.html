@@ -2277,6 +2277,21 @@ async function loadCreative() {
   }
 }
 
+async function loadCreativeImage(fileId, imgElement) {
+  const token = localStorage.getItem('gymsuite_token');
+  try {
+    const res = await fetch(`/api/onboard/creative-file/${fileId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      imgElement.src = URL.createObjectURL(blob);
+    }
+  } catch (e) {
+    // leave placeholder — image simply won't render
+  }
+}
+
 function renderCreativeLibrary(files) {
   const el = document.getElementById('creative-library');
   if (!el) return;
@@ -2288,8 +2303,8 @@ function renderCreativeLibrary(files) {
           ? `<span style="display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(124,58,237,0.15);border:1px solid rgba(124,58,237,0.3);font-size:10px;font-weight:600;letter-spacing:.5px;color:#a78bfa">AI Generated</span>`
           : `<span style="display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);font-size:10px;font-weight:600;letter-spacing:.5px;color:#10b981">Your Photo</span>`;
         return `
-          <div class="card" style="padding:0;overflow:hidden;cursor:pointer" onclick="window.open('/api/onboard/creative-file/${esc(f.id)}','_blank')">
-            <img src="/api/onboard/creative-file/${esc(f.id)}"
+          <div class="card" style="padding:0;overflow:hidden;cursor:pointer" onclick="openCreativeFile('${esc(f.id)}')">
+            <img data-file-id="${esc(f.id)}"
                  style="width:100%;height:140px;object-fit:cover;display:block;background:rgba(255,255,255,0.04)"
                  loading="lazy"
                  onerror="this.style.height='48px'">
@@ -2300,6 +2315,23 @@ function renderCreativeLibrary(files) {
           </div>`;
       }).join('')}
     </div>`;
+  el.querySelectorAll('img[data-file-id]').forEach(img => {
+    loadCreativeImage(img.dataset.fileId, img);
+  });
+}
+
+async function openCreativeFile(fileId) {
+  const token = localStorage.getItem('gymsuite_token');
+  try {
+    const res = await fetch(`/api/onboard/creative-file/${fileId}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    }
+  } catch (e) { /* silent */ }
 }
 
 async function analyzePhotos() {
@@ -2341,14 +2373,17 @@ function showAnalyzeResults(data) {
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         ${approvedPhotos.slice(0, 8).map(p => `
           <div style="width:72px;height:72px;border-radius:8px;overflow:hidden;border:1px solid rgba(16,185,129,0.3);cursor:pointer"
-               onclick="window.open('/api/onboard/creative-file/${esc(p.movedFileId || p.id)}','_blank')"
+               onclick="openCreativeFile('${esc(p.movedFileId || p.id)}')"
                title="${esc(p.reason)}">
-            <img src="/api/onboard/creative-file/${esc(p.movedFileId || p.id)}"
+            <img data-file-id="${esc(p.movedFileId || p.id)}"
                  style="width:100%;height:100%;object-fit:cover"
                  loading="lazy"
                  onerror="this.style.display='none'">
           </div>`).join('')}
       </div>` : `<p style="font-size:13px;color:rgba(232,234,240,0.4);margin:0">No photos approved — try uploading more authentic, candid shots.</p>`}`;
+  resultEl.querySelectorAll('img[data-file-id]').forEach(img => {
+    loadCreativeImage(img.dataset.fileId, img);
+  });
 }
 
 // ── Account Access (admin) ────────────────────────────────────────────────────
