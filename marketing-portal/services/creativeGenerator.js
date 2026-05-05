@@ -78,12 +78,16 @@ async function kieGenerateImage(prompt, kieApiKey) {
     const pollText = await pollRes.text();
     if (i === 0) console.log(`[Creative] kie.ai poll raw response: ${pollText.substring(0, 300)}`);
     const pollData = JSON.parse(pollText);
-    console.log(`[Creative] kie.ai poll ${i + 1}: status=${pollData?.data?.status}`);
-    if (pollData?.data?.status === 'succeed') {
-      imageUrl = pollData?.data?.output?.imageUrls?.[0];
+    const state = pollData?.data?.state;
+    console.log(`[Creative] kie.ai poll ${i + 1}: state=${state}`);
+    if (state === 'success') {
+      console.log(`[Creative] kie.ai success raw:`, JSON.stringify(pollData.data).substring(0, 500));
+      const result = JSON.parse(pollData.data.resultJson);
+      console.log(`[Creative] kie.ai resultJson parsed:`, JSON.stringify(result).substring(0, 300));
+      imageUrl = result.resultUrls?.[0];
       break;
     }
-    if (pollData?.data?.status === 'failed') break;
+    if (state === 'failed') break;
   }
   return imageUrl;
 }
