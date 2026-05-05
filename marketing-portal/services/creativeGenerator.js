@@ -15,7 +15,7 @@ const { uploadFileToDrive } = require('./googleDrive');
 
 const KIE_MODEL = 'nano-banana-pro';
 const KIE_CREATE_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
-const KIE_QUERY_URL = 'https://api.kie.ai/api/v1/jobs/queryTask';
+const KIE_QUERY_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo';
 
 // Pain/emotion hooks → object or environment (context over action)
 // Social proof hooks → interrupted action (real people in motion)
@@ -72,7 +72,7 @@ async function kieGenerateImage(prompt, kieApiKey) {
   let imageUrl = null;
   for (let i = 0; i < 24; i++) {
     await new Promise(r => setTimeout(r, 5000));
-    const pollRes = await fetch(`${KIE_QUERY_URL}/${taskId}`, {
+    const pollRes = await fetch(`${KIE_QUERY_URL}?taskId=${taskId}`, {
       headers: { 'Authorization': `Bearer ${kieApiKey}` },
     });
     const pollText = await pollRes.text();
