@@ -13,8 +13,9 @@
 const { r2GetShared } = require('../lib/r2');
 const { uploadFileToDrive } = require('./googleDrive');
 
-const KIE_MODEL = 'gemini-3-pro-image-preview';
-const KIE_API_URL = 'https://kie.ai/api/v1/images/generations';
+const KIE_MODEL = 'nano-banana-pro';
+const KIE_CREATE_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
+const KIE_QUERY_URL = 'https://api.kie.ai/api/v1/jobs/queryTask';
 
 // Pain/emotion hooks → object or environment (context over action)
 // Social proof hooks → interrupted action (real people in motion)
@@ -38,6 +39,57 @@ function getKieApiKey(gymId) {
   if (!cityKey && !fallback) throw new Error(`KIE_API_KEY not set for gym ${gymId}`);
   console.log(`[Creative] KIE key source: ${cityKey ? `KIE_API_KEY_${city}` : 'KIE_API_KEY (fallback)'}`);
   return cityKey || fallback;
+}
+
+/**
+ * Submit a generation task to kie.ai and poll until the image is ready.
+ * Returns the image URL string, or throws on failure / 2-minute timeout.
+ */
+async function kieGenerateImage(prompt, kieApiKey) {
+  // Step 1 — create task
+  const createRes = await fetch(KIE_CREATE_URL, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${kieApiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: KIE_MODEL,
+      input: { prompt, image_input: [], aspect_ratio: '4:5', resolution: '2K', output_format: 'png' },
+    }),
+  });
+  const createText = await createRes.text();
+  console.log(`[Creative] kie.ai createTask status: ${createRes.status}`);
+  console.log(`[Creative] kie.ai createTask raw: ${createText.substring(0, 300)}`);
+  let createData;
+  try { createData = JSON.parse(createText); } catch (e) {
+    throw new Error(`kie.ai createTask non-JSON (${createRes.status}): ${createText.substring(0, 100)}`);
+  }
+  const taskId = createData?.data?.taskId;
+  if (!taskId) throw new Error(`kie.ai createTask: no taskId. Response: ${JSON.stringify(createData).substring(0, 200)}`);
+  console.log(`[Creative] kie.ai taskId: ${taskId}`);
+
+  // Step 2 — poll until succeed or timeout
+  const deadline = Date.now() + 2 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 3000));
+    const queryRes = await fetch(`${KIE_QUERY_URL}?taskId=${taskId}`, {
+      headers: { 'Authorization': `Bearer ${kieApiKey}` },
+    });
+    const queryText = await queryRes.text();
+    let queryData;
+    try { queryData = JSON.parse(queryText); } catch (e) {
+      throw new Error(`kie.ai queryTask non-JSON (${queryRes.status}): ${queryText.substring(0, 100)}`);
+    }
+    const status = queryData?.data?.status;
+    console.log(`[Creative] kie.ai taskId=${taskId} status=${status}`);
+    if (status === 'succeed') {
+      const imageUrl = queryData?.data?.output?.imageUrls?.[0];
+      if (!imageUrl) throw new Error(`kie.ai task succeeded but no imageUrl in output: ${JSON.stringify(queryData).substring(0, 200)}`);
+      return imageUrl;
+    }
+    if (status !== 'pending' && status !== 'processing') {
+      throw new Error(`kie.ai task ${taskId} ended with unexpected status: ${status}`);
+    }
+  }
+  throw new Error(`kie.ai task ${taskId} timed out after 2 minutes`);
 }
 
 /**
@@ -308,43 +360,26 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
         return { prompt, passes, idx: i };
       });
 
-      // Generate images via kie.ai
-      console.log(`[Creative] calling kie.ai model ${KIE_MODEL} for ${prompts.length} images...`);
+      // Generate images via kie.ai (async: createTask → poll queryTask)
+      console.log(`[Creative] submitting ${prompts.length} tasks to kie.ai model ${KIE_MODEL}...`);
       const generations = await Promise.allSettled(
         prompts.map(({ prompt, passes }) => {
           if (!passes) return Promise.reject(new Error('Prompt failed compliance gate'));
-          return fetch(KIE_API_URL, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${kieApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: KIE_MODEL,
-              prompt,
-              aspect_ratio: '4:5',
-              image_quality: '2K',
-            }),
-          }).then(async res => {
-            console.log('[Creative] kie.ai status:', res.status);
-            const text = await res.text();
-            console.log('[Creative] kie.ai raw response:', text.substring(0, 500));
-            return JSON.parse(text);
-          });
+          return kieGenerateImage(prompt, kieApiKey);
         })
       );
 
       for (let i = 0; i < generations.length; i++) {
         const gen = generations[i];
         if (gen.status === 'rejected') {
-          console.warn(`[Creative] image ${i + 1} REJECTED by kie.ai:`, gen.reason?.message, gen.reason?.stack?.split('\n')[1] || '');
+          console.warn(`[Creative] image ${i + 1} FAILED:`, gen.reason?.message);
           continue;
         }
 
-        console.log(`[Creative] image ${i + 1} kie.ai response keys:`, Object.keys(gen.value || {}));
-        const imageUrl = gen.value?.data?.[0]?.url;
+        // kieGenerateImage resolves to a URL string
+        const imageUrl = gen.value;
         if (!imageUrl) {
-          console.warn(`[Creative] image ${i + 1}: no URL in kie.ai response. Full value:`, JSON.stringify(gen.value)?.substring(0, 300));
+          console.warn(`[Creative] image ${i + 1}: kieGenerateImage resolved with no URL`);
           continue;
         }
         console.log(`[Creative] image ${i + 1} URL received: ${imageUrl.substring(0, 80)}...`);
