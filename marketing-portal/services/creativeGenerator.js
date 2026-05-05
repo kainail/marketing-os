@@ -26,36 +26,37 @@ const HOOK_IMAGE_CATEGORY = {
   'default':          'environment',
 };
 
-function getFalApiKey() {
-  if (process.env.FAL_API_KEY_BLOOMINGTON) {
-    console.log('[Creative] FAL key source: FAL_API_KEY_BLOOMINGTON (set, length=' + process.env.FAL_API_KEY_BLOOMINGTON.length + ')');
-    return process.env.FAL_API_KEY_BLOOMINGTON;
-  }
-  if (process.env.FAL_KEY) {
-    console.log('[Creative] FAL key source: FAL_KEY (set, length=' + process.env.FAL_KEY.length + ')');
-    return process.env.FAL_KEY;
-  }
-  if (process.env.FAL_AI_API_KEY) {
-    console.log('[Creative] FAL key source: FAL_AI_API_KEY (set, length=' + process.env.FAL_AI_API_KEY.length + ')');
-    return process.env.FAL_AI_API_KEY;
-  }
-  console.error('[Creative] FATAL: neither FAL_API_KEY_BLOOMINGTON nor FAL_KEY nor FAL_AI_API_KEY is set in env');
-  throw new Error('[Creative] FAL_KEY not set');
+function getKieApiKey(gymId) {
+  const key = gymId
+    ? process.env[`KIE_API_KEY_${gymId.toUpperCase()}`]
+    : null;
+
+  // fallback to global key if no gym-specific one set
+  const fallback = process.env.KIE_API_KEY;
+
+  if (!key && !fallback) throw new Error(`KIE_API_KEY not set for gym ${gymId}`);
+  console.log(`[Creative] KIE key source: ${key ? `KIE_API_KEY_${(gymId || '').toUpperCase()}` : 'KIE_API_KEY (fallback)'}`);
+  return key || fallback;
 }
 
 /**
- * Load the four KB files from R2 for a session. Returns an object with
- * { brainState, avatar, brainObj, researchData }.
+ * Load KB files and session metadata from R2. Returns an object with
+ * { brainState, avatar, objections, research, confirmedHooks, gymId }.
+ * gymId is derived from session.gymName using the same formula as server.js.
  */
 async function loadSessionContext(sessionId) {
-  const [brainState, avatar, objections, research, confirmedHooks] = await Promise.all([
+  const [brainState, avatar, objections, research, confirmedHooks, sessionData] = await Promise.all([
     r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/brain-state/current-state.md`),
     r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/lifestyle-avatar.md`),
     r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/objection-vault.md`),
     r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`),
     r2GetShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`),
+    r2GetShared(`onboarding/sessions/${sessionId}/session.json`),
   ]);
-  return { brainState, avatar, objections, research, confirmedHooks };
+  const gymId = sessionData?.gymName
+    ? sessionData.gymName.toLowerCase().replace(/[^a-z0-9]/g, '_')
+    : null;
+  return { brainState, avatar, objections, research, confirmedHooks, gymId };
 }
 
 /**
@@ -211,12 +212,7 @@ Respond with JSON only: {"score": 7, "passes": true, "reason": "one sentence"}`,
 async function generateOnboardingCreative(sessionId, generatedFolderId) {
   console.log(`[Creative] ── generateOnboardingCreative START session=${sessionId} generatedFolderId=${generatedFolderId}`);
   try {
-    // ── Step 1: FAL key
-    const falKey = getFalApiKey();
-    fal.config({ credentials: falKey });
-    console.log('[Creative] fal.config() called with key');
-
-    // ── Step 2: Load session KB from R2
+    // ── Step 1: Load session KB from R2 (gymId needed before key lookup)
     console.log('[Creative] loading session context from R2...');
     const ctx = await loadSessionContext(sessionId);
     console.log('[Creative] R2 context loaded:', {
@@ -226,7 +222,13 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
       hasResearch: !!ctx.research,
       hasConfirmedHooks: !!ctx.confirmedHooks,
       confirmedHooksType: Array.isArray(ctx.confirmedHooks) ? 'array' : typeof ctx.confirmedHooks,
+      gymId: ctx.gymId || '(null — will use fallback key)',
     });
+
+    // ── Step 2: Configure fal with gym-specific KIE key
+    const falKey = getKieApiKey(ctx.gymId);
+    fal.config({ credentials: falKey });
+    console.log('[Creative] fal.config() called with KIE key');
 
     // ── Step 3: Pick image category
     const category = pickImageCategory(ctx.confirmedHooks);
