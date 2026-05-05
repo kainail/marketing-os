@@ -49,47 +49,41 @@ async function kieGenerateImage(prompt, kieApiKey) {
   // Step 1 — create task
   const createRes = await fetch(KIE_CREATE_URL, {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${kieApiKey}`, 'Content-Type': 'application/json' },
+    headers: {
+      'Authorization': `Bearer ${kieApiKey}`,
+      'Content-Type': 'application/json',
+    },
     body: JSON.stringify({
       model: KIE_MODEL,
-      input: { prompt, image_input: [], aspect_ratio: '4:5', resolution: '2K', output_format: 'png' },
+      input: {
+        prompt,
+        image_input: [],
+        aspect_ratio: '4:5',
+        resolution: '2K',
+        output_format: 'png',
+      },
     }),
   });
-  const createText = await createRes.text();
-  console.log(`[Creative] kie.ai createTask status: ${createRes.status}`);
-  console.log(`[Creative] kie.ai createTask raw: ${createText.substring(0, 300)}`);
-  let createData;
-  try { createData = JSON.parse(createText); } catch (e) {
-    throw new Error(`kie.ai createTask non-JSON (${createRes.status}): ${createText.substring(0, 100)}`);
-  }
+  const createData = await createRes.json();
   const taskId = createData?.data?.taskId;
-  if (!taskId) throw new Error(`kie.ai createTask: no taskId. Response: ${JSON.stringify(createData).substring(0, 200)}`);
-  console.log(`[Creative] kie.ai taskId: ${taskId}`);
+  console.log(`[Creative] kie.ai task created: ${taskId}`);
 
-  // Step 2 — poll until succeed or timeout
-  const deadline = Date.now() + 2 * 60 * 1000;
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 3000));
-    const queryRes = await fetch(`${KIE_QUERY_URL}?taskId=${taskId}`, {
+  // Step 2 — poll for result (24 × 5s = 2 min max)
+  let imageUrl = null;
+  for (let i = 0; i < 24; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    const pollRes = await fetch(`${KIE_QUERY_URL}?taskId=${taskId}`, {
       headers: { 'Authorization': `Bearer ${kieApiKey}` },
     });
-    const queryText = await queryRes.text();
-    let queryData;
-    try { queryData = JSON.parse(queryText); } catch (e) {
-      throw new Error(`kie.ai queryTask non-JSON (${queryRes.status}): ${queryText.substring(0, 100)}`);
+    const pollData = await pollRes.json();
+    console.log(`[Creative] kie.ai poll ${i + 1}: status=${pollData?.data?.status}`);
+    if (pollData?.data?.status === 'succeed') {
+      imageUrl = pollData?.data?.output?.imageUrls?.[0];
+      break;
     }
-    const status = queryData?.data?.status;
-    console.log(`[Creative] kie.ai taskId=${taskId} status=${status}`);
-    if (status === 'succeed') {
-      const imageUrl = queryData?.data?.output?.imageUrls?.[0];
-      if (!imageUrl) throw new Error(`kie.ai task succeeded but no imageUrl in output: ${JSON.stringify(queryData).substring(0, 200)}`);
-      return imageUrl;
-    }
-    if (status !== 'pending' && status !== 'processing') {
-      throw new Error(`kie.ai task ${taskId} ended with unexpected status: ${status}`);
-    }
+    if (pollData?.data?.status === 'failed') break;
   }
-  throw new Error(`kie.ai task ${taskId} timed out after 2 minutes`);
+  return imageUrl;
 }
 
 /**
