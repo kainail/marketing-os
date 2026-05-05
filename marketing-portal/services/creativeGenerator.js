@@ -16,14 +16,18 @@ const { uploadFileToDrive } = require('./googleDrive');
 
 const FAL_MODEL = 'fal-ai/flux/dev';
 
-// Categories mapped from hook types — determines image composition
+// Pain/emotion hooks → object or environment (context over action)
+// Social proof hooks → interrupted action (real people in motion)
 const HOOK_IMAGE_CATEGORY = {
-  'Curiosity Gap':    'interrupted_action',
-  'Relatability':     'environment',
+  'Pain Point':        'environment',
+  'Relatability':      'object',
   'Pattern Interrupt': 'object',
-  'Pain Point':       'environment',
-  'Bold Claim':       'interrupted_action',
-  'default':          'environment',
+  'Curiosity Gap':     'environment',
+  'Social Proof':      'interrupted_action',
+  'Bold Claim':        'interrupted_action',
+  'Testimonial':       'interrupted_action',
+  'Community':         'interrupted_action',
+  'default':           'environment',
 };
 
 function getKieApiKey(gymId) {
@@ -61,6 +65,7 @@ async function loadSessionContext(sessionId) {
 
 /**
  * Extract the hook type from the confirmed hooks to select image category.
+ * Falls back to keyword matching when framework name is not in the static map.
  */
 function pickImageCategory(confirmedHooks) {
   const hooks = Array.isArray(confirmedHooks)
@@ -70,29 +75,63 @@ function pickImageCategory(confirmedHooks) {
     : [];
   const first = hooks[0];
   const framework = first?.framework || '';
-  return HOOK_IMAGE_CATEGORY[framework] || HOOK_IMAGE_CATEGORY.default;
+
+  if (HOOK_IMAGE_CATEGORY[framework]) return HOOK_IMAGE_CATEGORY[framework];
+
+  // Keyword fallback for AHRI-generated framework names not in the static map
+  const fw = framework.toLowerCase();
+  if (/social|proof|testimonial|community|real member/.test(fw)) return 'interrupted_action';
+  if (/pain|emotion|struggle|problem|relat/.test(fw)) return 'environment';
+
+  return HOOK_IMAGE_CATEGORY.default;
 }
 
 /**
- * Build a fal.ai image prompt from session context.
+ * Build a fal.ai image prompt from session context using AHRI's R2 knowledge base data.
+ * Pulls confirmed hook text, full avatar description, market gap, and competitor ad styles
+ * so every gym gets prompts specific to their onboarding data — not generic fitness imagery.
+ *
  * category: 'object' | 'environment' | 'interrupted_action'
  */
 function buildImagePrompt(ctx, category, variant) {
-  const { brainState, avatar, research } = ctx;
+  const { brainState, avatar, research, confirmedHooks } = ctx;
 
-  // Extract key signals from KB text
+  // ── brain-state/current-state.md → city, market gap, active offer
   const brainLines = (typeof brainState === 'string' ? brainState : '').split('\n');
-  const gymName = brainLines.find(l => l.startsWith('# Brain State'))?.replace('# Brain State —', '').trim() || 'the gym';
   const city = brainLines.find(l => l.toLowerCase().startsWith('city:'))?.replace(/city:\s*/i, '').trim() || '';
-  const marketGap = brainLines.find(l => l.toLowerCase().startsWith('market gap:'))?.replace(/market gap:\s*/i, '').trim() || '';
+  const brainMarketGap = brainLines.find(l => l.toLowerCase().startsWith('market gap:'))?.replace(/market gap:\s*/i, '').trim() || '';
 
+  // ── knowledge-base/fitness/lifestyle-avatar.md → full avatar description
   const avatarLines = (typeof avatar === 'string' ? avatar : '').split('\n');
-  const triggerMoment = avatarLines
-    .slice(avatarLines.findIndex(l => l.includes('## The Moment')) + 1)
-    .filter(l => l.trim() && !l.startsWith('#'))
-    .slice(0, 2).join(' ').substring(0, 200);
+  const whoIdx = avatarLines.findIndex(l => /##\s*(who they are|the avatar)/i.test(l));
+  const momentIdx = avatarLines.findIndex(l => /##\s*the moment/i.test(l));
 
-  const competitors = (research?.competitors || []).map(c => c.name).join(', ') || 'competitors';
+  const avatarDescription = (whoIdx !== -1 ? avatarLines.slice(whoIdx + 1) : avatarLines)
+    .filter(l => l.trim() && !l.startsWith('#'))
+    .slice(0, 3).join(' ').substring(0, 300)
+    || 'busy adult who let fitness slip and is ready to make a change';
+
+  const triggerMoment = momentIdx !== -1
+    ? avatarLines.slice(momentIdx + 1).filter(l => l.trim() && !l.startsWith('#')).slice(0, 2).join(' ').substring(0, 200)
+    : avatarDescription.substring(0, 200);
+
+  // ── confirmed-hooks.json → active hook text
+  const hooks = Array.isArray(confirmedHooks)
+    ? confirmedHooks
+    : Array.isArray(confirmedHooks?.selected) ? confirmedHooks.selected
+    : Array.isArray(confirmedHooks?.hooks) ? confirmedHooks.hooks
+    : [];
+  const confirmedHook = hooks[0]?.hook || hooks[0]?.text || hooks[0]?.headline || triggerMoment;
+
+  // ── prospect-research.json → competitors and their ad styles
+  const competitorList = (research?.competitors || []).slice(0, 3);
+  const competitorNames = competitorList.map(c => c.name).join(', ') || 'typical gyms';
+  const competitorStyles = competitorList.length
+    ? competitorList.map(c => `${c.name} (shows: ${(c.adThemes || c.themes || []).slice(0, 2).join(', ') || 'generic fitness imagery'})`).join('; ')
+    : 'typical gym stock photography';
+
+  // Market gap — prefer research.json if it has a richer value, fall back to brain-state
+  const marketGap = research?.marketGap || research?.market_gap || brainMarketGap || 'community over performance';
 
   // Variant tweaks so 5 generations differ meaningfully
   const variantNotes = [
@@ -104,20 +143,21 @@ function buildImagePrompt(ctx, category, variant) {
   ];
 
   const categoryDirections = {
-    object: `A meaningful object that represents the avatar's life — not gym equipment. Think: a coffee mug, car keys, a work laptop, a kid's backpack. The object tells the story of the life the avatar is living.`,
-    environment: `The gym environment as a supporting character — not the focus. Real, slightly imperfect, community feel. People in background. NOT polished like a stock photo. What ${competitors} are NOT showing.`,
-    interrupted_action: `A real person caught mid-action — not posed. They look like a real member, not a fitness model. The moment captures the avatar's trigger: ${triggerMoment || 'deciding to make a change'}.`,
+    object: `Object shot: A meaningful object from the avatar's daily life — coffee mug, car keys, work laptop, kid's backpack. Represents the life ${avatarDescription.substring(0, 80)} is living. NOT gym equipment.`,
+    environment: `Environment shot: The gym space as a supporting character. Real, slightly imperfect, community feel. People visible in background. NOT the polished look of ${competitorNames}.`,
+    interrupted_action: `Interrupted action shot: A real member caught mid-moment — not posed. They look like ${avatarDescription.substring(0, 80)}, not a fitness model. Authentic, unguarded.`,
   };
 
-  return `Photorealistic image for gym marketing in ${city || 'a midwestern city'}.
+  return `Photorealistic ${category.replace('_', ' ')} shot for fitness ad in ${city || 'a midwestern city'}.
+
+Avatar: ${avatarDescription}
+Hook angle: ${confirmedHook}
+Market gap: ${marketGap} — do NOT show: ${competitorStyles}
+Style: ${variantNotes[variant % variantNotes.length]}, authentic, candid, real phone photo aesthetic, not stock photo
 
 ${categoryDirections[category] || categoryDirections.environment}
 
-Avatar context: ${triggerMoment || 'busy adult who let fitness slip, now ready to change'}
-Market gap positioning: ${marketGap || 'community over performance'}
-Style: ${variantNotes[variant % variantNotes.length]}
-
-CRITICAL: No before/after framing. No fitness models with six-packs. No gym equipment as primary subject. Looks like a real phone photo, not a stock image. Authentic, slightly raw, community-focused. Different from what ${competitors || 'typical gyms'} are running in ads right now.`.trim();
+NO: before/after framing, fitness model physiques, gym equipment as hero, staged poses`.trim();
 }
 
 /**
