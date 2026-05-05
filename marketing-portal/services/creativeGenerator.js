@@ -75,7 +75,9 @@ async function kieGenerateImage(prompt, kieApiKey) {
     const pollRes = await fetch(`${KIE_QUERY_URL}?taskId=${taskId}`, {
       headers: { 'Authorization': `Bearer ${kieApiKey}` },
     });
-    const pollData = await pollRes.json();
+    const pollText = await pollRes.text();
+    if (i === 0) console.log(`[Creative] kie.ai poll raw response: ${pollText.substring(0, 300)}`);
+    const pollData = JSON.parse(pollText);
     console.log(`[Creative] kie.ai poll ${i + 1}: status=${pollData?.data?.status}`);
     if (pollData?.data?.status === 'succeed') {
       imageUrl = pollData?.data?.output?.imageUrls?.[0];
