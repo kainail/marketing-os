@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Creative generator — fal.ai image generation + content shot list for onboarding sessions.
+ * Creative generator — kie.ai image generation + content shot list for onboarding sessions.
  *
  * generateOnboardingCreative: builds 5 images from session KB, runs a two-stage quality gate,
  * uploads passing images to the Generated folder.
@@ -10,11 +10,11 @@
  * Content Schedule folder.
  */
 
-const { fal } = require('@fal-ai/client');
 const { r2GetShared } = require('../lib/r2');
 const { uploadFileToDrive } = require('./googleDrive');
 
-const FAL_MODEL = 'fal-ai/flux/dev';
+const KIE_MODEL = 'gemini-3-pro-image-preview';
+const KIE_API_URL = 'https://kie.ai/api/v1/images/generations';
 
 // Pain/emotion hooks → object or environment (context over action)
 // Social proof hooks → interrupted action (real people in motion)
@@ -281,10 +281,9 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
       gymId: ctx.gymId || '(null — will use fallback key)',
     });
 
-    // ── Step 2: Configure fal with gym-specific KIE key
-    const falKey = getKieApiKey(ctx.gymId);
-    fal.config({ credentials: falKey });
-    console.log('[Creative] fal.config() called with KIE key');
+    // ── Step 2: Resolve gym-specific KIE key
+    const kieApiKey = getKieApiKey(ctx.gymId);
+    console.log('[Creative] KIE API key resolved');
 
     // ── Step 3: Pick image category
     const category = pickImageCategory(ctx.confirmedHooks);
@@ -309,35 +308,38 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
         return { prompt, passes, idx: i };
       });
 
-      // Generate images via fal.ai
-      console.log(`[Creative] calling fal.subscribe on model ${FAL_MODEL} for ${prompts.length} images...`);
+      // Generate images via kie.ai
+      console.log(`[Creative] calling kie.ai model ${KIE_MODEL} for ${prompts.length} images...`);
       const generations = await Promise.allSettled(
         prompts.map(({ prompt, passes }) => {
           if (!passes) return Promise.reject(new Error('Prompt failed compliance gate'));
-          return fal.subscribe(FAL_MODEL, {
-            input: {
-              prompt,
-              image_size: 'landscape_4_3',
-              num_inference_steps: 28,
-              guidance_scale: 3.5,
-              num_images: 1,
-              enable_safety_checker: true,
+          return fetch(KIE_API_URL, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${kieApiKey}`,
+              'Content-Type': 'application/json',
             },
-          });
+            body: JSON.stringify({
+              model: KIE_MODEL,
+              prompt,
+              aspect_ratio: '4:5',
+              image_quality: '2K',
+            }),
+          }).then(res => res.json());
         })
       );
 
       for (let i = 0; i < generations.length; i++) {
         const gen = generations[i];
         if (gen.status === 'rejected') {
-          console.warn(`[Creative] image ${i + 1} REJECTED by fal.ai:`, gen.reason?.message, gen.reason?.stack?.split('\n')[1] || '');
+          console.warn(`[Creative] image ${i + 1} REJECTED by kie.ai:`, gen.reason?.message, gen.reason?.stack?.split('\n')[1] || '');
           continue;
         }
 
-        console.log(`[Creative] image ${i + 1} fal.ai response keys:`, Object.keys(gen.value || {}));
-        const imageUrl = gen.value?.images?.[0]?.url;
+        console.log(`[Creative] image ${i + 1} kie.ai response keys:`, Object.keys(gen.value || {}));
+        const imageUrl = gen.value?.data?.[0]?.url;
         if (!imageUrl) {
-          console.warn(`[Creative] image ${i + 1}: no URL in fal.ai response. Full value:`, JSON.stringify(gen.value)?.substring(0, 300));
+          console.warn(`[Creative] image ${i + 1}: no URL in kie.ai response. Full value:`, JSON.stringify(gen.value)?.substring(0, 300));
           continue;
         }
         console.log(`[Creative] image ${i + 1} URL received: ${imageUrl.substring(0, 80)}...`);
@@ -349,7 +351,7 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
         if (!gate.passes) continue;
 
         // Download
-        console.log(`[Creative] image ${i + 1}: downloading from fal.ai URL...`);
+        console.log(`[Creative] image ${i + 1}: downloading from kie.ai URL...`);
         const fetchRes = await fetch(imageUrl);
         if (!fetchRes.ok) {
           console.warn(`[Creative] image ${i + 1}: download failed — HTTP ${fetchRes.status}`);
