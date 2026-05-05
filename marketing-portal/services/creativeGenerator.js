@@ -31,16 +31,13 @@ const HOOK_IMAGE_CATEGORY = {
 };
 
 function getKieApiKey(gymId) {
-  const key = gymId
-    ? process.env[`KIE_API_KEY_${gymId.toUpperCase()}`]
-    : null;
-
-  // fallback to global key if no gym-specific one set
+  // gymId = 'anytime_fitness_avon' → city = 'AVON'
+  const city = gymId ? gymId.split('_').pop().toUpperCase() : null;
+  const cityKey = city ? process.env[`KIE_API_KEY_${city}`] : null;
   const fallback = process.env.KIE_API_KEY;
-
-  if (!key && !fallback) throw new Error(`KIE_API_KEY not set for gym ${gymId}`);
-  console.log(`[Creative] KIE key source: ${key ? `KIE_API_KEY_${(gymId || '').toUpperCase()}` : 'KIE_API_KEY (fallback)'}`);
-  return key || fallback;
+  if (!cityKey && !fallback) throw new Error(`KIE_API_KEY not set for gym ${gymId}`);
+  console.log(`[Creative] KIE key source: ${cityKey ? `KIE_API_KEY_${city}` : 'KIE_API_KEY (fallback)'}`);
+  return cityKey || fallback;
 }
 
 /**
