@@ -10,6 +10,7 @@
  * Content Schedule folder.
  */
 
+const sharp = require('sharp');
 const { r2GetShared } = require('../lib/r2');
 const { uploadFileToDrive } = require('./googleDrive');
 
@@ -397,11 +398,18 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
           console.warn(`[Creative] image ${i + 1}: download failed — HTTP ${fetchRes.status}`);
           continue;
         }
-        const buffer = Buffer.from(await fetchRes.arrayBuffer());
-        console.log(`[Creative] image ${i + 1}: downloaded ${buffer.length} bytes`);
+        const rawBuffer = Buffer.from(await fetchRes.arrayBuffer());
+        console.log(`[Creative] image ${i + 1}: downloaded ${rawBuffer.length} bytes`);
+
+        // Compress — max 1200px wide, quality 85 JPEG
+        const buffer = await sharp(rawBuffer)
+          .resize({ width: 1200, withoutEnlargement: true })
+          .jpeg({ quality: 85 })
+          .toBuffer();
+        console.log(`[Creative] image ${i + 1}: compressed ${rawBuffer.length} → ${buffer.length} bytes`);
 
         // Upload to Drive
-        const fileName = `creative-${attempt + 1}-${i + 1}-score${gate.score}.jpg`;
+        const fileName = `creative-${attempt + 1}-${i + 1}-score${gate.score}-${Date.now()}.jpg`;
         console.log(`[Creative] image ${i + 1}: uploading to Drive folder ${generatedFolderId} as ${fileName}...`);
         const uploaded = await uploadFileToDrive(generatedFolderId, fileName, buffer, 'image/jpeg');
         if (uploaded) {
