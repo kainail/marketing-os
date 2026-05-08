@@ -98,7 +98,6 @@
     <div id="overview-alerts"></div>
     <div class="section-title" style="margin-top:24px">SUGGESTED ACTIONS</div>
     <div id="overview-suggestions" class="flex gap-8"></div>
-    <div id="provision-card" style="margin-top:24px"></div>
   </div>
 
   <!-- Section: Queue -->
@@ -2257,134 +2256,6 @@ function populateOwnerOverview(data) {
       </div>`;
   }
 
-  // Provision card
-  const sid = session.sessionId;
-  if (sid) renderProvisionCard(session, sid);
-}
-
-// ── Provision card ────────────────────────────────────────────────────────────
-function renderProvisionCard(session, sessionId) {
-  const el = document.getElementById('provision-card');
-  if (!el) return;
-
-  const stored = JSON.parse(localStorage.getItem('provision_' + sessionId) || 'null');
-  if (stored && stored.testimonialPageUrl) {
-    el.innerHTML = renderProvisionLive(stored);
-    return;
-  }
-
-  const isAF = (session.gymName || '').toLowerCase().includes('anytime') || session.franchiseType === 'anytime-fitness';
-  const tryFreeDefault = isAF ? 'https://www.anytimefitness.com/try-us-free' : '';
-
-  const inp = 'width:100%;box-sizing:border-box;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:9px 12px;color:#e8eaf0;font-family:inherit;font-size:13px;outline:none';
-  const lbl = 'font-size:11px;color:rgba(232,234,240,0.4);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px';
-
-  el.innerHTML = `
-    <div style="border:1px solid rgba(139,92,246,0.3);border-radius:12px;padding:24px 28px;background:var(--surface)">
-      <div style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.32);margin-bottom:12px">TESTIMONIAL PAGE</div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
-        <div style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div>
-        <div style="font-size:15px;font-weight:600;color:rgba(232,234,240,0.7)">Not provisioned</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 140px;gap:12px;margin-bottom:16px">
-        <div>
-          <label style="${lbl}">Try Free URL</label>
-          <input id="prov-try-free-url" type="url" value="${esc(tryFreeDefault)}" placeholder="https://..." style="${inp}">
-        </div>
-        <div>
-          <label style="${lbl}">Join URL</label>
-          <input id="prov-join-url" type="url" value="" placeholder="${isAF ? 'Auto-fills from Club ID' : 'https://...'}" style="${inp}" ${isAF ? 'data-af="1"' : ''}>
-        </div>
-        <div>
-          <label style="${lbl}">Club ID</label>
-          <input id="prov-club-id" type="text" value="" placeholder="e.g. 2822" style="${inp}" oninput="provClubIdChanged(this,${isAF})">
-        </div>
-      </div>
-      <div id="prov-error" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.25);border-radius:8px;font-size:13px;color:#f87171"></div>
-      <button id="prov-btn" onclick="provisionPage('${esc(sessionId)}')" style="background:#7c3aed;border:none;border-radius:8px;padding:10px 20px;color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer">Provision Testimonial Page →</button>
-    </div>`;
-}
-
-function provClubIdChanged(input, isAF) {
-  if (!isAF) return;
-  const joinEl = document.getElementById('prov-join-url');
-  if (!joinEl || !joinEl.dataset.af) return;
-  joinEl.value = input.value.trim() ? 'https://join.anytimefitness.com/' + input.value.trim() + '/plansinfo' : '';
-}
-
-function renderProvisionLive(stored) {
-  const url = esc(stored.testimonialPageUrl);
-  const rawUrl = stored.testimonialPageUrl || '';
-  return `
-    <div style="border:1px solid rgba(34,197,94,0.35);border-radius:12px;padding:24px 28px;background:var(--surface)">
-      <div style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.32);margin-bottom:12px">TESTIMONIAL PAGE</div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-        <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>
-        <div style="font-size:15px;font-weight:600;color:#e8eaf0">Page Live</div>
-        <span style="font-size:10px;font-weight:700;letter-spacing:1.2px;padding:3px 8px;border-radius:20px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.3);color:#22c55e">LIVE</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-size:13px;color:#a78bfa;word-break:break-all">${url}</span>
-        <button onclick="navigator.clipboard.writeText(${JSON.stringify(rawUrl)});toast('URL copied','success')" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:5px 10px;color:rgba(232,234,240,0.6);font-family:inherit;font-size:12px;cursor:pointer;flex-shrink:0">Copy</button>
-        <a href="${url}" target="_blank" rel="noopener" style="font-size:12px;color:#8b5cf6;text-decoration:none;flex-shrink:0">View Page →</a>
-      </div>
-    </div>`;
-}
-
-async function provisionPage(sessionId) {
-  const btn = document.getElementById('prov-btn');
-  const errEl = document.getElementById('prov-error');
-  const tryFreeUrl = (document.getElementById('prov-try-free-url')?.value || '').trim();
-  const joinUrl = (document.getElementById('prov-join-url')?.value || '').trim();
-  const clubId = (document.getElementById('prov-club-id')?.value || '').trim();
-
-  if (!clubId) {
-    if (errEl) { errEl.textContent = 'Club ID is required.'; errEl.style.display = 'block'; }
-    return;
-  }
-
-  if (btn) { btn.disabled = true; btn.textContent = 'Provisioning…'; }
-  if (errEl) errEl.style.display = 'none';
-
-  const session = ownerPortalData?.session || {};
-  const body = {
-    gymName:     session.gymName  || '',
-    city:        session.city     || '',
-    state:       session.state    || '',
-    clubId,
-    ownerEmail:  session.ownerEmail || '',
-    phone:       session.phone    || null,
-    managerName: session.ownerName || null,
-    tryFreeUrl:  tryFreeUrl || null,
-    joinUrl:     joinUrl    || null,
-    sessionId,
-    kbPath:      null,
-  };
-
-  try {
-    const r = await fetch(LANDING_SERVER_URL + '/api/gyms/provision', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const json = await r.json();
-    if (!r.ok || !json.success) throw new Error(json.error || 'Provision failed — check server logs');
-
-    const stored = {
-      testimonialPageUrl: json.testimonialPageUrl,
-      locationId: json.locationId,
-      adUrl: json.adUrl,
-      provisionedAt: new Date().toISOString(),
-    };
-    localStorage.setItem('provision_' + sessionId, JSON.stringify(stored));
-
-    const el = document.getElementById('provision-card');
-    if (el) el.innerHTML = renderProvisionLive(stored);
-    toast('Testimonial page is live', 'success');
-  } catch (err) {
-    if (btn) { btn.disabled = false; btn.textContent = 'Provision Testimonial Page →'; }
-    if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
-  }
 }
 
 // ── Creative (owner) ─────────────────────────────────────────────────────────
@@ -2580,6 +2451,22 @@ function renderAccountRow(u) {
     : '<span style="display:inline-block;padding:2px 8px;border-radius:20px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);font-size:11px;font-weight:600;color:#f59e0b">Demo</span>';
   const onboardedDate = u.onboardedAt ? new Date(u.onboardedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
   const checked = u.status === 'active' ? 'checked' : '';
+
+  const stored = u.sessionId ? JSON.parse(localStorage.getItem('provision_' + u.sessionId) || 'null') : null;
+  const isAF = (u.gymName || '').toLowerCase().includes('anytime');
+  const sid = esc(u.sessionId || '');
+  const gname = esc(u.gymName || '');
+  const city = esc(u.city || '');
+  const email = esc(u.email || '');
+
+  const provisionBtn = stored
+    ? `<span id="prov-cell-${u.id}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);font-size:11px;font-weight:600;color:#22c55e;margin-right:8px;cursor:pointer" onclick="showProvisionUrl('${u.id}')" title="${esc(stored.testimonialPageUrl)}">● Page Live</span>`
+    : (u.sessionId ? `<button id="prov-cell-${u.id}" onclick="toggleProvisionForm('${u.id}','${sid}','${gname}','${city}','${email}')" style="font-size:12px;background:none;border:1px solid rgba(139,92,246,0.4);border-radius:6px;padding:3px 8px;color:rgba(139,92,246,0.8);cursor:pointer;font-family:inherit;margin-right:8px">Provision Page</button>` : '');
+
+  const inp = 'box-sizing:border-box;width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:7px 10px;color:#e8eaf0;font-family:inherit;font-size:12px;outline:none';
+  const lbl = 'font-size:10px;color:rgba(232,234,240,0.4);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px';
+  const tryFreeDefault = isAF ? 'https://www.anytimefitness.com/try-us-free' : '';
+
   return `<tr id="acc-row-${u.id}" style="border-bottom:1px solid rgba(255,255,255,0.04)">
     <td style="padding:12px 12px">
       <div style="font-weight:500;color:rgba(232,234,240,0.85)">${u.name || '—'}</div>
@@ -2595,8 +2482,33 @@ function renderAccountRow(u) {
       </label>
     </td>
     <td style="padding:12px 12px">
+      ${provisionBtn}
       <a href="/dashboard" target="_blank" onclick="viewOwnerPortal(event,'${u.sessionId || ''}')" style="font-size:12px;color:#6366f1;text-decoration:none;margin-right:12px">View portal</a>
       <button onclick="promptDeleteAccount('${u.id}','${(u.name||'').replace(/'/g,"\\'")}','${u.email}')" style="font-size:12px;background:none;border:1px solid rgba(244,63,94,0.3);border-radius:6px;padding:3px 8px;color:rgba(244,63,94,0.6);cursor:pointer;font-family:inherit">Delete</button>
+    </td>
+  </tr>
+  <tr id="acc-row-${u.id}-provision" style="display:none">
+    <td colspan="6" style="padding:0 12px 12px">
+      <div style="background:rgba(139,92,246,0.04);border:1px solid rgba(139,92,246,0.2);border-radius:8px;padding:14px 16px" data-state="">
+        <div style="display:grid;grid-template-columns:1fr 1fr 120px auto;gap:10px;align-items:flex-end">
+          <div>
+            <label style="${lbl}">Try Free URL</label>
+            <input id="prov-tf-${u.id}" type="url" value="${esc(tryFreeDefault)}" placeholder="https://..." style="${inp}">
+          </div>
+          <div>
+            <label style="${lbl}">Join URL</label>
+            <input id="prov-ju-${u.id}" type="url" value="" placeholder="${isAF ? 'Auto-fills from Club ID' : 'https://...'}" style="${inp}" ${isAF ? 'data-af="1"' : ''}>
+          </div>
+          <div>
+            <label style="${lbl}">Club ID</label>
+            <input id="prov-ci-${u.id}" type="text" value="" placeholder="e.g. 2822" style="${inp}" oninput="provClubIdChangedRow(this,'${u.id}',${isAF})">
+          </div>
+          <div>
+            <button id="prov-submit-${u.id}" onclick="provisionPageRow('${u.id}','${sid}')" style="background:#7c3aed;border:none;border-radius:6px;padding:8px 14px;color:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Provision →</button>
+          </div>
+        </div>
+        <div id="prov-err-${u.id}" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.25);border-radius:6px;font-size:12px;color:#f87171"></div>
+      </div>
     </td>
   </tr>
   <tr id="acc-row-${u.id}-confirm" style="display:none">
@@ -2654,6 +2566,118 @@ function cancelDeleteAccount(userId) {
   document.getElementById('acc-row-' + userId + '-confirm').style.display = 'none';
   const inp = document.getElementById('del-confirm-' + userId);
   if (inp) inp.value = '';
+}
+
+// ── Provision helpers (admin Account Access) ─────────────────────────────────
+async function toggleProvisionForm(userId, sessionId, gymName, city, email) {
+  const row = document.getElementById('acc-row-' + userId + '-provision');
+  if (!row) return;
+  const isOpen = row.style.display !== 'none';
+  row.style.display = isOpen ? 'none' : '';
+  if (isOpen) return;
+
+  // Fetch state from session on first open if not cached
+  const formDiv = row.querySelector('div[data-state]');
+  if (formDiv && !formDiv.dataset.state && sessionId) {
+    try {
+      const r = await fetch('/api/onboarding/sessions/' + sessionId);
+      if (r.ok) {
+        const s = await r.json();
+        formDiv.dataset.state = s.state || '';
+      }
+    } catch (_) {}
+  }
+}
+
+function provClubIdChangedRow(input, userId, isAF) {
+  if (!isAF) return;
+  const ju = document.getElementById('prov-ju-' + userId);
+  if (!ju || !ju.dataset.af) return;
+  ju.value = input.value.trim() ? 'https://join.anytimefitness.com/' + input.value.trim() + '/plansinfo' : '';
+}
+
+async function provisionPageRow(userId, sessionId) {
+  const btn = document.getElementById('prov-submit-' + userId);
+  const errEl = document.getElementById('prov-err-' + userId);
+  const tryFreeUrl = (document.getElementById('prov-tf-' + userId)?.value || '').trim();
+  const joinUrl = (document.getElementById('prov-ju-' + userId)?.value || '').trim();
+  const clubId = (document.getElementById('prov-ci-' + userId)?.value || '').trim();
+
+  if (!clubId) {
+    if (errEl) { errEl.textContent = 'Club ID is required.'; errEl.style.display = 'block'; }
+    return;
+  }
+
+  const formDiv = document.querySelector('#acc-row-' + userId + '-provision div[data-state]');
+  const state = formDiv?.dataset.state || '';
+
+  // Pull gymName/city/email from the main row's provision button data attrs
+  const mainRow = document.getElementById('acc-row-' + userId);
+  const gymName = mainRow?.querySelector('td:nth-child(2)')?.childNodes[0]?.textContent?.trim() || '';
+  const city = state ? '' : (mainRow?.querySelector('td:nth-child(2) span')?.textContent?.trim() || '');
+  const ownerEmail = mainRow?.querySelector('td:nth-child(1) div:nth-child(2)')?.textContent?.trim() || '';
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Provisioning…'; }
+  if (errEl) errEl.style.display = 'none';
+
+  try {
+    const r = await fetch(LANDING_SERVER_URL + '/api/gyms/provision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gymName,
+        city,
+        state,
+        clubId,
+        ownerEmail,
+        tryFreeUrl: tryFreeUrl || null,
+        joinUrl:    joinUrl    || null,
+        sessionId,
+        kbPath:     null,
+      }),
+    });
+    const json = await r.json();
+    if (!r.ok || !json.success) throw new Error(json.error || 'Provision failed — check server logs');
+
+    const stored = {
+      testimonialPageUrl: json.testimonialPageUrl,
+      locationId: json.locationId,
+      adUrl: json.adUrl,
+      provisionedAt: new Date().toISOString(),
+    };
+    localStorage.setItem('provision_' + sessionId, JSON.stringify(stored));
+
+    // Hide form row, update button cell to live badge
+    document.getElementById('acc-row-' + userId + '-provision').style.display = 'none';
+    const cell = document.getElementById('prov-cell-' + userId);
+    if (cell) {
+      const rawUrl = json.testimonialPageUrl;
+      cell.outerHTML = `<span id="prov-cell-${userId}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);font-size:11px;font-weight:600;color:#22c55e;margin-right:8px;cursor:pointer" onclick="showProvisionUrl('${userId}')" title="${esc(rawUrl)}">● Page Live</span>`;
+    }
+    toast('Testimonial page is live', 'success');
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Provision →'; }
+    if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+  }
+}
+
+function showProvisionUrl(userId) {
+  const cell = document.getElementById('prov-cell-' + userId);
+  if (!cell) return;
+  const url = cell.title;
+  if (!url) return;
+  const row = document.getElementById('acc-row-' + userId + '-provision');
+  if (row) {
+    row.style.display = row.style.display === 'none' ? '' : 'none';
+    if (row.style.display !== 'none') {
+      row.querySelector('div[data-state]').innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <a href="${esc(url)}" target="_blank" rel="noopener" style="font-size:13px;color:#a78bfa;text-decoration:none;word-break:break-all">${esc(url)}</a>
+          <button onclick="navigator.clipboard.writeText(${JSON.stringify(url)});toast('URL copied','success')" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:4px 10px;color:rgba(232,234,240,0.6);font-family:inherit;font-size:12px;cursor:pointer">Copy</button>
+          <a href="${esc(url)}" target="_blank" rel="noopener" style="font-size:12px;color:#8b5cf6;text-decoration:none">View Page →</a>
+        </div>`;
+    }
+  }
 }
 
 async function confirmDeleteAccount(userId) {
