@@ -2614,11 +2614,6 @@ async function provisionPageRow(userId, sessionId) {
   const joinUrl    = (document.getElementById('prov-ju-' + userId)?.value || '').trim();
   const clubId     = (document.getElementById('prov-ci-' + userId)?.value || '').trim();
 
-  if (!clubId) {
-    if (errEl) { errEl.textContent = 'Club ID is required.'; errEl.style.display = 'block'; }
-    return;
-  }
-
   const formDiv  = document.querySelector('#prov-form-inner-' + userId);
   const state    = formDiv?.dataset.state || '';
   const mainRow  = document.getElementById('acc-row-' + userId);
