@@ -2461,8 +2461,15 @@ function renderAccountRow(u) {
   const email = esc(u.email || '');
 
   const tierLabel = { 'marketing-os': 'Marketing OS', 'ops': 'OPS Only', 'both': 'Full Suite' }[stored?.tier] || 'Marketing OS';
+  const _tierOpts = [['marketing-os','Marketing OS Only'],['ops','GymSuite AI OPS Only'],['both','Both Services']];
+  const _activeTier = stored?.tier || 'marketing-os';
+  const _pickerItems = _tierOpts.map(([v, l]) => {
+    const on = v === _activeTier;
+    return `<div data-tier="${v}" onclick="applyTierChange('${u.id}','${v}')" style="padding:7px 12px;font-size:12px;color:${on ? '#a78bfa' : 'rgba(232,234,240,0.7)'};font-weight:${on ? '600' : '400'};cursor:pointer;border-radius:5px;white-space:nowrap" onmouseover="this.style.background='rgba(139,92,246,0.12)'" onmouseout="this.style.background=''">${on ? '✓ ' : ''}${l}</div>`;
+  }).join('');
+  const _pickerHtml = `<div id="tier-picker-${u.id}" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:#16132b;border:1px solid rgba(139,92,246,0.35);border-radius:8px;min-width:175px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.5)">${_pickerItems}<div style="border-top:1px solid rgba(255,255,255,0.07);margin:4px 0 0"></div><div onclick="openTierPicker('${u.id}');showProvisionUrl('${u.id}')" style="padding:7px 12px;font-size:12px;color:rgba(232,234,240,0.4);cursor:pointer;border-radius:5px" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background=''">View details →</div></div>`;
   const provisionBtn = stored
-    ? `<span id="prov-cell-${u.id}" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);font-size:11px;font-weight:600;color:#22c55e;margin-right:8px;cursor:pointer" onclick="showProvisionUrl('${u.id}')">● ${tierLabel}</span>`
+    ? `<span id="prov-cell-${u.id}" style="position:relative;display:inline-flex;align-items:center;margin-right:8px"><span id="prov-badge-${u.id}" onclick="openTierPicker('${u.id}')" style="display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);font-size:11px;font-weight:600;color:#22c55e;cursor:pointer;user-select:none">● ${tierLabel} ▾</span>${_pickerHtml}</span>`
     : (u.sessionId ? `<button id="prov-cell-${u.id}" onclick="toggleProvisionForm('${u.id}','${sid}','${gname}','${city}','${email}')" style="font-size:12px;background:none;border:1px solid rgba(139,92,246,0.4);border-radius:6px;padding:3px 8px;color:rgba(139,92,246,0.8);cursor:pointer;font-family:inherit;margin-right:8px">Provision Page</button>` : '');
 
   const inp = 'box-sizing:border-box;width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:7px 10px;color:#e8eaf0;font-family:inherit;font-size:12px;outline:none';
@@ -2660,6 +2667,9 @@ async function provisionPageRow(userId, sessionId) {
     // ── Persist state ─────────────────────────────────────────────────────
     const stored = {
       tier,
+      state,
+      tryFreeUrl:         tryFreeUrl || null,
+      joinUrl:            joinUrl    || null,
       testimonialPageUrl: landingResult?.testimonialPageUrl || null,
       locationId:         landingResult?.locationId         || null,
       adUrl:              landingResult?.adUrl              || null,
@@ -2787,6 +2797,100 @@ function showProvisionUrl(userId) {
   }
   html += '</div>';
   formInner.innerHTML = html;
+}
+
+function openTierPicker(userId) {
+  const picker = document.getElementById('tier-picker-' + userId);
+  if (!picker) return;
+  const isOpen = picker.style.display !== 'none';
+  document.querySelectorAll('[id^="tier-picker-"]').forEach(p => p.style.display = 'none');
+  if (!isOpen) picker.style.display = '';
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('[id^="prov-cell-"]')) {
+    document.querySelectorAll('[id^="tier-picker-"]').forEach(p => p.style.display = 'none');
+  }
+});
+
+async function applyTierChange(userId, newTier) {
+  const picker  = document.getElementById('tier-picker-' + userId);
+  if (picker) picker.style.display = 'none';
+
+  const formInner = document.getElementById('prov-form-inner-' + userId);
+  const sessionId = formInner?.dataset.sessionid || '';
+  const stored    = sessionId ? JSON.parse(localStorage.getItem('provision_' + sessionId) || 'null') : null;
+  if (!stored) { toast('No provision data found', 'error'); return; }
+  if (stored.tier === newTier) return;
+
+  const badge = document.getElementById('prov-badge-' + userId);
+  if (badge) { badge.style.opacity = '0.5'; badge.innerHTML = '● Updating…'; }
+
+  const mainRow    = document.getElementById('acc-row-' + userId);
+  const gymName    = mainRow?.querySelector('td:nth-child(2)')?.childNodes[0]?.textContent?.trim() || '';
+  const city       = mainRow?.querySelector('td:nth-child(2) span')?.textContent?.trim() || '';
+  const ownerEmail = mainRow?.querySelector('td:nth-child(1) div:nth-child(2)')?.textContent?.trim() || '';
+  const state      = stored.state || '';
+
+  const doLanding = newTier !== 'ops';
+  const doOps     = newTier !== 'marketing-os';
+  const payload   = { gymName, city, state, ownerEmail,
+                      tryFreeUrl: stored.tryFreeUrl || null,
+                      joinUrl:    stored.joinUrl    || null,
+                      sessionId };
+
+  let landingResult = null, opsResult = null;
+  try {
+    if (doLanding) {
+      const r = await fetch(LANDING_SERVER_URL + '/api/gyms/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, kbPath: null }),
+      });
+      const json = await r.json();
+      if (!r.ok || !json.success) throw new Error('Landing server: ' + (json.error || 'provision failed'));
+      landingResult = json;
+    }
+    if (doOps) {
+      const r = await fetch(OPS_URL + '/api/locations/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + OPS_PROVISION_KEY },
+        body: JSON.stringify({ ...payload, locationId: landingResult?.locationId || stored.locationId || null }),
+      });
+      const json = await r.json();
+      if (!r.ok || !json.success) throw new Error('OPS Dashboard: ' + (json.error || 'provision failed'));
+      opsResult = json;
+    }
+
+    const newStored = {
+      ...stored,
+      tier:               newTier,
+      testimonialPageUrl: landingResult?.testimonialPageUrl || stored.testimonialPageUrl || null,
+      locationId:         landingResult?.locationId         || stored.locationId         || null,
+      adUrl:              landingResult?.adUrl              || stored.adUrl              || null,
+      opsGymId:           opsResult?.locationId             || stored.opsGymId           || null,
+    };
+    localStorage.setItem('provision_' + sessionId, JSON.stringify(newStored));
+
+    const tierLabel = { 'marketing-os': 'Marketing OS', 'ops': 'OPS Only', 'both': 'Full Suite' }[newTier];
+    if (badge) { badge.style.opacity = ''; badge.innerHTML = '● ' + tierLabel + ' ▾'; }
+
+    if (picker) {
+      const labels = { 'marketing-os': 'Marketing OS Only', 'ops': 'GymSuite AI OPS Only', 'both': 'Both Services' };
+      picker.querySelectorAll('[data-tier]').forEach(opt => {
+        const v = opt.dataset.tier;
+        const on = v === newTier;
+        opt.style.color = on ? '#a78bfa' : 'rgba(232,234,240,0.7)';
+        opt.style.fontWeight = on ? '600' : '400';
+        opt.textContent = (on ? '✓ ' : '') + labels[v];
+      });
+    }
+    toast(tierLabel + ' tier applied', 'success');
+  } catch (err) {
+    const prevLabel = { 'marketing-os': 'Marketing OS', 'ops': 'OPS Only', 'both': 'Full Suite' }[stored.tier];
+    if (badge) { badge.style.opacity = ''; badge.innerHTML = '● ' + prevLabel + ' ▾'; }
+    toast('Tier change failed: ' + err.message, 'error');
+  }
 }
 
 async function confirmDeleteAccount(userId) {
