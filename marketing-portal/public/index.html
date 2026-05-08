@@ -1419,7 +1419,13 @@ async function loadJourney() {
   if (!el) return;
   el.innerHTML = '<div class="skeleton skeleton-text" style="height:80px;margin-bottom:12px"></div>'.repeat(3);
 
-  const data = await api('/api/attribution/report');
+  const [journeyResult, analyticsResult] = await Promise.allSettled([
+    api('/api/attribution/report'),
+    fetch(LANDING_SERVER_URL + '/api/analytics', { headers: { 'Authorization': 'Bearer ' + ANALYTICS_API_KEY } })
+      .then(r => r.ok ? r.json() : null).catch(() => null),
+  ]);
+  const data = journeyResult.status === 'fulfilled' ? journeyResult.value : {};
+  const analyticsData = analyticsResult.status === 'fulfilled' ? analyticsResult.value : null;
 
   if (!data || data.total_sessions === 0) {
     el.innerHTML = `
@@ -1556,7 +1562,24 @@ async function loadJourney() {
           </table>`}
     </div>`;
 
-  el.innerHTML = cards + sourceTable + hookTable + leadTypeTable + recentTable;
+  // By Campaign table — data from landing server /api/analytics
+  let campaignTable = '';
+  if (analyticsData === null) {
+    campaignTable = `<div class="card mb-16"><div class="section-title">BY CAMPAIGN</div><div class="text-muted" style="font-size:13px">Analytics unavailable — check LANDING_SERVER_URL and ANALYTICS_API_KEY in Railway.</div></div>`;
+  } else {
+    const camps = (analyticsData.byCampaign || []).filter(c => c.campaign !== '(none)');
+    if (camps.length === 0) {
+      campaignTable = `<div class="card mb-16"><div class="section-title">BY CAMPAIGN</div><div class="text-muted" style="font-size:13px">No campaign data yet — add UTM parameters to your Facebook ad URL.</div></div>`;
+    } else {
+      const campRows = camps.map(c => {
+        const convRate = c.clicks > 0 ? Math.round(((c.tryFree + c.join) / c.clicks) * 100) : 0;
+        return `<tr><td><code style="font-size:11px">${c.campaign}</code></td><td>${c.clicks}</td><td>${c.tryFree}</td><td>${c.join}</td><td>${convRate}%</td></tr>`;
+      }).join('');
+      campaignTable = `<div class="card mb-16"><div class="section-title">BY CAMPAIGN</div><table class="data-table"><thead><tr><th>Campaign</th><th>Clicks</th><th>Try Free</th><th>Join</th><th>Conv Rate</th></tr></thead><tbody>${campRows}</tbody></table></div>`;
+    }
+  }
+
+  el.innerHTML = cards + sourceTable + hookTable + campaignTable + leadTypeTable + recentTable;
 
   if (journeyRefreshTimer) clearInterval(journeyRefreshTimer);
   journeyRefreshTimer = setInterval(loadJourney, 60000);
@@ -2134,6 +2157,8 @@ document.addEventListener('click', (e) => {
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 const OPS_URL = 'https://gymsuiteai-dashboard-production.up.railway.app';
+const LANDING_SERVER_URL = 'https://no-risk-comeback-landing-page-production.up.railway.app';
+const ANALYTICS_API_KEY = 'ahri_ak_mKz9xQpR7wN2vL4sJtY8bFhD3gCeXuA6';
 
 function parseJwt(token) {
   try { return JSON.parse(atob(token.split('.')[1])); } catch { return null; }
