@@ -2638,27 +2638,37 @@ async function provisionPageRow(userId, sessionId) {
   let landingResult = null;
   let opsResult     = null;
 
+  console.log('[provision] starting', { tier, doLanding, doOps, gymName, city, state, ownerEmail, sessionId });
+
   try {
     // ── Landing server provision ──────────────────────────────────────────
     if (doLanding) {
-      const r = await fetch(LANDING_SERVER_URL + '/api/gyms/provision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, kbPath: null }),
-      });
+      const landingUrl = LANDING_SERVER_URL + '/api/gyms/provision';
+      const landingBody = JSON.stringify({ ...payload, kbPath: null });
+      const landingHeaders = { 'Content-Type': 'application/json' };
+      console.log('[provision] landing fetch →', landingUrl);
+      console.log('[provision] landing headers', landingHeaders);
+      console.log('[provision] landing body', landingBody);
+      const r = await fetch(landingUrl, { method: 'POST', headers: landingHeaders, body: landingBody });
+      console.log('[provision] landing response status', r.status, r.statusText);
       const json = await r.json();
+      console.log('[provision] landing response body', json);
       if (!r.ok || !json.success) throw new Error('Landing server: ' + (json.error || 'provision failed'));
       landingResult = json;
     }
 
     // ── OPS Dashboard provision ───────────────────────────────────────────
     if (doOps) {
-      const r = await fetch(OPS_URL + '/api/locations/provision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + OPS_PROVISION_KEY },
-        body: JSON.stringify({ ...payload, locationId: landingResult?.locationId || null }),
-      });
+      const opsUrl = OPS_URL + '/api/locations/provision';
+      const opsBody = JSON.stringify({ ...payload, locationId: landingResult?.locationId || null });
+      const opsHeaders = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + OPS_PROVISION_KEY };
+      console.log('[provision] ops fetch →', opsUrl);
+      console.log('[provision] ops headers', opsHeaders);
+      console.log('[provision] ops body', opsBody);
+      const r = await fetch(opsUrl, { method: 'POST', headers: opsHeaders, body: opsBody });
+      console.log('[provision] ops response status', r.status, r.statusText);
       const json = await r.json();
+      console.log('[provision] ops response body', json);
       if (!r.ok || !json.success) throw new Error('OPS Dashboard: ' + (json.error || 'provision failed'));
       opsResult = json;
     }
