@@ -58,7 +58,7 @@
   <div class="nav-item" onclick="navigate('performance')" data-section="performance">
     <span class="nav-icon">📊</span> Performance
   </div>
-  <div class="nav-item" onclick="navigate('google-ads')" data-section="google-ads" style="opacity:0.4;cursor:not-allowed;" title="Coming soon">
+  <div class="nav-item" onclick="navigate('google-ads')" data-section="google-ads" title="Coming soon">
     <span class="nav-icon">📊</span>
     <span>Google Ads</span>
     <span style="font-size:9px;color:var(--text-muted);margin-left:auto">SOON</span>
@@ -180,10 +180,45 @@
     </div>
   </div>
 
-  <!-- Section: Google Ads (placeholder) -->
+  <!-- Section: Google Ads -->
   <div id="section-google-ads" class="section">
-    <div class="section-title">GOOGLE ADS</div>
-    <div style="color:var(--text-muted);margin-top:32px;text-align:center;font-family:var(--font-mono);font-size:13px">Google Ads integration coming soon</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="section-title" style="margin-bottom:0">GOOGLE ADS</div>
+      <div class="filter-bar" style="margin-bottom:0" id="gads-filter-bar">
+        <button class="filter-chip active" onclick="setGadsTab('7d',this)">7D</button>
+        <button class="filter-chip" onclick="setGadsTab('30d',this)">30D</button>
+        <button class="filter-chip" onclick="setGadsTab('90d',this)">90D</button>
+        <button class="filter-chip" onclick="setGadsTab('mtd',this)">MTD</button>
+      </div>
+    </div>
+    <div id="gads-placeholder-notice"></div>
+    <div class="metrics-row" id="gads-metrics"></div>
+    <div class="card mb-16" id="gads-campaigns-card">
+      <div class="section-title">CAMPAIGN PERFORMANCE</div>
+      <div id="gads-campaigns-table"></div>
+    </div>
+    <div class="section-grid-2 mb-16">
+      <div class="card">
+        <div class="section-title">KEYWORD PERFORMANCE</div>
+        <div id="gads-keywords-table"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">TOP SEARCH TERMS</div>
+        <div id="gads-search-terms-table"></div>
+      </div>
+    </div>
+    <div class="card mb-16">
+      <div class="section-title">RSA PERFORMANCE — WINNING COPY</div>
+      <div id="gads-rsa"></div>
+    </div>
+    <div class="card mb-16">
+      <div class="section-title">BUDGET PACING</div>
+      <div id="gads-pacing"></div>
+    </div>
+    <div class="card" id="gads-ahri-card">
+      <div class="section-title">AHRI RECOMMENDATION</div>
+      <div id="gads-ahri"></div>
+    </div>
   </div>
 
   <!-- Section: Decision Layer -->
@@ -532,7 +567,7 @@ function navigate(section) {
     case 'archive': loadArchive(); break;
     case 'account-access': loadAccountAccess(); break;
     case 'creative': loadCreative(); break;
-    case 'google-ads': break;
+    case 'google-ads': loadGoogleAds(); break;
   }
 }
 
@@ -1922,6 +1957,169 @@ async function loadCreativePerformance() {
 
   const hooksList = document.getElementById('hooks-list');
   if (hooksList) hooksList.after(widget);
+}
+
+// ════════════════════════════════════════════
+// GOOGLE ADS
+// ════════════════════════════════════════════
+function setGadsTab(range, btn) {
+  document.querySelectorAll('#gads-filter-bar .filter-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadGoogleAds(range);
+}
+
+async function loadGoogleAds(range = '7d') {
+  const location = state.currentLocation || 'bloomington';
+  const token = localStorage.getItem('gymsuite_token');
+  const headers = { 'Authorization': 'Bearer ' + token };
+
+  let data;
+  try {
+    const res = await fetch(`/api/google-ads/performance?range=${range}&location=${location}`, { headers });
+    data = await res.json();
+  } catch(e) {
+    document.getElementById('gads-metrics').innerHTML = '<div style="color:var(--red);font-family:var(--font-mono);font-size:12px">Failed to load Google Ads data</div>';
+    return;
+  }
+
+  const s = data.summary;
+
+  // Placeholder notice
+  const notice = document.getElementById('gads-placeholder-notice');
+  notice.innerHTML = data._is_placeholder
+    ? `<div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px 16px;margin-bottom:16px;color:var(--gold);font-family:var(--font-mono);font-size:12px">⚠ Placeholder data — connect Google Ads API to populate real data</div>`
+    : '';
+
+  // KPI metrics row — 7 cards
+  document.getElementById('gads-metrics').innerHTML = [
+    { label: 'SPEND',       value: '$' + s.spend.toLocaleString(),    sub: 'This period' },
+    { label: 'IMPRESSIONS', value: s.impressions.toLocaleString(),     sub: 'Ad views' },
+    { label: 'CLICKS',      value: s.clicks.toLocaleString(),          sub: 'To landing page' },
+    { label: 'CTR',         value: s.ctr + '%',                        sub: 'Click-through rate', color: s.ctr >= 2 ? 'var(--green)' : 'var(--gold)' },
+    { label: 'AVG CPC',     value: '$' + s.avg_cpc.toFixed(2),         sub: 'Per click' },
+    { label: 'CONVERSIONS', value: s.conversions,                      sub: 'Form fills' },
+    { label: 'GOOGLE CPL',  value: '$' + s.cpl.toFixed(2),             sub: 'Cost per lead', color: s.cpl <= 30 ? 'var(--green)' : 'var(--gold)' },
+  ].map(m => `
+    <div class="card">
+      <div class="card-label">${m.label}</div>
+      <div class="metric-value" style="${m.color ? 'color:' + m.color : ''}">${m.value}</div>
+      <div class="text-muted" style="margin-top:4px;font-size:11px">${m.sub}</div>
+    </div>
+  `).join('');
+
+  // Campaign table
+  const campHeaders = ['CAMPAIGN', 'STATUS', 'BUDGET/DAY', 'SPEND', 'CLICKS', 'CTR', 'CONV', 'CPL', 'QS'];
+  const campRows = data.campaigns.map(c => {
+    const statusColor = c.status === 'ACTIVE' ? 'var(--green)' : c.status === 'PAUSED' ? 'var(--gold)' : 'var(--red)';
+    const qsColor = c.quality_score >= 7 ? 'var(--green)' : c.quality_score >= 5 ? 'var(--gold)' : 'var(--red)';
+    return `<tr>
+      <td style="font-size:12px;padding:10px 8px;border-bottom:1px solid var(--border)">${esc(c.name)}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);color:${statusColor};font-family:var(--font-mono);font-size:11px">${c.status}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:12px">$${c.daily_budget}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:12px">$${c.spend}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:12px">${c.clicks}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:12px">${c.ctr}%</td>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:12px">${c.conversions}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:12px;color:${c.cpl <= 30 ? 'var(--green)' : 'var(--gold)'}">$${c.cpl.toFixed(2)}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:12px;color:${qsColor}">${c.quality_score}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('gads-campaigns-table').innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>${campHeaders.map(h => `<th style="text-align:left;padding:8px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border)">${h}</th>`).join('')}</tr></thead>
+      <tbody>${campRows}</tbody>
+    </table>`;
+
+  // Keyword table
+  const kwHeaders = ['KEYWORD', 'MATCH', 'IMP', 'CLICKS', 'CTR', 'CPC', 'CONV', 'QS'];
+  const kwRows = data.keywords.map(k => {
+    const qsColor = k.quality_score >= 7 ? 'var(--green)' : k.quality_score >= 5 ? 'var(--gold)' : 'var(--red)';
+    const matchColor = k.match_type === 'Exact' ? 'var(--cyan)' : k.match_type === 'Phrase' ? 'var(--violet)' : 'var(--text-muted)';
+    return `<tr>
+      <td style="font-size:11px;padding:8px 6px;border-bottom:1px solid var(--border)">${esc(k.keyword)}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:10px;color:${matchColor}">${k.match_type}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px">${k.impressions.toLocaleString()}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px">${k.clicks}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px">${k.ctr}%</td>
+      <td style="padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px">$${k.avg_cpc}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px">${k.conversions}</td>
+      <td style="padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:${qsColor}">${k.quality_score}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('gads-keywords-table').innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>${kwHeaders.map(h => `<th style="text-align:left;padding:6px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border)">${h}</th>`).join('')}</tr></thead>
+      <tbody>${kwRows}</tbody>
+    </table>`;
+
+  // Search terms table
+  const stRows = data.search_terms.map(t => `<tr>
+    <td style="font-size:11px;padding:8px 6px;border-bottom:1px solid var(--border)">${esc(t.term)}</td>
+    <td style="padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px">${t.clicks}</td>
+    <td style="padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px">${t.conversions}</td>
+    <td style="padding:8px 6px;border-bottom:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:${t.cpl && t.cpl <= 30 ? 'var(--green)' : t.cpl ? 'var(--gold)' : 'var(--text-muted)'}">${t.cpl ? '$' + t.cpl.toFixed(2) : '—'}</td>
+  </tr>`).join('');
+  document.getElementById('gads-search-terms-table').innerHTML = `
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr>${['SEARCH TERM', 'CLICKS', 'CONV', 'CPL'].map(h => `<th style="text-align:left;padding:6px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);border-bottom:1px solid var(--border)">${h}</th>`).join('')}</tr></thead>
+      <tbody>${stRows}</tbody>
+    </table>`;
+
+  // RSA Performance
+  const ratingColor = r => r === 'BEST' ? 'var(--green)' : r === 'GOOD' ? 'var(--cyan)' : 'var(--text-muted)';
+  const rsa = data.rsa_performance;
+  document.getElementById('gads-rsa').innerHTML = `
+    <div style="margin-bottom:16px">
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-bottom:8px">TOP HEADLINES</div>
+      ${rsa.top_headlines.map(h => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:12px">${esc(h.text)}</div>
+          <div style="display:flex;gap:16px;align-items:center">
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">${h.impressions.toLocaleString()} imp · ${h.ctr}% CTR</span>
+            <span style="font-family:var(--font-mono);font-size:10px;color:${ratingColor(h.rating)};min-width:36px;text-align:right">${h.rating}</span>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-bottom:8px">TOP DESCRIPTIONS</div>
+      ${rsa.top_descriptions.map(d => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:12px;max-width:70%">${esc(d.text)}</div>
+          <div style="display:flex;gap:16px;align-items:center">
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary)">${d.impressions.toLocaleString()} imp · ${d.ctr}% CTR</span>
+            <span style="font-family:var(--font-mono);font-size:10px;color:${ratingColor(d.rating)};min-width:36px;text-align:right">${d.rating}</span>
+          </div>
+        </div>`).join('')}
+    </div>`;
+
+  // Budget pacing
+  const p = data.pacing;
+  const pacingPct = Math.min(100, p.pacing_percent);
+  const pacingColor = pacingPct >= 80 ? 'var(--green)' : pacingPct >= 50 ? 'var(--gold)' : 'var(--red)';
+  document.getElementById('gads-pacing').innerHTML = `
+    <div style="display:flex;gap:32px;margin-bottom:16px">
+      <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">DAILY BUDGET</div><div style="font-family:var(--font-mono);font-size:20px;margin-top:4px">$${p.daily_budget_total}</div></div>
+      <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">AVG DAILY SPEND</div><div style="font-family:var(--font-mono);font-size:20px;margin-top:4px">$${p.actual_daily_avg}</div></div>
+      <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">MONTH SPEND</div><div style="font-family:var(--font-mono);font-size:20px;margin-top:4px">$${p.month_spend}</div></div>
+      <div><div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">MONTH BUDGET</div><div style="font-family:var(--font-mono);font-size:20px;margin-top:4px">$${p.month_budget}</div></div>
+    </div>
+    <div style="width:100%;background:rgba(255,255,255,0.08);border-radius:4px;height:8px;overflow:hidden">
+      <div style="width:${pacingPct}%;height:100%;background:${pacingColor};border-radius:4px;transition:width 0.6s ease"></div>
+    </div>
+    <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);margin-top:6px">${pacingPct}% of monthly budget used</div>`;
+
+  // AHRI Recommendation
+  const avgQS = s.avg_quality_score;
+  const qsNote = avgQS >= 7 ? 'Quality Scores are healthy.' : 'Quality Scores below 7 — tighten ad group themes and improve landing page relevance to reduce CPC.';
+  document.getElementById('gads-ahri').innerHTML = `
+    <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);border-radius:8px;padding:16px">
+      <div style="font-family:var(--font-mono);font-size:12px;color:var(--violet);margin-bottom:8px">💡 AHRI</div>
+      <div style="font-size:13px;line-height:1.6;color:var(--text-secondary)">
+        Avg Quality Score: <span style="color:${avgQS >= 7 ? 'var(--green)' : 'var(--gold)'};font-family:var(--font-mono)">${avgQS}</span>. ${qsNote}
+        Top performing search term is <em>"gym near me open now"</em> — ensure your landing page references proximity and availability.
+        Negative out <em>"cheap gym"</em> terms — they're generating clicks at zero conversions and wasting budget.
+      </div>
+    </div>`;
 }
 
 function askAhriRewrite() {

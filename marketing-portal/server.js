@@ -5263,6 +5263,97 @@ app.get('/api/creative-performance', requireAuth, (req, res) => {
   res.json({ creatives, _is_placeholder: false });
 });
 
+// ── Google Ads Performance ────────────────────────────────────────────────────
+app.get('/api/google-ads/performance', requireAuth, (req, res) => {
+  const locationId = req.query.location || 'bloomington';
+  const range = req.query.range || '7d';
+
+  let data = null;
+  try {
+    const raw = safeReadJSON(path.join(INTEL, locationId, 'paid', 'google-performance.json'));
+    if (raw && Object.keys(raw).length) data = raw;
+  } catch { /* fall through to placeholder */ }
+
+  if (data) return res.json({ ...data, _is_placeholder: false, range });
+
+  res.json({
+    _is_placeholder: true,
+    range,
+    summary: {
+      spend: 315,
+      impressions: 12400,
+      clicks: 287,
+      ctr: 2.31,
+      avg_cpc: 1.10,
+      conversions: 11,
+      cpl: 28.64,
+      avg_quality_score: 7.2,
+    },
+    campaigns: [
+      {
+        name: 'No-Risk Comeback — Search — Bloomington',
+        status: 'PAUSED',
+        daily_budget: 20,
+        spend: 189,
+        impressions: 7800,
+        clicks: 178,
+        ctr: 2.28,
+        avg_cpc: 1.06,
+        conversions: 7,
+        cpl: 27.00,
+        quality_score: 7.4,
+      },
+      {
+        name: 'Brand — Anytime Fitness Bloomington',
+        status: 'PAUSED',
+        daily_budget: 10,
+        spend: 126,
+        impressions: 4600,
+        clicks: 109,
+        ctr: 2.37,
+        avg_cpc: 1.16,
+        conversions: 4,
+        cpl: 31.50,
+        quality_score: 6.8,
+      },
+    ],
+    keywords: [
+      { keyword: 'gym near me',                    match_type: 'Phrase', impressions: 3200, clicks: 89, ctr: 2.78, avg_cpc: 1.02, conversions: 4, quality_score: 8 },
+      { keyword: 'anytime fitness bloomington',     match_type: 'Exact',  impressions: 1800, clicks: 76, ctr: 4.22, avg_cpc: 0.88, conversions: 3, quality_score: 9 },
+      { keyword: 'fitness center bloomington il',   match_type: 'Phrase', impressions: 2100, clicks: 62, ctr: 2.95, avg_cpc: 1.14, conversions: 2, quality_score: 7 },
+      { keyword: 'weight loss gym',                 match_type: 'Broad',  impressions: 4100, clicks: 48, ctr: 1.17, avg_cpc: 1.31, conversions: 1, quality_score: 6 },
+      { keyword: '30 day fitness challenge',        match_type: 'Phrase', impressions: 1200, clicks: 12, ctr: 1.00, avg_cpc: 1.22, conversions: 1, quality_score: 6 },
+    ],
+    search_terms: [
+      { term: 'gym near me open now',               clicks: 34, conversions: 2, cpl: 17.00  },
+      { term: 'anytime fitness near me',            clicks: 28, conversions: 2, cpl: 12.32  },
+      { term: 'fitness gym bloomington indiana',    clicks: 19, conversions: 1, cpl: 21.66  },
+      { term: '30 day gym trial',                   clicks: 14, conversions: 1, cpl: 17.08  },
+      { term: 'cheap gym membership near me',       clicks: 11, conversions: 0, cpl: null   },
+    ],
+    rsa_performance: {
+      top_headlines: [
+        { text: 'No-Risk 30-Day Kickstart',          impressions: 4200, ctr: 3.1, rating: 'BEST' },
+        { text: 'Gym Near Bloomington IL',            impressions: 3800, ctr: 2.8, rating: 'GOOD' },
+        { text: 'Try Us Free for 30 Days',            impressions: 3100, ctr: 2.6, rating: 'GOOD' },
+        { text: 'Join Anytime Fitness Today',         impressions: 2900, ctr: 1.9, rating: 'LOW'  },
+        { text: 'No Contract. No Risk.',              impressions: 2400, ctr: 2.2, rating: 'GOOD' },
+      ],
+      top_descriptions: [
+        { text: 'Start your 30-day kickstart for $1. No contract, no risk. Real results or your money back.', impressions: 5100, ctr: 2.9, rating: 'BEST' },
+        { text: 'Bloomington members lose an average of 12 lbs in 30 days. See if you qualify.',               impressions: 4200, ctr: 2.4, rating: 'GOOD' },
+      ],
+    },
+    pacing: {
+      daily_budget_total: 30,
+      actual_daily_avg: 22.50,
+      month_spend: 315,
+      month_budget: 900,
+      pacing_percent: 35,
+    },
+  });
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
