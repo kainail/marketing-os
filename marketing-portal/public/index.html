@@ -58,6 +58,11 @@
   <div class="nav-item" onclick="navigate('performance')" data-section="performance">
     <span class="nav-icon">📊</span> Performance
   </div>
+  <div class="nav-item" onclick="navigate('google-ads')" data-section="google-ads" style="opacity:0.4;cursor:not-allowed;" title="Coming soon">
+    <span class="nav-icon">📊</span>
+    <span>Google Ads</span>
+    <span style="font-size:9px;color:var(--text-muted);margin-left:auto">SOON</span>
+  </div>
   <div class="nav-item" onclick="navigate('decision')" data-section="decision">
     <span class="nav-icon">⚡</span> Decision Layer
   </div>
@@ -173,6 +178,12 @@
         <div id="efficiency-note"></div>
       </div>
     </div>
+  </div>
+
+  <!-- Section: Google Ads (placeholder) -->
+  <div id="section-google-ads" class="section">
+    <div class="section-title">GOOGLE ADS</div>
+    <div style="color:var(--text-muted);margin-top:32px;text-align:center;font-family:var(--font-mono);font-size:13px">Google Ads integration coming soon</div>
   </div>
 
   <!-- Section: Decision Layer -->
@@ -521,6 +532,7 @@ function navigate(section) {
     case 'archive': loadArchive(); break;
     case 'account-access': loadAccountAccess(); break;
     case 'creative': loadCreative(); break;
+    case 'google-ads': break;
   }
 }
 
@@ -613,6 +625,8 @@ async function loadOverview() {
 
   loadMetaCampaignStatus();
   loadAttributionOverviewWidget();
+  loadMetaTokenBanner();
+  loadGoalTracker();
 }
 
 async function loadAttributionOverviewWidget() {
@@ -1097,7 +1111,7 @@ function setPerfTab(tab, btn) {
   const attrView = document.getElementById('perf-attribution-view');
   if (tab === 'attribution') {
     if (standardView) standardView.style.display = 'none';
-    if (attrView) { attrView.style.display = 'block'; loadPerfAttribution(); }
+    if (attrView) { attrView.style.display = 'block'; if (!attrView.innerHTML.trim()) loadAttributionView(); }
   } else {
     if (standardView) standardView.style.display = 'block';
     if (attrView) attrView.style.display = 'none';
@@ -1376,6 +1390,7 @@ async function loadHooks() {
   state.hooks = data.hooks;
   document.getElementById('hooks-summary').textContent = `${data.total} hooks — ${data.hooks.filter(h=>h.status==='winner').length} winners — ${data.has_performance_data ? 'Live performance data' : 'No performance data yet'}`;
   renderHooks(state.hooks);
+  loadCreativePerformance();
 }
 
 function renderHooks(hooks) {
@@ -1629,87 +1644,284 @@ async function loadLanding() {
 // NURTURE & RETENTION
 // ════════════════════════════════════════════
 async function loadNurture() {
-  const data = await api('/api/nurture');
+  const locationId = 'bloomington';
+  const el = document.getElementById('section-nurture');
+  if (!el) return;
+  const data = await api(`/api/nurture/health?location=${locationId}`);
   if (!data) return;
 
-  // Critical members
-  const critical = data.critical_members || [];
-  const sectEl = document.getElementById('critical-members-section');
-  if (critical.length > 0) {
-    sectEl.innerHTML = `
-      <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:16px;margin-bottom:20px">
-        <div class="section-title" style="color:var(--red)">CALL TODAY (${critical.length} members)</div>
-        ${critical.map(m => `
-          <div class="member-card">
-            <div class="member-urgency critical"></div>
-            <div class="member-body">
-              <div class="member-name">${m.name || 'Member'}</div>
-              <div class="member-meta">${m.days_inactive || '14'}+ days inactive · Joined ${m.join_date || 'recently'} · ${m.archetype || 'Unknown'} archetype</div>
-              <div class="member-opener">"${m.recommended_opener || 'Hey, just checking in — haven\'t seen you in a bit. Everything good?'}"</div>
-              <div class="member-actions">
-                <button class="btn green" onclick="toast('Re-engagement marked','success')">✓ Re-engaged</button>
-                <button class="btn red" onclick="toast('Marked as churned','warning')">✗ Churned</button>
-              </div>
-            </div>
-          </div>`).join('')}
-      </div>`;
-  } else {
-    sectEl.innerHTML = `<div class="card mb-16" style="border-color:rgba(16,185,129,0.3)"><div style="color:var(--green)">✓ No critical members. All new members checked in within 14 days.</div></div>`;
-  }
+  const healthColor = data.overall_health >= 70 ? 'var(--green)' : data.overall_health >= 50 ? 'var(--gold)' : 'var(--red)';
 
-  // At-risk
-  const atRisk = [...(data.at_risk_members || []), ...(data.high_risk_members || [])];
-  const riskEl = document.getElementById('at-risk-section');
-  if (atRisk.length > 0) {
-    riskEl.innerHTML = `
-      <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:16px;margin-bottom:20px">
-        <div class="section-title" style="color:var(--gold)">AT RISK (${atRisk.length} members)</div>
-        ${atRisk.map(m => `
-          <div class="member-card">
-            <div class="member-urgency risk"></div>
-            <div class="member-body">
-              <div class="member-name">${m.name || 'Member'}</div>
-              <div class="member-meta">${m.days_inactive || '7'} days inactive · ${m.archetype || 'Unknown'} archetype</div>
-              <div class="member-opener">"${m.recommended_opener || 'Hey, haven\'t seen you in a bit — everything okay?'}"</div>
-            </div>
-          </div>`).join('')}
-      </div>`;
-  } else {
-    riskEl.innerHTML = '';
-  }
+  const placeholderBanner = data._is_placeholder ? `
+    <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px 16px;margin-bottom:16px;font-family:var(--font-mono);font-size:12px;color:var(--gold)">
+      ⚠ Placeholder data — connect GHL API for live nurture metrics
+    </div>` : '';
 
-  // Nurture sequence
-  const msgs = data.sequence || [];
-  const seqEl = document.getElementById('nurture-sequence');
-  if (msgs.length === 0) {
-    seqEl.innerHTML = `
+  const sortOrder = { critical: 0, watch: 1, healthy: 2 };
+  const sorted = [...(data.sequences || [])].sort((a, b) => (sortOrder[a.status] ?? 2) - (sortOrder[b.status] ?? 2));
+
+  const statusDot = (s) => {
+    const c = s === 'healthy' ? 'var(--green)' : s === 'watch' ? 'var(--gold)' : 'var(--red)';
+    return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${c};margin-right:6px;vertical-align:middle"></span>${s}`;
+  };
+
+  const dropOffRows = (data.drop_off || []).map(stage => {
+    const good = stage.rate >= stage.benchmark;
+    const barColor = good ? 'var(--green)' : 'var(--red)';
+    return `
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:13px;font-family:var(--font-mono);color:var(--text-secondary)">${stage.stage}</span>
+          <span style="font-size:13px;font-family:var(--font-mono);color:${barColor}">${stage.rate}%</span>
+        </div>
+        <div style="width:100%;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden">
+          <div style="width:${Math.min(stage.rate, 100)}%;height:100%;background:${barColor};border-radius:3px"></div>
+        </div>
+        <div class="text-muted" style="font-size:11px;margin-top:3px">Benchmark: ${stage.benchmark}%</div>
+      </div>`;
+  }).join('');
+
+  const seqRows = sorted.map(s => `
+    <tr>
+      <td style="font-family:var(--font-mono);font-size:12px">${esc(s.name)}</td>
+      <td>${s.steps}</td>
+      <td>${s.open_rate}%</td>
+      <td>${s.click_rate}%</td>
+      <td>${s.conversion_rate !== null ? s.conversion_rate + '%' : '—'}</td>
+      <td style="font-family:var(--font-mono);font-size:11px">${statusDot(s.status)}</td>
+    </tr>`).join('');
+
+  el.innerHTML = `
+    ${placeholderBanner}
+
+    <div class="metrics-row mb-16">
       <div class="card">
-        <div class="text-muted">No nurture sequence data yet. Run <strong>nurture-performance-analyzer</strong> (Sunday 9pm) to populate.</div>
-        <button class="btn" style="margin-top:12px" onclick="navigate('manus')">▶ Launch Task</button>
-      </div>`;
-  } else {
-    const statusColor = (rate) => rate >= 30 ? 'strong' : rate >= 15 ? 'acceptable' : rate >= 5 ? 'weak' : 'dead';
-    seqEl.innerHTML = `
-      <div class="nurture-msg-row">
-        ${msgs.map((m, i) => `
-          <div class="nurture-msg ${statusColor(m.reply_rate || 0)}" title="${m.message_preview || ''}" onclick="showNurtureMsg(${i})">
-            <div class="step">MSG ${m.step || i+1}</div>
-            <div class="rate">${m.reply_rate ? m.reply_rate+'%' : '—'}</div>
-            <div class="label">${statusColor(m.reply_rate || 0)}</div>
-          </div>`).join('')}
+        <div class="card-label">SEQUENCE HEALTH</div>
+        <div class="metric-value" style="color:${healthColor}">${data.overall_health}%</div>
       </div>
-      ${data.weak_links && data.weak_links.length > 0 ? `
-        <div class="card" style="border-color:rgba(249,115,22,0.3);background:rgba(249,115,22,0.06);margin-bottom:12px">
-          <div style="color:var(--orange);font-weight:600;margin-bottom:8px">⚠ Weak Link: Message ${data.weak_links.join(', ')}</div>
-          <div class="text-muted">Reply rate dropped 50%+ vs previous message.</div>
-          <button class="btn" style="margin-top:10px" onclick="askAhriRewrite()">▶ Ask AHRI to Rewrite</button>
-        </div>` : ''}`;
+      <div class="card">
+        <div class="card-label">SMS RESPONSE RATE</div>
+        <div class="metric-value ${data.sms.response_rate >= 15 ? 'green' : 'yellow'}">${data.sms.response_rate}%</div>
+      </div>
+      <div class="card">
+        <div class="card-label">OPT-OUT RATE</div>
+        <div class="metric-value ${data.sms.opt_out_rate <= 2 ? 'green' : 'red'}">${data.sms.opt_out_rate}%</div>
+      </div>
+    </div>
+
+    <div class="card mb-16">
+      <div class="section-title">PIPELINE DROP-OFF</div>
+      ${dropOffRows}
+    </div>
+
+    <div class="card mb-16">
+      <div class="section-title">SEQUENCE PERFORMANCE</div>
+      <table class="data-table">
+        <thead><tr><th>Sequence</th><th>Steps</th><th>Open Rate</th><th>Click Rate</th><th>Conv Rate</th><th>Status</th></tr></thead>
+        <tbody>${seqRows}</tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="section-title">SMS INTELLIGENCE</div>
+      <div style="display:flex;gap:32px;margin-bottom:16px">
+        <div><div class="card-label">Response Rate</div><div class="metric-value" style="font-size:22px">${data.sms.response_rate}%</div></div>
+        <div><div class="card-label">Opt-Out Rate</div><div class="metric-value" style="font-size:22px">${data.sms.opt_out_rate}%</div></div>
+        <div><div class="card-label">Avg Response Time</div><div class="metric-value" style="font-size:22px">${data.sms.avg_response_time_hours}h</div></div>
+      </div>
+      <div style="padding:12px 16px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.6">
+        💡 <strong style="color:var(--violet)">AHRI:</strong> Leads who respond to SMS within 1 hour convert at 3x the rate of email-only leads. Priority: get SMS consent on every form.
+      </div>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════════
+// META TOKEN BANNER
+// ════════════════════════════════════════════
+async function loadMetaTokenBanner() {
+  const data = await api('/api/meta/token-status');
+  if (!data || data.days_remaining > 21) return;
+  if (document.getElementById('meta-token-banner')) return;
+
+  const isCritical = data.status === 'critical';
+  const bg     = isCritical ? 'rgba(239,68,68,0.15)'  : 'rgba(249,115,22,0.15)';
+  const border = isCritical ? 'rgba(239,68,68,0.4)'   : 'rgba(249,115,22,0.4)';
+  const color  = isCritical ? '#EF4444'               : '#F97316';
+
+  const banner = document.createElement('div');
+  banner.id = 'meta-token-banner';
+  banner.style.cssText = `width:100%;padding:10px 16px;border-radius:8px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;background:${bg};border:1px solid ${border}`;
+  banner.innerHTML = `
+    <span style="font-family:var(--font-mono);font-size:12px;color:${color}">
+      ⚠ META TOKEN EXPIRES IN ${data.days_remaining} DAYS — Renew before ${data.expiry_date}
+    </span>
+    <a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener"
+       style="color:${color};text-decoration:none;font-weight:bold;font-family:var(--font-mono);font-size:12px">
+      RENEW NOW →
+    </a>
+  `;
+
+  const section = document.getElementById('section-overview');
+  if (section) section.prepend(banner);
+}
+
+// ════════════════════════════════════════════
+// MONTHLY GOAL TRACKER
+// ════════════════════════════════════════════
+async function loadGoalTracker() {
+  const data = await api('/api/goals?location=bloomington');
+  if (!data) return;
+
+  const existing = document.getElementById('goal-tracker-widget');
+  if (existing) existing.remove();
+
+  const now = new Date();
+  const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
+
+  const rows = data.goals.map((g, i) => {
+    const actual = g.actual !== null ? g.actual : 0;
+    const progress = Math.min((actual / g.target) * 100, 100);
+    const fillColor = g.lower_is_better
+      ? (actual > g.target ? 'var(--red)' : 'var(--green)')
+      : 'var(--purple)';
+    const perfColor = g.lower_is_better
+      ? (actual > g.target ? 'var(--red)' : 'var(--green)')
+      : (actual >= g.target ? 'var(--green)' : actual >= g.target * 0.7 ? 'var(--gold)' : 'var(--text-secondary)');
+    const display = g.unit === '$'
+      ? `$${g.actual !== null ? g.actual : '—'}/$${g.target}`
+      : `${g.actual !== null ? g.actual : '—'}/${g.target}${g.unit}`;
+    return `
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:13px;font-family:var(--font-mono);color:var(--text-secondary)">${g.label}</span>
+          <span style="font-size:13px;font-family:var(--font-mono);color:${perfColor}">${display}</span>
+        </div>
+        <div style="width:100%;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden">
+          <div style="width:${progress}%;height:100%;background:${fillColor};border-radius:3px;transition:width 0.4s"></div>
+        </div>
+        ${i === 0 ? `<div class="text-muted" style="font-size:11px;margin-top:3px">${daysLeft} days left in month</div>` : ''}
+      </div>`;
+  }).join('');
+
+  const widget = document.createElement('div');
+  widget.id = 'goal-tracker-widget';
+  widget.style.marginTop = '16px';
+  widget.innerHTML = `
+    <div class="section-title">MONTHLY GOALS — ${data.month}</div>
+    ${data._is_placeholder ? `<div style="font-size:11px;color:var(--gold);margin-bottom:10px;font-family:var(--font-mono)">⚠ Placeholder — connect Meta API for live data</div>` : ''}
+    ${rows}
+  `;
+
+  const briefEl = document.getElementById('overview-brief');
+  if (briefEl) briefEl.appendChild(widget);
+}
+
+// ════════════════════════════════════════════
+// ATTRIBUTION VIEW (PERFORMANCE TAB)
+// ════════════════════════════════════════════
+async function loadAttributionView() {
+  const el = document.getElementById('perf-attribution-view');
+  if (!el) return;
+  const data = await api('/api/attribution/report');
+
+  const byCampaign = (data && data.sessions_breakdown && data.sessions_breakdown.by_utm_campaign) || {};
+  const leads = (data && data.leads) || [];
+  const matchRate = (data && data.match_rate_pct) || 0;
+
+  const campaignRows = Object.entries(byCampaign).map(([campaign, clicks]) => {
+    const campLeads = leads.filter(l => l.campaign === campaign).length;
+    const matched = leads.filter(l => l.campaign === campaign && l.contact_id).length;
+    const matchPct = campLeads > 0 ? Math.round((matched / campLeads) * 100) : 0;
+    const members = leads.filter(l => l.campaign === campaign && l.became_member).length;
+    const cpl = campLeads > 0 && data.total_spend ? Math.round(data.total_spend / campLeads) : null;
+    const matchColor = matchPct >= 80 ? 'var(--green)' : matchPct >= 50 ? 'var(--gold)' : 'var(--red)';
+    return `<tr>
+      <td style="font-family:var(--font-mono);font-size:12px">${esc(campaign)}</td>
+      <td>Ad click</td>
+      <td>${clicks}</td>
+      <td>${campLeads}</td>
+      <td style="color:${matchColor}">${matchPct}%</td>
+      <td>${members}</td>
+      <td>${cpl !== null ? '$' + cpl : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const matchRateColor = matchRate > 80 ? 'var(--green)' : matchRate >= 50 ? 'var(--gold)' : 'var(--red)';
+
+  el.innerHTML = `
+    <div class="card mb-16">
+      <div class="section-title">LEAD JOURNEY BY CAMPAIGN</div>
+      ${campaignRows
+        ? `<table class="data-table"><thead><tr><th>Campaign</th><th>Source</th><th>Clicks</th><th>Leads</th><th>Match Rate</th><th>Members</th><th>CPL</th></tr></thead><tbody>${campaignRows}</tbody></table>`
+        : `<div class="text-muted" style="padding:16px;font-family:var(--font-mono);font-size:12px">No attribution data yet — UTM tracking active</div>`}
+    </div>
+    <div class="card">
+      <div class="section-title">MATCH RATE ANALYSIS</div>
+      <div style="font-size:48px;font-family:var(--font-display);color:${matchRateColor};margin-bottom:16px">${matchRate}%</div>
+      <ul style="color:var(--text-secondary);font-size:13px;line-height:2;padding-left:20px;margin-bottom:16px">
+        <li>No UTM parameters on ad click — direct traffic or organic visits counted as leads</li>
+        <li>Form submission domain mismatch — lead form URL doesn't match tracked landing page</li>
+        <li>Direct traffic — leads arriving without a tracked session in the attribution window</li>
+      </ul>
+      <div style="padding:14px 16px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.3);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7">
+        <strong style="color:var(--violet)">AHRI RECOMMENDATION:</strong> Ensure all Meta and Google ad destination URLs include UTM parameters (utm_source, utm_medium, utm_campaign). Embed the GHL form directly on the tracked landing page rather than redirecting. Target: &gt;80% match rate for reliable attribution.
+      </div>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════════
+// CREATIVE PERFORMANCE (HOOK LIBRARY)
+// ════════════════════════════════════════════
+async function loadCreativePerformance() {
+  const data = await api('/api/creative-performance?location=bloomington');
+  if (!data) return;
+
+  const existing = document.getElementById('creative-performance-widget');
+  if (existing) existing.remove();
+
+  const widget = document.createElement('div');
+  widget.id = 'creative-performance-widget';
+  widget.className = 'card';
+  widget.style.marginTop = '16px';
+
+  if (!data.creatives || data.creatives.length === 0) {
+    widget.innerHTML = `
+      <div class="section-title">CREATIVE PERFORMANCE</div>
+      <div class="text-muted" style="font-size:13px;font-family:var(--font-mono)">No performance data yet — hooks will appear here once campaigns run with tracked creatives</div>
+    `;
+  } else {
+    const verdictColor = (v) => {
+      if (!v) return 'var(--text-muted)';
+      const vl = v.toLowerCase();
+      if (vl === 'kill')   return 'var(--signal-kill)';
+      if (vl === 'watch')  return 'var(--signal-watch)';
+      if (vl === 'scale')  return 'var(--signal-scale)';
+      if (vl === 'double') return 'var(--signal-double)';
+      return 'var(--text-muted)';
+    };
+    const rows = data.creatives.map(c => `
+      <tr>
+        <td style="font-size:12px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.hook_text || c.text || c.asset_id || '—')}</td>
+        <td style="font-family:var(--font-mono);font-size:11px">${esc(c.hook_type || c.type || '—')}</td>
+        <td style="font-family:var(--font-mono);font-size:11px">${esc(c.status || '—')}</td>
+        <td style="font-family:var(--font-mono);font-size:11px">${c.cpl ? '$' + c.cpl : '—'}</td>
+        <td style="font-family:var(--font-mono);font-size:11px">${c.impressions ? c.impressions.toLocaleString() : '—'}</td>
+        <td style="font-family:var(--font-mono);font-size:11px">${c.ctr ? c.ctr + '%' : '—'}</td>
+        <td style="font-family:var(--font-mono);font-size:11px;font-weight:bold;color:${verdictColor(c.verdict)}">${c.verdict ? c.verdict.toUpperCase() : '—'}</td>
+      </tr>`).join('');
+    widget.innerHTML = `
+      <div class="section-title">CREATIVE PERFORMANCE</div>
+      <table class="data-table">
+        <thead><tr><th>Hook Text</th><th>Type</th><th>Status</th><th>CPL</th><th>Impressions</th><th>CTR</th><th>Verdict</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
   }
 
-  // Retention stats
-  document.getElementById('retention-stats').innerHTML = data.retention_rate_30d
-    ? `<div class="metrics-row"><div class="card"><div class="card-label">30-Day Retention</div><div class="metric-value ${data.retention_rate_30d >= 70 ? 'green' : 'yellow'}">${data.retention_rate_30d}%</div></div><div class="card"><div class="card-label">New Members (30d)</div><div class="metric-value">${data.new_members_30d}</div></div></div>`
-    : '<div class="text-muted">Run retention-early-warning (Wednesday 11am) to populate retention data.</div>';
+  const hooksList = document.getElementById('hooks-list');
+  if (hooksList) hooksList.after(widget);
 }
 
 function askAhriRewrite() {

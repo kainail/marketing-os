@@ -5182,6 +5182,87 @@ app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
   res.json({ success: true, deletedUser: { name: user.name, email: user.email } });
 });
 
+// ── Meta Token Status ─────────────────────────────────────────────────────────
+app.get('/api/meta/token-status', requireAuth, (req, res) => {
+  const expiryDate = '2026-05-29';
+  const daysRemaining = Math.ceil((new Date(expiryDate) - new Date()) / 86400000);
+  const status = daysRemaining <= 7 ? 'critical' : daysRemaining <= 21 ? 'warning' : 'ok';
+  res.json({ expiry_date: expiryDate, days_remaining: daysRemaining, status });
+});
+
+// ── Goals ─────────────────────────────────────────────────────────────────────
+app.get('/api/goals', requireAuth, (req, res) => {
+  const locationId = req.query.location || 'bloomington';
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const monthProgress = Math.round((now.getDate() / daysInMonth) * 100);
+  const monthName = now.toLocaleString('en-US', { month: 'long' });
+
+  let metaPerf = null;
+  try {
+    const raw = safeReadJSON(path.join(INTEL, locationId, 'paid', 'meta-performance.json'));
+    if (raw && Object.keys(raw).length) metaPerf = raw;
+  } catch { /* fall through to placeholder */ }
+
+  const isPlaceholder = !metaPerf;
+  res.json({
+    month: monthName,
+    month_progress: monthProgress,
+    _is_placeholder: isPlaceholder,
+    goals: [
+      { label: 'CPL Target',     target: 30,   actual: isPlaceholder ? 34  : (metaPerf.avg_cpl      || null), unit: '$', lower_is_better: true  },
+      { label: 'Monthly Leads',  target: 60,   actual: isPlaceholder ? 28  : (metaPerf.total_leads   || null), unit: '',  lower_is_better: false },
+      { label: 'Monthly Spend',  target: 1800, actual: isPlaceholder ? 974 : (metaPerf.total_spend   || null), unit: '$', lower_is_better: false },
+      { label: 'New Members',    target: 15,   actual: isPlaceholder ? 6   : (metaPerf.new_members   || null), unit: '',  lower_is_better: false },
+    ],
+  });
+});
+
+// ── Nurture Health ────────────────────────────────────────────────────────────
+app.get('/api/nurture/health', requireAuth, (req, res) => {
+  const locationId = req.query.location || 'bloomington';
+  let data = null;
+  try {
+    const raw = safeReadJSON(path.join(INTEL, locationId, 'nurture', 'sequence-performance.json'));
+    if (raw && Object.keys(raw).length) data = raw;
+  } catch { /* fall through to placeholder */ }
+
+  if (data) return res.json({ ...data, _is_placeholder: false });
+
+  res.json({
+    _is_placeholder: true,
+    overall_health: 72,
+    sequences: [
+      { name: 'No-Show Recovery',      steps: 5, open_rate: 38, click_rate: 12, conversion_rate: 8,    status: 'healthy' },
+      { name: 'New Lead Welcome',       steps: 7, open_rate: 52, click_rate: 18, conversion_rate: 14,   status: 'healthy' },
+      { name: 'Appointment Reminder',   steps: 3, open_rate: 71, click_rate: 24, conversion_rate: 31,   status: 'healthy' },
+      { name: 'Re-engagement 30D',      steps: 6, open_rate: 22, click_rate: 6,  conversion_rate: 3,    status: 'watch'   },
+      { name: 'Member Onboarding',      steps: 8, open_rate: 61, click_rate: 19, conversion_rate: null, status: 'healthy' },
+    ],
+    drop_off: [
+      { stage: 'Lead → Contact Made',    rate: 75, benchmark: 65 },
+      { stage: 'Contact → Appointment',  rate: 44, benchmark: 50 },
+      { stage: 'Appointment → Show',     rate: 75, benchmark: 70 },
+      { stage: 'Show → Member',          rate: 33, benchmark: 40 },
+    ],
+    sms: { response_rate: 18, opt_out_rate: 2.1, avg_response_time_hours: 0.4 },
+  });
+});
+
+// ── Creative Performance ──────────────────────────────────────────────────────
+app.get('/api/creative-performance', requireAuth, (req, res) => {
+  const locationId = req.query.location || 'bloomington';
+  let hooks = null;
+  try {
+    const raw = safeReadJSON(path.join(INTEL, locationId, 'assets', 'hooks.json'));
+    if (raw && Object.keys(raw).length) hooks = raw;
+  } catch { /* fall through to placeholder */ }
+
+  if (!hooks) return res.json({ creatives: [], _is_placeholder: true });
+  const creatives = Array.isArray(hooks) ? hooks : (hooks.hooks || hooks.items || []);
+  res.json({ creatives, _is_placeholder: false });
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
