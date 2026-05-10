@@ -2384,9 +2384,9 @@ async function loadManusTasks() {
   if (!data) return;
   state.manusTasks = data.tasks;
 
-  const weekly = ['paid-ads-analyzer','google-ads-analyzer','budget-pacing-tracker','clarity-analyzer','retention-early-warning','nurture-performance-analyzer','lead-journey-tracker','review-monitoring','referral-tracker','competitor-research','trend-monitoring'];
+  const weekly = ['paid-ads-analyzer','google-ads-analyzer','budget-pacing-tracker','clarity-analyzer','retention-early-warning','nurture-performance-analyzer','lead-journey-tracker','review-monitoring','referral-tracker','competitor-research','trend-monitoring','google-search-term-harvest'];
   const monthly = ['crm-hygiene','gbp-optimization','monthly-report'];
-  const ondemand = ['content-posting', 'paid-ads-setup'];
+  const ondemand = ['content-posting', 'paid-ads-setup', 'google-keyword-intelligence'];
 
   const renderTaskList = (tasks, containerId) => {
     const el = document.getElementById(containerId);
