@@ -54,6 +54,7 @@ class GoogleAdsService {
       };
     } catch (err) {
       console.error(`[GoogleAds] testConnection error (${locationId}):`, err.message);
+      console.error('[GADS TEST ERROR]', err);
       throw err;
     }
   }
