@@ -28,6 +28,14 @@ class GoogleAdsService {
 
   _getCustomer(creds) {
     const { GoogleAdsApi } = require('google-ads-api');
+    console.log('[GADS CLIENT CONFIG]', {
+      client_id: creds.clientId ? 'set' : 'missing',
+      client_secret: creds.clientSecret ? 'set' : 'missing',
+      developer_token: creds.developerToken ? 'set' : 'missing',
+      customer_id: creds.customerId.replace(/-/g, ''),
+      login_customer_id: creds.managerCustomerId,
+      refresh_token_prefix: creds.refreshToken ? creds.refreshToken.substring(0, 10) : 'missing'
+    });
     const client = new GoogleAdsApi({
       client_id: creds.clientId,
       client_secret: creds.clientSecret,
