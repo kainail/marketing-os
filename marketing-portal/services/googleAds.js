@@ -23,7 +23,7 @@ class GoogleAdsService {
       throw new Error(`Google Ads credentials missing for location "${locationId}": ${missing.join(', ')}`);
     }
 
-    return { customerId, developerToken, clientId, clientSecret, refreshToken };
+    return { customerId, developerToken, clientId, clientSecret, refreshToken, managerCustomerId: '417-863-0195'.replace(/-/g, '') };
   }
 
   _getCustomer(creds) {
@@ -36,6 +36,7 @@ class GoogleAdsService {
     return client.Customer({
       customer_id: creds.customerId.replace(/-/g, ''),
       refresh_token: creds.refreshToken,
+      login_customer_id: creds.managerCustomerId,
     });
   }
 
