@@ -43,6 +43,12 @@ class GoogleAdsService {
   async testConnection(locationId) {
     try {
       const creds = this._getCredentials(locationId);
+      console.log('[GADS CREDS CHECK]', {
+        customerId: creds.customerId,
+        managerCustomerId: creds.managerCustomerId,
+        hasDeveloperToken: !!creds.developerToken,
+        hasRefreshToken: !!creds.refreshToken
+      });
       const customer = this._getCustomer(creds);
       const result = await customer.query(
         'SELECT customer.id, customer.descriptive_name FROM customer LIMIT 1'
