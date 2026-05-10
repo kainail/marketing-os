@@ -2437,7 +2437,7 @@ async function launchManusTask(filename) {
   try {
     const raw = await fetch('/api/manus/trigger', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('gymsuite_token') },
       body: JSON.stringify({ task_filename: filename })
     });
     res = await raw.json();
