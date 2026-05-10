@@ -1,0 +1,16 @@
+{
+  "location": "bloomington",
+  "generated": null,
+  "status": "pending_manus_research",
+  "seed_keywords": [],
+  "competitor_keywords": [],
+  "negative_seed_list": [
+    "jobs", "hiring", "careers", "apply", "salary", "employment",
+    "free gym", "free membership", "free fitness",
+    "home workout", "workout at home", "no equipment",
+    "how to", "what is", "definition", "wikipedia", "youtube",
+    "personal trainer only", "online coaching", "virtual fitness"
+  ],
+  "cpc_benchmarks": {},
+  "recommended_ad_groups": []
+}

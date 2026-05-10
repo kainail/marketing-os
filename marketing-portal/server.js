@@ -5354,6 +5354,250 @@ app.get('/api/google-ads/performance', requireAuth, (req, res) => {
   });
 });
 
+// ── Google Ads — New Routes ───────────────────────────────────────────────────
+const googleAdsService = require('./services/googleAds');
+
+// GET /api/google-ads/test-connection
+app.get('/api/google-ads/test-connection', requireAuth, async (req, res) => {
+  const location = req.query.location || 'bloomington';
+  try {
+    const result = await googleAdsService.testConnection(location);
+    res.json({ connected: true, customer_id: result.customerId, account_name: result.accountName });
+  } catch (err) {
+    if (err.message && err.message.includes('credentials missing')) {
+      return res.json({ connected: false, reason: 'credentials_missing', setup_required: true });
+    }
+    res.json({ connected: false, reason: err.message });
+  }
+});
+
+// GET /api/google-ads/keywords
+app.get('/api/google-ads/keywords', requireAuth, (req, res) => {
+  const location = req.query.location || 'bloomington';
+  const data = safeReadJSON(path.join(INTEL, location, 'paid', 'google-keywords.json'));
+  if (!data || Object.keys(data).length === 0) {
+    return res.json({ status: 'pending', keywords: [], message: 'Run Manus keyword research first' });
+  }
+  res.json(data);
+});
+
+// GET /api/google-ads/search-terms
+app.get('/api/google-ads/search-terms', requireAuth, async (req, res) => {
+  const location = req.query.location || 'bloomington';
+  try {
+    const search_terms = await googleAdsService.getSearchTerms(location, null);
+    res.json({ search_terms, _is_placeholder: false });
+  } catch (err) {
+    if (err.message && err.message.includes('credentials missing')) {
+      return res.json({
+        _is_placeholder: true,
+        search_terms: [
+          { term: 'gym near me open now',            clicks: 34, conversions: 2, cpl: 17.00 },
+          { term: 'anytime fitness near me',          clicks: 28, conversions: 2, cpl: 12.32 },
+          { term: 'fitness gym bloomington indiana',  clicks: 19, conversions: 1, cpl: 21.66 },
+          { term: '30 day gym trial',                 clicks: 14, conversions: 1, cpl: 17.08 },
+          { term: 'cheap gym membership near me',     clicks: 11, conversions: 0, cpl: null  },
+          { term: 'gym jobs bloomington',             clicks: 9,  conversions: 0, cpl: null  },
+          { term: 'home workout equipment',           clicks: 8,  conversions: 0, cpl: null  },
+          { term: 'women gym near me',                clicks: 22, conversions: 1, cpl: 24.50 },
+        ],
+      });
+    }
+    console.error('[Google Ads] /search-terms error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/google-ads/quality-scores
+app.get('/api/google-ads/quality-scores', requireAuth, async (req, res) => {
+  const location = req.query.location || 'bloomington';
+  try {
+    const result = await googleAdsService.getQualityScores(location);
+    res.json({ ...result, _is_placeholder: false });
+  } catch (err) {
+    if (err.message && err.message.includes('credentials missing')) {
+      return res.json({
+        _is_placeholder: true,
+        overall_avg: 7.2,
+        ad_groups: [
+          {
+            id: 'placeholder-1', name: 'Gym Near Me', avg_qs: 8.0,
+            keywords: [
+              { keyword: 'gym near me',                quality_score: 8, creative_quality: 'ABOVE_AVERAGE', post_click_quality: 'ABOVE_AVERAGE', expected_ctr: 'ABOVE_AVERAGE' },
+              { keyword: 'fitness center near me',     quality_score: 7, creative_quality: 'AVERAGE',       post_click_quality: 'ABOVE_AVERAGE', expected_ctr: 'AVERAGE'       },
+              { keyword: 'gym near bloomington il',    quality_score: 9, creative_quality: 'ABOVE_AVERAGE', post_click_quality: 'ABOVE_AVERAGE', expected_ctr: 'ABOVE_AVERAGE' },
+            ],
+          },
+          {
+            id: 'placeholder-2', name: '30-Day Challenge', avg_qs: 6.3,
+            keywords: [
+              { keyword: '30 day fitness challenge',   quality_score: 6, creative_quality: 'AVERAGE',       post_click_quality: 'AVERAGE',       expected_ctr: 'AVERAGE'       },
+              { keyword: 'gym 30 day trial',           quality_score: 7, creative_quality: 'AVERAGE',       post_click_quality: 'ABOVE_AVERAGE', expected_ctr: 'AVERAGE'       },
+              { keyword: 'fitness kickstart program',  quality_score: 6, creative_quality: 'AVERAGE',       post_click_quality: 'AVERAGE',       expected_ctr: 'BELOW_AVERAGE' },
+            ],
+          },
+          {
+            id: 'placeholder-3', name: 'Brand — Anytime Fitness', avg_qs: 9.0,
+            keywords: [
+              { keyword: 'anytime fitness bloomington', quality_score: 9, creative_quality: 'ABOVE_AVERAGE', post_click_quality: 'ABOVE_AVERAGE', expected_ctr: 'ABOVE_AVERAGE' },
+              { keyword: 'anytime fitness near me',     quality_score: 9, creative_quality: 'ABOVE_AVERAGE', post_click_quality: 'ABOVE_AVERAGE', expected_ctr: 'ABOVE_AVERAGE' },
+            ],
+          },
+        ],
+      });
+    }
+    console.error('[Google Ads] /quality-scores error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/google-ads/conversion-status
+app.get('/api/google-ads/conversion-status', requireAuth, (req, res) => {
+  const location = req.query.location || 'bloomington';
+  const K = location.toUpperCase();
+  const stored = safeReadJSON(path.join(INTEL, location, 'setup', 'conversion-tracking.json'));
+  const get = (id) => (stored && stored[id]) ? stored[id] : 'unknown';
+  const items = [
+    { id: 'gtm',                  label: 'GTM installed on landing page',     status: get('gtm')              },
+    { id: 'linker',               label: 'Conversion linker tag active',       status: get('linker')           },
+    { id: 'form_trigger',         label: 'Form submission trigger firing',     status: get('form_trigger')     },
+    { id: 'call_tracking',        label: 'Call tracking number active',        status: get('call_tracking')    },
+    { id: 'ghl_webhook',          label: 'GHL offline conversion webhook',     status: get('ghl_webhook')      },
+    { id: 'test_conversion',      label: 'Test conversion confirmed',          status: get('test_conversion')  },
+    { id: 'conversion_action_id', label: 'Conversion Action ID in Railway',   status: process.env[`GOOGLE_ADS_CONVERSION_ACTION_ID_${K}`] ? 'complete' : 'incomplete' },
+  ];
+  const all_complete = items.every(i => i.status === 'complete');
+  res.json({ items, all_complete, can_launch: all_complete });
+});
+
+// POST /api/google-ads/create-campaign
+app.post('/api/google-ads/create-campaign', requireAuth, async (req, res) => {
+  const { location = 'bloomington', campaignType, dailyBudget, name } = req.body;
+  if (!campaignType || !dailyBudget || !name) {
+    return res.status(400).json({ success: false, reason: 'Missing required fields: campaignType, dailyBudget, name' });
+  }
+  try {
+    const result = await googleAdsService.createCampaign(location, { campaignType, dailyBudget, name });
+    const perfPath = path.join(INTEL, location, 'paid', 'google-performance.json');
+    const perf = safeReadJSON(perfPath) || {};
+    if (!perf.campaigns) perf.campaigns = [];
+    perf.campaigns.push({ ...result, created_at: new Date().toISOString(), daily_budget: dailyBudget });
+    fs.mkdirSync(path.dirname(perfPath), { recursive: true });
+    fs.writeFileSync(perfPath, JSON.stringify(perf, null, 2));
+    res.json({ success: true, ...result });
+  } catch (err) {
+    if (err.message && err.message.includes('credentials missing')) {
+      return res.json({ success: false, reason: 'credentials_missing', setup_required: true });
+    }
+    console.error('[Google Ads] /create-campaign error:', err.message);
+    res.status(500).json({ success: false, reason: err.message });
+  }
+});
+
+// POST /api/google-ads/create-ad-group
+app.post('/api/google-ads/create-ad-group', requireAuth, async (req, res) => {
+  const { location = 'bloomington', campaignId, name, theme, keywords = [] } = req.body;
+  if (!campaignId || !name) {
+    return res.status(400).json({ success: false, reason: 'Missing required fields: campaignId, name' });
+  }
+  try {
+    const adGroup = await googleAdsService.createAdGroup(location, { campaignId, name, theme });
+    const adGroupId = adGroup.ad_group_id.split('/').pop();
+    let keywords_added = 0;
+    if (keywords.length > 0) {
+      await googleAdsService.addKeywords(location, adGroupId, keywords);
+      keywords_added = keywords.length;
+    }
+    res.json({ success: true, ad_group_id: adGroup.ad_group_id, name, keywords_added });
+  } catch (err) {
+    if (err.message && err.message.includes('credentials missing')) {
+      return res.json({ success: false, reason: 'credentials_missing', setup_required: true });
+    }
+    console.error('[Google Ads] /create-ad-group error:', err.message);
+    res.status(500).json({ success: false, reason: err.message });
+  }
+});
+
+// POST /api/google-ads/create-rsa
+app.post('/api/google-ads/create-rsa', requireAuth, async (req, res) => {
+  const { location = 'bloomington', adGroupId, headlines = [], descriptions = [], displayUrlPath1 = '', displayUrlPath2 = '', pinnedHeadlines = [] } = req.body;
+  if (headlines.length !== 15) return res.status(400).json({ success: false, reason: 'headlines array must have exactly 15 items' });
+  if (descriptions.length !== 4) return res.status(400).json({ success: false, reason: 'descriptions array must have exactly 4 items' });
+  if (!adGroupId) return res.status(400).json({ success: false, reason: 'adGroupId is required' });
+  try {
+    const result = await googleAdsService.createRSA(location, adGroupId, { headlines, descriptions, displayUrlPath1, displayUrlPath2, pinnedHeadlines });
+    const logPath = path.join(INTEL, location, 'paid', 'google-rsa-log.json');
+    const log = safeReadJSON(logPath) || { location, ad_groups: [] };
+    log.ad_groups.push({
+      ad_group_id: adGroupId,
+      rsa_id:      result.rsa_id,
+      created_at:  new Date().toISOString(),
+      headlines:   headlines.map((text, i) => ({ text, pinned: pinnedHeadlines[i] || null, rating: 'PENDING' })),
+      descriptions: descriptions.map(text => ({ text, rating: 'PENDING' })),
+      display_url_path1: displayUrlPath1,
+      display_url_path2: displayUrlPath2,
+    });
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    fs.writeFileSync(logPath, JSON.stringify(log, null, 2));
+    res.json({ success: true, ...result });
+  } catch (err) {
+    if (err.message && err.message.includes('credentials missing')) {
+      return res.json({ success: false, reason: 'credentials_missing', setup_required: true });
+    }
+    console.error('[Google Ads] /create-rsa error:', err.message);
+    res.status(500).json({ success: false, reason: err.message });
+  }
+});
+
+// POST /api/google-ads/add-negatives
+app.post('/api/google-ads/add-negatives', requireAuth, async (req, res) => {
+  const { location = 'bloomington', campaignId, negatives = [], source = 'manual' } = req.body;
+  if (!campaignId || negatives.length === 0) {
+    return res.status(400).json({ success: false, reason: 'Missing required fields: campaignId, negatives' });
+  }
+  try {
+    await googleAdsService.addNegatives(location, campaignId, negatives);
+    const kwPath = path.join(INTEL, location, 'paid', 'google-keywords.json');
+    const kw = safeReadJSON(kwPath) || {};
+    if (!kw.negatives_added) kw.negatives_added = [];
+    kw.negatives_added.push({ added_at: new Date().toISOString(), source, campaign_id: campaignId, terms: negatives });
+    fs.mkdirSync(path.dirname(kwPath), { recursive: true });
+    fs.writeFileSync(kwPath, JSON.stringify(kw, null, 2));
+    res.json({ success: true, count: negatives.length });
+  } catch (err) {
+    if (err.message && err.message.includes('credentials missing')) {
+      return res.json({ success: false, reason: 'credentials_missing', setup_required: true });
+    }
+    console.error('[Google Ads] /add-negatives error:', err.message);
+    res.status(500).json({ success: false, reason: err.message });
+  }
+});
+
+// POST /api/google-ads/sync
+app.post('/api/google-ads/sync', requireAuth, async (req, res) => {
+  const location = req.query.location || (req.body && req.body.location) || 'bloomington';
+  try {
+    const data = await googleAdsService.syncPerformance(location);
+    res.json({ success: true, synced_at: data.synced_at, campaigns_count: (data.campaigns || []).length });
+  } catch (err) {
+    if (err.message && err.message.includes('credentials missing')) {
+      return res.json({ success: false, reason: 'credentials_missing', setup_required: true });
+    }
+    console.error('[Google Ads] /sync error:', err.message);
+    res.status(500).json({ success: false, reason: err.message });
+  }
+});
+
+// GET /api/google-ads/rsa-log
+app.get('/api/google-ads/rsa-log', requireAuth, (req, res) => {
+  const location = req.query.location || 'bloomington';
+  const data = safeReadJSON(path.join(INTEL, location, 'paid', 'google-rsa-log.json'));
+  if (!data || Object.keys(data).length === 0) {
+    return res.json({ ad_groups: [], last_updated: null });
+  }
+  res.json({ ...data, last_updated: data.last_updated || null });
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -5688,6 +5932,19 @@ cron.schedule('0 * * * *', async () => {
       }
     } catch (err) {
       console.error(`[rules] Error checking ${rule.id}:`, err.message);
+    }
+  }
+}, { timezone: 'America/Indiana/Indianapolis' });
+
+// ── Google Ads daily sync — 6:00 AM per active location ──────────────────────
+cron.schedule('0 6 * * *', async () => {
+  const activeLocations = locationConfig.getActiveLocations();
+  for (const loc of activeLocations) {
+    try {
+      const data = await googleAdsService.syncPerformance(loc.id);
+      console.log(`[Google Ads cron] ${new Date().toISOString()} — synced ${loc.id}: ${(data.campaigns || []).length} campaigns`);
+    } catch (err) {
+      console.error(`[Google Ads cron] ${new Date().toISOString()} — sync failed for ${loc.id}:`, err.message);
     }
   }
 }, { timezone: 'America/Indiana/Indianapolis' });

@@ -264,6 +264,81 @@
       <div style="font-size:12px;color:var(--text-muted);margin-top:10px;text-align:center">Campaign created as PAUSED — activate in Ads Manager when ready to spend</div>
     </div>
 
+    <!-- GOOGLE ADS — CAMPAIGN BUILDER -->
+    <div id="gads-campaign-builder-card" class="card mb-24" style="border:1px solid rgba(59,130,246,0.4)">
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Google Ads — Search Campaign</div>
+        <div style="font-weight:700;font-size:18px;color:#fff;margin-bottom:4px">GOOGLE ADS — CAMPAIGN BUILDER</div>
+        <div style="color:var(--text-muted);font-size:13px">Create a search campaign via Google Ads API — created as PAUSED, no spend until activated</div>
+      </div>
+      <div id="gads-connection-status" style="margin-bottom:16px">
+        <div style="font-size:13px;color:rgba(232,234,240,0.45)">Checking Google Ads connection...</div>
+      </div>
+      <div id="gads-campaign-builder-form" style="display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Campaign Type</div>
+            <select id="gads-campaign-type" style="width:100%;background:#0f172a;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#fff;font-size:13px;font-family:inherit">
+              <option value="non_branded_search">Non-Branded Search (60% budget)</option>
+              <option value="branded_search">Branded Search (20% budget)</option>
+              <option value="remarketing_display">Remarketing Display (20% budget)</option>
+            </select>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Daily Budget ($)</div>
+            <input id="gads-daily-budget" type="number" min="5" max="500" value="20" style="width:100%;background:#0f172a;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#fff;font-size:13px;font-family:inherit;box-sizing:border-box">
+          </div>
+        </div>
+        <div style="margin-bottom:16px">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Campaign Name</div>
+          <input id="gads-campaign-name" type="text" style="width:100%;background:#0f172a;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 12px;color:#fff;font-size:13px;font-family:inherit;box-sizing:border-box" placeholder="e.g. No-Risk Kickstart — Search — Bloomington">
+        </div>
+        <div style="background:#0f172a;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text-muted)">Bidding strategy</span><span style="color:#fff;font-weight:600">Manual CPC + Enhanced CPC</span></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text-muted)">Created as</span><span style="color:#f59e0b;font-weight:600">PAUSED — no spend until activated</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Switch to Target CPA</span><span style="color:#fff;font-weight:600">After 30 conversions in 30 days</span></div>
+        </div>
+        <div id="gads-campaign-error" style="color:#ef4444;font-size:13px;margin-bottom:12px;display:none"></div>
+        <button id="gads-create-campaign-btn" class="btn green" style="width:100%;font-size:15px;padding:14px;font-weight:700;letter-spacing:.02em" onclick="createGadsCampaign()">
+          CREATE CAMPAIGN IN GOOGLE
+        </button>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:10px;text-align:center">Campaign created as PAUSED — activate in Google Ads Manager when ready to spend</div>
+      </div>
+    </div>
+
+    <!-- CONVERSION TRACKING -->
+    <div class="card mb-24">
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Google Ads Pre-Launch Checklist</div>
+        <div style="font-weight:700;font-size:16px;color:#fff">CONVERSION TRACKING</div>
+      </div>
+      <div id="gads-conversion-checklist">
+        <div style="font-size:13px;color:rgba(232,234,240,0.45)">Loading checklist...</div>
+      </div>
+    </div>
+
+    <!-- KEYWORD INTELLIGENCE -->
+    <div class="card mb-24">
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Manus Research Output</div>
+        <div style="font-weight:700;font-size:16px;color:#fff">KEYWORD INTELLIGENCE</div>
+      </div>
+      <div id="gads-keyword-intelligence">
+        <div style="font-size:13px;color:rgba(232,234,240,0.45)">Loading keyword data...</div>
+      </div>
+    </div>
+
+    <!-- NEGATIVE KEYWORD QUEUE -->
+    <div class="card mb-24">
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Harvest Recommendations — Approve Before Adding</div>
+        <div style="font-weight:700;font-size:16px;color:#fff">NEGATIVE KEYWORD QUEUE</div>
+      </div>
+      <div id="gads-negative-queue">
+        <div style="font-size:13px;color:rgba(232,234,240,0.45)">Loading queue...</div>
+      </div>
+    </div>
+
     <div id="attribution-intelligence"></div>
     <div class="section-title">ACTIVE SIGNALS</div>
     <div id="signals-list"></div>
@@ -1230,6 +1305,168 @@ async function loadDecision() {
   renderSignals(signals);
   renderAbTests(testsData);
   renderAttributionIntelligence(attrData);
+
+  // Google Ads Decision Layer
+  loadGadsConnectionStatus();
+  loadGadsConversionStatus();
+  loadGadsKeywordIntelligence();
+}
+
+async function loadGadsConnectionStatus() {
+  const statusEl = document.getElementById('gads-connection-status');
+  const formEl   = document.getElementById('gads-campaign-builder-form');
+  if (!statusEl) return;
+  const data = await api('/api/google-ads/test-connection');
+  if (!data) {
+    statusEl.innerHTML = '<div style="color:#ef4444;font-size:13px">Could not reach server.</div>';
+    return;
+  }
+  if (data.connected) {
+    statusEl.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,0.5)"></div><span style="font-size:13px;color:#22c55e;font-weight:600">Connected</span><span style="font-size:12px;color:var(--text-muted)">${data.account_name} (${data.customer_id})</span></div>`;
+    if (formEl) formEl.style.display = 'block';
+    const nameInput = document.getElementById('gads-campaign-name');
+    if (nameInput && !nameInput.value) nameInput.value = 'No-Risk Kickstart — Non-Branded Search — Bloomington';
+  } else {
+    const isSetup = data.reason === 'credentials_missing';
+    statusEl.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><div style="width:8px;height:8px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px rgba(239,68,68,0.5)"></div><span style="font-size:13px;color:#ef4444;font-weight:600">Not Connected</span></div>
+      ${isSetup ? `<div style="background:#0f172a;border-radius:8px;padding:12px;font-size:12px;color:rgba(232,234,240,0.55)">Add Google Ads credentials in onboarding Step 3B, then set Railway env vars:<br><code style="color:#a78bfa">GOOGLE_ADS_CUSTOMER_ID_BLOOMINGTON</code><br><code style="color:#a78bfa">GOOGLE_ADS_DEVELOPER_TOKEN</code><br><code style="color:#a78bfa">GOOGLE_ADS_CLIENT_ID</code><br><code style="color:#a78bfa">GOOGLE_ADS_CLIENT_SECRET</code><br><code style="color:#a78bfa">GOOGLE_ADS_REFRESH_TOKEN_BLOOMINGTON</code></div>` : `<div style="font-size:12px;color:#ef4444">${data.reason}</div>`}
+    `;
+  }
+}
+
+async function loadGadsConversionStatus() {
+  const el = document.getElementById('gads-conversion-checklist');
+  if (!el) return;
+  const data = await api('/api/google-ads/conversion-status');
+  if (!data) { el.innerHTML = '<div style="font-size:13px;color:rgba(232,234,240,0.45)">Could not load checklist.</div>'; return; }
+  const dot = (status) => {
+    const color = status === 'complete' ? '#22c55e' : status === 'incomplete' ? '#ef4444' : '#6b7280';
+    const glow  = status === 'complete' ? 'rgba(34,197,94,0.4)' : status === 'incomplete' ? 'rgba(239,68,68,0.4)' : 'transparent';
+    return `<div style="width:8px;height:8px;border-radius:50%;background:${color};box-shadow:0 0 5px ${glow};flex-shrink:0;margin-top:3px"></div>`;
+  };
+  const rows = (data.items || []).map(item => `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+      ${dot(item.status)}
+      <div style="flex:1"><div style="font-size:13px;color:#fff">${item.label}</div><div style="font-size:11px;color:var(--text-muted);text-transform:capitalize">${item.status}</div></div>
+    </div>`).join('');
+  const banner = data.all_complete
+    ? '<div style="margin-top:12px;padding:10px 14px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:8px;font-size:13px;color:#22c55e;font-weight:600">All systems go — campaign can launch</div>'
+    : '<div style="margin-top:12px;padding:10px 14px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.25);border-radius:8px;font-size:13px;color:#ef4444">Campaign cannot launch until all items are complete</div>';
+  el.innerHTML = rows + banner;
+}
+
+async function loadGadsKeywordIntelligence() {
+  const kwEl  = document.getElementById('gads-keyword-intelligence');
+  const negEl = document.getElementById('gads-negative-queue');
+  if (!kwEl) return;
+  const data = await api('/api/google-ads/keywords');
+  if (!data || data.status === 'pending') {
+    kwEl.innerHTML = `
+      <div style="text-align:center;padding:20px">
+        <div style="font-size:13px;color:rgba(232,234,240,0.55);margin-bottom:12px">Run Manus keyword research task first</div>
+        <div style="font-size:12px;color:rgba(232,234,240,0.35);margin-bottom:16px">Task: <code style="color:#a78bfa">google-keyword-intelligence.md</code></div>
+        <div style="font-size:12px;color:rgba(232,234,240,0.35)">This research gives AHRI seed keywords, CPC benchmarks, and the recommended ad group structure for ${data && data.location ? data.location : 'this location'}.</div>
+      </div>`;
+    if (negEl) negEl.innerHTML = '<div style="font-size:13px;color:rgba(232,234,240,0.45)">Run keyword research first to populate the harvest queue.</div>';
+    return;
+  }
+  const adGroups = data.recommended_ad_groups || [];
+  if (adGroups.length === 0) {
+    kwEl.innerHTML = '<div style="font-size:13px;color:rgba(232,234,240,0.45)">Keyword research complete — no ad groups recommended yet.</div>';
+  } else {
+    kwEl.innerHTML = adGroups.map(ag => `
+      <details style="margin-bottom:8px;background:#0f172a;border-radius:8px;overflow:hidden">
+        <summary style="padding:12px 14px;cursor:pointer;font-size:13px;font-weight:600;color:#fff;list-style:none;display:flex;align-items:center;justify-content:space-between">
+          <span>${ag.theme || ag.name}</span>
+          <span style="font-size:11px;color:var(--text-muted);font-weight:400">${(ag.keywords || []).length} keywords</span>
+        </summary>
+        <div style="padding:0 14px 12px">
+          ${(ag.keywords || []).map(k => `<div style="font-size:12px;color:rgba(232,234,240,0.7);padding:3px 0;font-family:monospace">${typeof k === 'string' ? k : k.text} <span style="color:rgba(232,234,240,0.3)">[${k.match_type || 'phrase'}]</span></div>`).join('')}
+        </div>
+      </details>`).join('');
+  }
+  const recs = (data.harvest_recommendations || []).filter(r => r.type === 'negative');
+  if (negEl) {
+    if (recs.length === 0) {
+      negEl.innerHTML = '<div style="font-size:13px;color:rgba(232,234,240,0.45)">No negative keyword recommendations yet. Run the weekly search term harvest.</div>';
+    } else {
+      negEl.innerHTML = recs.map((r, i) => `
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
+          <div style="flex:1">
+            <div style="font-size:13px;color:#fff;font-family:monospace">${r.term}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${r.reason} — ${r.clicks} clicks, ${r.conversions || 0} conversions</div>
+          </div>
+          <button onclick="approveGadsNegative(${i})" style="font-size:11px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:4px;padding:4px 10px;color:#ef4444;font-family:inherit;cursor:pointer">Add Negative</button>
+          <button onclick="dismissGadsNegative(${i})" style="font-size:11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:4px;padding:4px 10px;color:var(--text-muted);font-family:inherit;cursor:pointer">Dismiss</button>
+        </div>`).join('');
+    }
+  }
+}
+
+async function createGadsCampaign() {
+  const btn      = document.getElementById('gads-create-campaign-btn');
+  const errEl    = document.getElementById('gads-campaign-error');
+  const typeEl   = document.getElementById('gads-campaign-type');
+  const budgetEl = document.getElementById('gads-daily-budget');
+  const nameEl   = document.getElementById('gads-campaign-name');
+  if (!btn || !typeEl || !budgetEl || !nameEl) return;
+
+  const campaignType  = typeEl.value;
+  const dailyBudget   = parseFloat(budgetEl.value);
+  const name          = nameEl.value.trim();
+
+  if (!name) { if (errEl) { errEl.textContent = 'Campaign name is required'; errEl.style.display = 'block'; } return; }
+  if (!dailyBudget || dailyBudget < 5) { if (errEl) { errEl.textContent = 'Daily budget must be at least $5'; errEl.style.display = 'block'; } return; }
+
+  btn.textContent = 'Creating Campaign...';
+  btn.disabled = true;
+  btn.style.opacity = '0.7';
+  if (errEl) errEl.style.display = 'none';
+
+  try {
+    const result = await apiPost('/api/google-ads/create-campaign', { campaignType, dailyBudget, name });
+    if (result && result.success) {
+      const card = document.getElementById('gads-campaign-builder-card');
+      if (card) card.innerHTML = `
+        <div style="display:flex;align-items:flex-start;gap:16px">
+          <div style="font-size:32px;line-height:1">✅</div>
+          <div style="flex:1">
+            <div style="font-weight:700;font-size:15px;color:#22c55e;margin-bottom:10px">Campaign Created Successfully</div>
+            <div style="background:#0f172a;border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text-muted)">Campaign ID</span><span style="color:#fff;font-family:monospace">${result.campaign_id}</span></div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="color:var(--text-muted)">Name</span><span style="color:#fff">${result.name}</span></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--text-muted)">Status</span><span style="color:#f59e0b;font-weight:600">PAUSED</span></div>
+            </div>
+            <div style="background:#1a1a2e;border:1px solid #f59e0b;border-radius:8px;padding:12px;font-size:13px;color:#f59e0b">
+              Campaign is PAUSED — no spend until you activate it in Google Ads Manager
+            </div>
+          </div>
+        </div>`;
+      toast('Google Ads campaign created — status PAUSED', 'success');
+    } else {
+      btn.textContent = 'CREATE CAMPAIGN IN GOOGLE';
+      btn.disabled = false;
+      btn.style.opacity = '1';
+      const msg = (result && result.reason) ? result.reason : 'Unknown error — check server logs';
+      if (errEl) { errEl.textContent = 'Error: ' + msg; errEl.style.display = 'block'; }
+      toast('Campaign creation failed: ' + msg, 'error');
+    }
+  } catch (err) {
+    btn.textContent = 'CREATE CAMPAIGN IN GOOGLE';
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    if (errEl) { errEl.textContent = 'Network error: ' + err.message; errEl.style.display = 'block'; }
+    toast('Campaign creation failed', 'error');
+  }
+}
+
+function approveGadsNegative(index) {
+  toast('Negative queued — connect Google Ads credentials to add via API', 'info');
+}
+
+function dismissGadsNegative(index) {
+  toast('Recommendation dismissed', 'success');
 }
 
 function renderAttributionIntelligence(data) {
@@ -3132,17 +3369,33 @@ function buildRailwayChecklist(gymKey, tier, stored) {
     [`META_PAGE_ID_${K}`,           'Meta Page ID'],
     [`META_ACCESS_TOKEN_${K}`,      'Meta Access Token'],
     [`META_PIXEL_ID_${K}`,          'Meta Pixel ID'],
-    [`ELEVENLABS_API_KEY_${K}`,     'ElevenLabs API Key'],
-    [`ELEVENLABS_VOICE_ID_${K}`,    'ElevenLabs Voice ID'],
+    [`ELEVENLABS_API_KEY_${K}`,              'ElevenLabs API Key'],
+    [`ELEVENLABS_VOICE_ID_${K}`,             'ElevenLabs Voice ID'],
+    [`GOOGLE_ADS_CUSTOMER_ID_${K}`,          'Google Ads Customer ID (xxx-xxx-xxxx)'],
+    [`GOOGLE_ADS_DEVELOPER_TOKEN`,           'Google Ads Developer Token (shared)'],
+    [`GOOGLE_ADS_CLIENT_ID`,                 'Google Cloud OAuth Client ID (shared)'],
+    [`GOOGLE_ADS_CLIENT_SECRET`,             'Google Cloud OAuth Client Secret (shared)'],
+    [`GOOGLE_ADS_REFRESH_TOKEN_${K}`,        'Google Ads Refresh Token'],
+    [`GOOGLE_ADS_CONVERSION_ACTION_ID_${K}`, 'Google Ads Conversion Action ID'],
+    [`GOOGLE_ADS_CALL_TRACKING_PHONE_${K}`,  'Call Tracking Phone Number'],
+    [`GOOGLE_ADS_TARGET_RADIUS_${K}`,        'Target Radius (miles)'],
   ];
   const portalVars = [
-    [`GHL_${K}_LOCATION_ID`,       'GHL Location ID'],
-    [`GHL_${K}_API_KEY`,            'GHL API Key (v1)'],
-    [`GHL_${K}_V2_KEY`,             'GHL API Key (v2)'],
-    [`META_AD_ACCOUNT_ID_${K}`,     'Meta Ad Account ID'],
-    [`META_PAGE_ID_${K}`,           'Meta Page ID'],
-    [`META_ACCESS_TOKEN_${K}`,      'Meta Access Token'],
-    [`META_PIXEL_ID_${K}`,          'Meta Pixel ID'],
+    [`GHL_${K}_LOCATION_ID`,                'GHL Location ID'],
+    [`GHL_${K}_API_KEY`,                     'GHL API Key (v1)'],
+    [`GHL_${K}_V2_KEY`,                      'GHL API Key (v2)'],
+    [`META_AD_ACCOUNT_ID_${K}`,              'Meta Ad Account ID'],
+    [`META_PAGE_ID_${K}`,                    'Meta Page ID'],
+    [`META_ACCESS_TOKEN_${K}`,               'Meta Access Token'],
+    [`META_PIXEL_ID_${K}`,                   'Meta Pixel ID'],
+    [`GOOGLE_ADS_CUSTOMER_ID_${K}`,          'Google Ads Customer ID (xxx-xxx-xxxx)'],
+    [`GOOGLE_ADS_DEVELOPER_TOKEN`,           'Google Ads Developer Token (shared)'],
+    [`GOOGLE_ADS_CLIENT_ID`,                 'Google Cloud OAuth Client ID (shared)'],
+    [`GOOGLE_ADS_CLIENT_SECRET`,             'Google Cloud OAuth Client Secret (shared)'],
+    [`GOOGLE_ADS_REFRESH_TOKEN_${K}`,        'Google Ads Refresh Token'],
+    [`GOOGLE_ADS_CONVERSION_ACTION_ID_${K}`, 'Google Ads Conversion Action ID'],
+    [`GOOGLE_ADS_CALL_TRACKING_PHONE_${K}`,  'Call Tracking Phone Number'],
+    [`GOOGLE_ADS_TARGET_RADIUS_${K}`,        'Target Radius (miles)'],
   ];
 
   const row = (varName, label) => `
