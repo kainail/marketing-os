@@ -3170,6 +3170,7 @@ function renderAccountRow(u) {
             <button id="prov-submit-${u.id}" onclick="provisionPageRow('${u.id}','${sid}')" style="background:#7c3aed;border:none;border-radius:6px;padding:8px 14px;color:#fff;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Provision →</button>
           </div>
         </div>
+        <input id="prov-state-${u.id}" type="hidden" value="${esc(u.state || '')}">
         <div id="prov-err-${u.id}" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.25);border-radius:6px;font-size:12px;color:#f87171"></div>
       </div>
     </td>
@@ -3268,7 +3269,7 @@ async function provisionPageRow(userId, sessionId) {
   const clubId     = (document.getElementById('prov-ci-' + userId)?.value || '').trim();
 
   const formDiv  = document.querySelector('#prov-form-inner-' + userId);
-  const state    = formDiv?.dataset.state || '';
+  const state    = (document.getElementById('prov-state-' + userId)?.value || formDiv?.dataset.state || '').trim();
   const mainRow  = document.getElementById('acc-row-' + userId);
   const gymName  = mainRow?.querySelector('td:nth-child(2)')?.childNodes[0]?.textContent?.trim() || '';
   const city     = mainRow?.querySelector('td:nth-child(2) span')?.textContent?.trim() || '';
@@ -3348,7 +3349,53 @@ async function provisionPageRow(userId, sessionId) {
     // ── Railway checklist ─────────────────────────────────────────────────
     const gymKey = city.toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
     const checklistHtml = buildRailwayChecklist(gymKey, tier, stored);
-    if (formDiv) formDiv.innerHTML = checklistHtml;
+
+    // ── Google Ads keyword intelligence confirmation ───────────────────────
+    let keywordConfirmHtml = '';
+    try {
+      const kwData = await api('/api/google-ads/keywords?location=' + gymKey.toLowerCase());
+      if (kwData && kwData.status === 'complete' && kwData.recommended_ad_groups) {
+        const adGroups = kwData.recommended_ad_groups || [];
+        const cpc = kwData.cpc_benchmarks || {};
+        const competitorCount = (kwData.competitor_research || []).length;
+        const adGroupRows = adGroups.map(ag => `
+          <details style="margin-bottom:6px">
+            <summary style="cursor:pointer;padding:5px 0;list-style:none;display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;font-weight:600;color:var(--violet)">${esc(ag.theme || '')}</span>
+            </summary>
+            <div style="padding:4px 0 4px 12px;font-size:11px;color:rgba(232,234,240,0.45);font-family:monospace">${(ag.keywords || []).join(', ')}</div>
+            ${ag.match_types && Object.keys(ag.match_types).length ? `<div style="padding:0 0 4px 12px;font-size:10px;color:rgba(232,234,240,0.28)">${Object.entries(ag.match_types).map(([k,v]) => k + ': ' + v).join(' · ')}</div>` : ''}
+          </details>`).join('');
+        const cpcLine = (cpc.low || cpc.high) ? `<div style="font-size:11px;color:rgba(232,234,240,0.45);margin-top:10px">Expected CPC: $${cpc.low}–$${cpc.high} avg $${cpc.expected_avg}</div>` : '';
+        const compLine = competitorCount ? `<div style="font-size:11px;color:rgba(232,234,240,0.45);margin-top:4px">${competitorCount} competitor${competitorCount !== 1 ? 's' : ''} found in market</div>` : '';
+        keywordConfirmHtml = `
+          <div style="margin-bottom:16px;padding:14px 16px;background:rgba(34,197,94,0.04);border:1px solid rgba(34,197,94,0.2);border-radius:8px">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+              <div style="font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.55)">Google Ads — Keyword Intelligence Ready</div>
+              <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#22c55e">✓ Manus research complete</span>
+            </div>
+            ${adGroupRows}
+            ${cpcLine}${compLine}
+            <div style="margin-top:12px">
+              <button onclick="this.closest('div[style]').style.display='none'" style="padding:6px 14px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.3);border-radius:6px;font-size:12px;font-weight:600;color:#22c55e;font-family:inherit;cursor:pointer">✓ Confirm &amp; Continue</button>
+            </div>
+          </div>`;
+      } else {
+        keywordConfirmHtml = `
+          <div style="margin-bottom:16px;padding:14px 16px;background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.2);border-radius:8px">
+            <div style="font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(245,158,11,0.8);margin-bottom:6px">Google Ads — Keyword Research In Progress</div>
+            <div style="font-size:12px;color:rgba(232,234,240,0.5)">Manus is researching the ${esc(city)} keyword landscape. Check Agent Tasks for progress. Results will appear in the Decision Layer → Keyword Intelligence card when complete.</div>
+          </div>`;
+      }
+    } catch (_) {
+      keywordConfirmHtml = `
+        <div style="margin-bottom:16px;padding:14px 16px;background:rgba(245,158,11,0.04);border:1px solid rgba(245,158,11,0.2);border-radius:8px">
+          <div style="font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(245,158,11,0.8);margin-bottom:6px">Google Ads — Keyword Research In Progress</div>
+          <div style="font-size:12px;color:rgba(232,234,240,0.5)">Manus is researching the ${esc(city)} keyword landscape. Check Agent Tasks for progress. Results will appear in the Decision Layer → Keyword Intelligence card when complete.</div>
+        </div>`;
+    }
+
+    if (formDiv) formDiv.innerHTML = keywordConfirmHtml + checklistHtml;
 
     toast(tierLabel + ' provisioned', 'success');
   } catch (err) {
