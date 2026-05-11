@@ -3498,8 +3498,8 @@ function buildRailwayChecklist(gymKey, tier, stored) {
 }
 
 function dismissRailwayChecklist(btn) {
-  const row = btn.closest('tr');
-  if (row) row.style.display = 'none';
+  const container = btn.closest('[id^="prov-form-"]');
+  if (container) container.style.display = 'none';
 }
 
 function showProvisionUrl(userId) {
