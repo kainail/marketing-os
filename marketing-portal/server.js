@@ -5746,15 +5746,15 @@ app.post('/api/google-ads/campaign/:campaignId/activate', requireAuth, async (re
 
 // POST /api/google-ads/spend-limit
 app.post('/api/google-ads/spend-limit', requireAuth, async (req, res) => {
-  const { location = 'bloomington', campaign_id, daily_budget_micros } = req.body;
+  const { location = 'bloomington', campaign_id, daily_budget_micros: dailyBudgetMicros } = req.body;
   try {
-    await googleAdsService.updateCampaignBudget(location, campaign_id, daily_budget_micros);
+    await googleAdsService.updateCampaignBudget(location, campaign_id, dailyBudgetMicros);
     const updated_at = new Date().toISOString();
     const perfPath = path.join(INTEL, location, 'paid', 'google-performance.json');
     const perf = safeReadJSON(perfPath) || {};
-    perf.spend_controls = { daily_budget_micros, updated_at };
+    perf.spend_controls = { daily_budget_micros: dailyBudgetMicros, updated_at };
     fs.writeFileSync(perfPath, JSON.stringify(perf, null, 2));
-    res.json({ success: true, campaign_id, daily_budget_micros, updated_at });
+    res.json({ success: true, campaign_id, daily_budget_micros: dailyBudgetMicros, updated_at });
   } catch (err) {
     if (err.message.includes('credentials missing')) return res.json({ success: false, reason: 'credentials_missing' });
     res.json({ success: false, reason: err.message });

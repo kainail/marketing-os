@@ -481,9 +481,14 @@ class GoogleAdsService {
     try {
       const creds = this._getCredentials(locationId);
       const customer = this._getCustomer(creds);
-      const resourceName = `customers/${creds.customerId.replace(/-/g, '')}/campaigns/${campaignId}`;
-      await customer.campaigns.update([{ resource_name: resourceName, status: 3 }]); // 3 = PAUSED
-      return { campaignId, status: 'PAUSED' };
+      await customer.campaigns.update({
+        campaign: {
+          resource_name: `customers/${creds.customerId.replace(/-/g, '')}/campaigns/${campaignId}`,
+          status: 2, // PAUSED
+        },
+      });
+      console.log(`[GoogleAds] Campaign ${campaignId} paused for ${locationId}`);
+      return { success: true, campaignId, status: 'PAUSED' };
     } catch (err) {
       console.error(`[GoogleAds] pauseCampaign error (${locationId}):`, err.message);
       throw err;
@@ -494,33 +499,41 @@ class GoogleAdsService {
     try {
       const creds = this._getCredentials(locationId);
       const customer = this._getCustomer(creds);
-      const resourceName = `customers/${creds.customerId.replace(/-/g, '')}/campaigns/${campaignId}`;
-      await customer.campaigns.update([{ resource_name: resourceName, status: 2 }]); // 2 = ENABLED
-      return { campaignId, status: 'ENABLED' };
+      await customer.campaigns.update({
+        campaign: {
+          resource_name: `customers/${creds.customerId.replace(/-/g, '')}/campaigns/${campaignId}`,
+          status: 1, // ENABLED
+        },
+      });
+      console.log(`[GoogleAds] Campaign ${campaignId} activated for ${locationId}`);
+      return { success: true, campaignId, status: 'ACTIVE' };
     } catch (err) {
       console.error(`[GoogleAds] activateCampaign error (${locationId}):`, err.message);
       throw err;
     }
   }
 
-  async updateCampaignBudget(locationId, campaignId, daily_budget_micros) {
+  async updateCampaignBudget(locationId, campaignId, dailyBudgetMicros) {
     try {
       const creds = this._getCredentials(locationId);
       const customer = this._getCustomer(creds);
       const rows = await customer.query(`
-        SELECT campaign_budget.resource_name
+        SELECT campaign.campaign_budget
         FROM campaign
         WHERE campaign.id = ${campaignId}
         LIMIT 1
       `);
-      if (!rows.length || !rows[0].campaign_budget?.resource_name) {
+      if (!rows.length || !rows[0].campaign?.campaign_budget) {
         throw new Error(`Budget resource not found for campaign ${campaignId}`);
       }
-      await customer.campaignBudgets.update([{
-        resource_name: rows[0].campaign_budget.resource_name,
-        amount_micros: daily_budget_micros,
-      }]);
-      return { campaignId, daily_budget_micros };
+      const budgetResourceName = rows[0].campaign.campaign_budget;
+      await customer.campaignBudgets.update({
+        campaign_budget: {
+          resource_name: budgetResourceName,
+          amount_micros: dailyBudgetMicros,
+        },
+      });
+      return { success: true, campaignId, dailyBudgetMicros, updated_at: new Date().toISOString() };
     } catch (err) {
       console.error(`[GoogleAds] updateCampaignBudget error (${locationId}):`, err.message);
       throw err;
