@@ -5673,6 +5673,189 @@ app.get('/api/google-ads/rsa-log', requireAuth, (req, res) => {
   res.json({ ...data, last_updated: data.last_updated || null });
 });
 
+// POST /api/meta/campaign/:campaignId/pause
+app.post('/api/meta/campaign/:campaignId/pause', requireAuth, async (req, res) => {
+  const { location = 'bloomington' } = req.body;
+  const token = process.env[`META_ACCESS_TOKEN_${location.toUpperCase()}`];
+  if (!token) return res.json({ success: false, reason: 'no_meta_token' });
+  try {
+    await metaApiCall(req.params.campaignId, 'POST', { status: 'PAUSED' }, 3, token);
+    console.log(`[Kill] Campaign ${req.params.campaignId} paused for ${location}`);
+    res.json({ success: true, campaignId: req.params.campaignId, status: 'PAUSED', paused_at: new Date().toISOString() });
+  } catch (err) {
+    res.json({ success: false, reason: err.message });
+  }
+});
+
+// POST /api/meta/campaign/:campaignId/activate
+app.post('/api/meta/campaign/:campaignId/activate', requireAuth, async (req, res) => {
+  const { location = 'bloomington' } = req.body;
+  const token = process.env[`META_ACCESS_TOKEN_${location.toUpperCase()}`];
+  if (!token) return res.json({ success: false, reason: 'no_meta_token' });
+  try {
+    await metaApiCall(req.params.campaignId, 'POST', { status: 'ACTIVE' }, 3, token);
+    console.log(`[Kill] Campaign ${req.params.campaignId} activated for ${location}`);
+    res.json({ success: true, campaignId: req.params.campaignId, status: 'ACTIVE', activated_at: new Date().toISOString() });
+  } catch (err) {
+    res.json({ success: false, reason: err.message });
+  }
+});
+
+// POST /api/meta/spend-limit
+app.post('/api/meta/spend-limit', requireAuth, async (req, res) => {
+  const { location = 'bloomington', daily_budget_cents, campaign_id } = req.body;
+  if (typeof daily_budget_cents !== 'number') return res.json({ success: false, reason: 'daily_budget_cents must be a number' });
+  const token = process.env[`META_ACCESS_TOKEN_${location.toUpperCase()}`];
+  if (!token) return res.json({ success: false, reason: 'no_meta_token' });
+  try {
+    await metaApiCall(campaign_id, 'POST', { daily_budget: daily_budget_cents }, 3, token);
+    const updated_at = new Date().toISOString();
+    const perfPath = path.join(INTEL, location, 'paid', 'meta-performance.json');
+    const perf = safeReadJSON(perfPath) || {};
+    perf.spend_controls = { daily_budget_cents, updated_at };
+    fs.writeFileSync(perfPath, JSON.stringify(perf, null, 2));
+    res.json({ success: true, campaign_id, daily_budget_cents, updated_at });
+  } catch (err) {
+    res.json({ success: false, reason: err.message });
+  }
+});
+
+// POST /api/google-ads/campaign/:campaignId/pause
+app.post('/api/google-ads/campaign/:campaignId/pause', requireAuth, async (req, res) => {
+  const { location = 'bloomington' } = req.body;
+  try {
+    await googleAdsService.pauseCampaign(location, req.params.campaignId);
+    res.json({ success: true, campaignId: req.params.campaignId, status: 'PAUSED', paused_at: new Date().toISOString() });
+  } catch (err) {
+    if (err.message.includes('credentials missing')) return res.json({ success: false, reason: 'credentials_missing' });
+    res.json({ success: false, reason: err.message });
+  }
+});
+
+// POST /api/google-ads/campaign/:campaignId/activate
+app.post('/api/google-ads/campaign/:campaignId/activate', requireAuth, async (req, res) => {
+  const { location = 'bloomington' } = req.body;
+  try {
+    await googleAdsService.activateCampaign(location, req.params.campaignId);
+    res.json({ success: true, campaignId: req.params.campaignId, status: 'ACTIVE', activated_at: new Date().toISOString() });
+  } catch (err) {
+    if (err.message.includes('credentials missing')) return res.json({ success: false, reason: 'credentials_missing' });
+    res.json({ success: false, reason: err.message });
+  }
+});
+
+// POST /api/google-ads/spend-limit
+app.post('/api/google-ads/spend-limit', requireAuth, async (req, res) => {
+  const { location = 'bloomington', campaign_id, daily_budget_micros } = req.body;
+  try {
+    await googleAdsService.updateCampaignBudget(location, campaign_id, daily_budget_micros);
+    const updated_at = new Date().toISOString();
+    const perfPath = path.join(INTEL, location, 'paid', 'google-performance.json');
+    const perf = safeReadJSON(perfPath) || {};
+    perf.spend_controls = { daily_budget_micros, updated_at };
+    fs.writeFileSync(perfPath, JSON.stringify(perf, null, 2));
+    res.json({ success: true, campaign_id, daily_budget_micros, updated_at });
+  } catch (err) {
+    if (err.message.includes('credentials missing')) return res.json({ success: false, reason: 'credentials_missing' });
+    res.json({ success: false, reason: err.message });
+  }
+});
+
+// POST /api/kill-switch
+app.post('/api/kill-switch', requireAuth, async (req, res) => {
+  const { location = 'bloomington', channel, action, reason } = req.body;
+  if (!channel || !action) return res.json({ success: false, reason: 'channel and action are required' });
+  if (action === 'kill' && !reason) return res.json({ success: false, reason: 'reason is required for kill action' });
+
+  const timestamp = new Date().toISOString();
+  const results = [];
+
+  try {
+    const includesMeta   = channel === 'meta'   || channel === 'all';
+    const includesGoogle = channel === 'google' || channel === 'all';
+
+    if (includesMeta) {
+      const token    = process.env[`META_ACCESS_TOKEN_${location.toUpperCase()}`];
+      const metaPerf = safeReadJSON(path.join(INTEL, location, 'paid', 'meta-performance.json'));
+      const campaigns = Array.isArray(metaPerf?.campaigns) ? metaPerf.campaigns : [];
+      for (const campaign of campaigns) {
+        try {
+          if (!token) { results.push({ channel: 'meta', campaignId: campaign.id, success: false, reason: 'no_meta_token' }); continue; }
+          const status = action === 'kill' ? 'PAUSED' : 'ACTIVE';
+          await metaApiCall(campaign.id, 'POST', { status }, 3, token);
+          console.log(`[Kill] Meta campaign ${campaign.id} → ${status} for ${location}`);
+          results.push({ channel: 'meta', campaignId: campaign.id, success: true, status });
+        } catch (err) {
+          results.push({ channel: 'meta', campaignId: campaign.id, success: false, reason: err.message });
+        }
+      }
+    }
+
+    if (includesGoogle) {
+      const googlePerf = safeReadJSON(path.join(INTEL, location, 'paid', 'google-performance.json'));
+      const campaigns  = Array.isArray(googlePerf?.campaigns) ? googlePerf.campaigns : [];
+      for (const campaign of campaigns) {
+        try {
+          if (action === 'kill') {
+            await googleAdsService.pauseCampaign(location, campaign.id);
+          } else {
+            await googleAdsService.activateCampaign(location, campaign.id);
+          }
+          const status = action === 'kill' ? 'PAUSED' : 'ACTIVE';
+          console.log(`[Kill] Google campaign ${campaign.id} → ${status} for ${location}`);
+          results.push({ channel: 'google', campaignId: campaign.id, success: true, status });
+        } catch (err) {
+          results.push({ channel: 'google', campaignId: campaign.id, success: false, reason: err.message });
+        }
+      }
+    }
+
+    const logPath  = path.join(INTEL, location, 'paid', 'kill-log.json');
+    const existing = safeReadJSON(logPath);
+    const log      = Array.isArray(existing) ? existing : [];
+    const entry    = {
+      timestamp,
+      channel,
+      action,
+      reason:              reason || null,
+      campaigns_affected:  results.filter(r => r.success).length,
+      operator:            req.user?.email || 'unknown',
+    };
+    log.push(entry);
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    fs.writeFileSync(logPath, JSON.stringify(log, null, 2));
+
+    res.json({
+      success:             true,
+      action,
+      channel,
+      location,
+      campaigns_affected:  entry.campaigns_affected,
+      reason:              reason || null,
+      timestamp,
+    });
+  } catch (err) {
+    res.json({ success: false, reason: err.message });
+  }
+});
+
+// GET /api/kill-switch/status
+app.get('/api/kill-switch/status', requireAuth, (req, res) => {
+  const location  = req.query.location || 'bloomington';
+  const existing  = safeReadJSON(path.join(INTEL, location, 'paid', 'kill-log.json'));
+  const log       = Array.isArray(existing) ? existing : [];
+  const empty     = { status: 'active', last_action: null, reason: null, timestamp: null };
+
+  const lastMeta   = [...log].reverse().find(e => e.channel === 'meta'   || e.channel === 'all');
+  const lastGoogle = [...log].reverse().find(e => e.channel === 'google' || e.channel === 'all');
+
+  const toStatus = entry => entry
+    ? { status: entry.action === 'kill' ? 'killed' : 'active', last_action: entry.action, reason: entry.reason, timestamp: entry.timestamp }
+    : empty;
+
+  res.json({ meta: toStatus(lastMeta), google: toStatus(lastGoogle) });
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

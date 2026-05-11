@@ -476,6 +476,56 @@ class GoogleAdsService {
       throw err;
     }
   }
+
+  async pauseCampaign(locationId, campaignId) {
+    try {
+      const creds = this._getCredentials(locationId);
+      const customer = this._getCustomer(creds);
+      const resourceName = `customers/${creds.customerId.replace(/-/g, '')}/campaigns/${campaignId}`;
+      await customer.campaigns.update([{ resource_name: resourceName, status: 3 }]); // 3 = PAUSED
+      return { campaignId, status: 'PAUSED' };
+    } catch (err) {
+      console.error(`[GoogleAds] pauseCampaign error (${locationId}):`, err.message);
+      throw err;
+    }
+  }
+
+  async activateCampaign(locationId, campaignId) {
+    try {
+      const creds = this._getCredentials(locationId);
+      const customer = this._getCustomer(creds);
+      const resourceName = `customers/${creds.customerId.replace(/-/g, '')}/campaigns/${campaignId}`;
+      await customer.campaigns.update([{ resource_name: resourceName, status: 2 }]); // 2 = ENABLED
+      return { campaignId, status: 'ENABLED' };
+    } catch (err) {
+      console.error(`[GoogleAds] activateCampaign error (${locationId}):`, err.message);
+      throw err;
+    }
+  }
+
+  async updateCampaignBudget(locationId, campaignId, daily_budget_micros) {
+    try {
+      const creds = this._getCredentials(locationId);
+      const customer = this._getCustomer(creds);
+      const rows = await customer.query(`
+        SELECT campaign_budget.resource_name
+        FROM campaign
+        WHERE campaign.id = ${campaignId}
+        LIMIT 1
+      `);
+      if (!rows.length || !rows[0].campaign_budget?.resource_name) {
+        throw new Error(`Budget resource not found for campaign ${campaignId}`);
+      }
+      await customer.campaignBudgets.update([{
+        resource_name: rows[0].campaign_budget.resource_name,
+        amount_micros: daily_budget_micros,
+      }]);
+      return { campaignId, daily_budget_micros };
+    } catch (err) {
+      console.error(`[GoogleAds] updateCampaignBudget error (${locationId}):`, err.message);
+      throw err;
+    }
+  }
 }
 
 module.exports = new GoogleAdsService();
