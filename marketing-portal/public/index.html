@@ -3409,56 +3409,57 @@ function buildRailwayChecklist(gymKey, tier, stored) {
   const doPortal = true; // always show portal vars
   const K = gymKey;
 
+  const gadsVars = [
+    { key: `GOOGLE_ADS_CUSTOMER_ID_${K}`,          label: 'Google Ads Customer ID',                     description: 'This gym location\'s Google Ads account ID — no dashes when entering',                                       link: 'https://ads.google.com/aw/overview',                       hint: 'Format: 9417041648 (no dashes)' },
+    { key: 'GOOGLE_ADS_MANAGER_CUSTOMER_ID',        label: 'Google Ads Manager Account ID (MCC — shared)', description: 'GymSuite AI manager account — same for all locations',                                                    link: 'https://ads.google.com/aw/overview',                       hint: 'Format: 4178630195 (no dashes) — already set' },
+    { key: 'GOOGLE_ADS_DEVELOPER_TOKEN',            label: 'Google Ads Developer Token (shared)',         description: 'GymSuite AI API developer token — same for all locations',                                                  link: 'https://ads.google.com/aw/apicenter',                      hint: 'Shared — already set in Railway' },
+    { key: 'GOOGLE_ADS_CLIENT_ID',                  label: 'Google Cloud OAuth Client ID (shared)',       description: 'OAuth credential from Google Cloud Console — same for all locations',                                       link: 'https://console.cloud.google.com/apis/credentials',        hint: 'Format: xxxxx.apps.googleusercontent.com — already set' },
+    { key: 'GOOGLE_ADS_CLIENT_SECRET',              label: 'Google Cloud OAuth Client Secret (shared)',   description: 'OAuth secret from Google Cloud Console — same for all locations',                                           link: 'https://console.cloud.google.com/apis/credentials',        hint: 'Format: GOCSPX-xxxxx — already set' },
+    { key: `GOOGLE_ADS_REFRESH_TOKEN_${K}`,         label: 'Google Ads Refresh Token',                   description: 'OAuth refresh token — unique per location. Generate via OAuth Playground signed in as afanytimefitnessgyms@gmail.com', link: 'https://developers.google.com/oauthplayground',           hint: 'Format: 1//04xxxxx... (starts with 1//)' },
+    { key: `GOOGLE_ADS_CONVERSION_ACTION_ID_${K}`,  label: 'Google Ads Conversion Action ID',             description: 'ID of the form submission conversion action — found in URL after creating conversion in Google Ads',          link: 'https://ads.google.com/aw/conversions',                    hint: 'Format: 123456789 (numeric — from URL after /conversionAction=)' },
+    { key: `GOOGLE_ADS_CALL_TRACKING_PHONE_${K}`,   label: 'Call Tracking Phone Number',                  description: 'Google forwarding number for call extension tracking',                                                       link: 'https://ads.google.com/aw/phonenumbers',                   hint: 'Format: +13095551234' },
+    { key: `GOOGLE_ADS_TARGET_RADIUS_${K}`,          label: 'Target Radius (miles)',                       description: 'Geographic targeting radius from gym location',                                                              link: 'https://ads.google.com/aw/campaigns',                      hint: 'Recommended: 10-15 miles for urban, 15-25 for suburban' },
+  ];
   const opsVars = [
-    [`GHL_${K}_LOCATION_ID`,       'GHL Location ID'],
-    [`GHL_${K}_API_KEY`,            'GHL API Key (v1)'],
-    [`GHL_${K}_V2_KEY`,             'GHL API Key (v2)'],
-    [`META_AD_ACCOUNT_ID_${K}`,     'Meta Ad Account ID'],
-    [`META_PAGE_ID_${K}`,           'Meta Page ID'],
-    [`META_ACCESS_TOKEN_${K}`,      'Meta Access Token'],
-    [`META_PIXEL_ID_${K}`,          'Meta Pixel ID'],
-    [`ELEVENLABS_API_KEY_${K}`,              'ElevenLabs API Key'],
-    [`ELEVENLABS_VOICE_ID_${K}`,             'ElevenLabs Voice ID'],
-    ['__GOOGLE_ADS_SEPARATOR__', ''],
-    [`GOOGLE_ADS_CUSTOMER_ID_${K}`,          'Google Ads Customer ID (xxx-xxx-xxxx)'],
-    [`GOOGLE_ADS_DEVELOPER_TOKEN`,           'Google Ads Developer Token (shared)'],
-    [`GOOGLE_ADS_CLIENT_ID`,                 'Google Cloud OAuth Client ID (shared)'],
-    [`GOOGLE_ADS_CLIENT_SECRET`,             'Google Cloud OAuth Client Secret (shared)'],
-    [`GOOGLE_ADS_MANAGER_CUSTOMER_ID`,       'Google Ads Manager Account ID (MCC — shared)'],
-    [`GOOGLE_ADS_REFRESH_TOKEN_${K}`,        'Google Ads Refresh Token'],
-    [`GOOGLE_ADS_CONVERSION_ACTION_ID_${K}`, 'Google Ads Conversion Action ID'],
-    [`GOOGLE_ADS_CALL_TRACKING_PHONE_${K}`,  'Call Tracking Phone Number'],
-    [`GOOGLE_ADS_TARGET_RADIUS_${K}`,        'Target Radius (miles)'],
+    { key: `GHL_${K}_LOCATION_ID`,      label: 'GHL Location ID',            description: 'Unique ID for this gym location inside GoHighLevel',                                       link: 'https://app.gohighlevel.com/settings/locations', hint: 'Format: abc123xyz (alphanumeric)' },
+    { key: `GHL_${K}_API_KEY`,           label: 'GHL API Key (v1)',            description: 'Legacy v1 API key — used for contact and pipeline operations',                             link: 'https://app.gohighlevel.com/settings/api-keys',  hint: 'Format: eyJhbGci... (long JWT)' },
+    { key: `GHL_${K}_V2_KEY`,            label: 'GHL API Key (v2)',            description: 'Current v2 private integration key — used for webhooks and automation',                   link: 'https://app.gohighlevel.com/settings/api-keys',  hint: 'Format: eyJhbGci... (long JWT)' },
+    { key: `META_AD_ACCOUNT_ID_${K}`,   label: 'Meta Ad Account ID',          description: 'The ad account running campaigns for this gym location',                                   link: 'https://business.facebook.com/select/',          hint: 'Format: act_123456789' },
+    { key: `META_PAGE_ID_${K}`,          label: 'Meta Page ID',                description: 'Facebook Page ID for this gym — ads run from this page',                                  link: 'https://business.facebook.com/select/',          hint: 'Format: 123456789 (numeric)' },
+    { key: `META_ACCESS_TOKEN_${K}`,     label: 'Meta Access Token',           description: 'Long-lived user token for Meta Ads API — expires every 60 days',                          link: 'https://developers.facebook.com/tools/explorer/', hint: 'Format: EAAxxxxx... (starts with EAA)' },
+    { key: `META_PIXEL_ID_${K}`,         label: 'Meta Pixel ID',               description: 'Pixel tracking conversions on the landing page and thank-you page',                       link: 'https://business.facebook.com/events_manager/',  hint: 'Format: 123456789 (numeric)' },
+    { key: `ELEVENLABS_API_KEY_${K}`,    label: 'ElevenLabs API Key',          description: 'API key for AI voice generation used in AHRI interview',                                  link: 'https://elevenlabs.io/app/settings/api-keys',    hint: 'Format: sk_... (starts with sk_)' },
+    { key: `ELEVENLABS_VOICE_ID_${K}`,   label: 'ElevenLabs Voice ID',         description: 'Specific voice cloned or selected for this gym owner',                                    link: 'https://elevenlabs.io/app/voice-library',        hint: 'Format: abc123xyz (alphanumeric)' },
+    { key: '__GOOGLE_ADS_SEPARATOR__',   label: '', description: '', link: '', hint: '' },
+    ...gadsVars,
   ];
   const portalVars = [
-    [`GHL_${K}_LOCATION_ID`,                'GHL Location ID'],
-    [`GHL_${K}_API_KEY`,                     'GHL API Key (v1)'],
-    [`GHL_${K}_V2_KEY`,                      'GHL API Key (v2)'],
-    [`META_AD_ACCOUNT_ID_${K}`,              'Meta Ad Account ID'],
-    [`META_PAGE_ID_${K}`,                    'Meta Page ID'],
-    [`META_ACCESS_TOKEN_${K}`,               'Meta Access Token'],
-    [`META_PIXEL_ID_${K}`,                   'Meta Pixel ID'],
-    ['__GOOGLE_ADS_SEPARATOR__', ''],
-    [`GOOGLE_ADS_CUSTOMER_ID_${K}`,          'Google Ads Customer ID (xxx-xxx-xxxx)'],
-    [`GOOGLE_ADS_DEVELOPER_TOKEN`,           'Google Ads Developer Token (shared)'],
-    [`GOOGLE_ADS_CLIENT_ID`,                 'Google Cloud OAuth Client ID (shared)'],
-    [`GOOGLE_ADS_CLIENT_SECRET`,             'Google Cloud OAuth Client Secret (shared)'],
-    [`GOOGLE_ADS_MANAGER_CUSTOMER_ID`,       'Google Ads Manager Account ID (MCC — shared)'],
-    [`GOOGLE_ADS_REFRESH_TOKEN_${K}`,        'Google Ads Refresh Token'],
-    [`GOOGLE_ADS_CONVERSION_ACTION_ID_${K}`, 'Google Ads Conversion Action ID'],
-    [`GOOGLE_ADS_CALL_TRACKING_PHONE_${K}`,  'Call Tracking Phone Number'],
-    [`GOOGLE_ADS_TARGET_RADIUS_${K}`,        'Target Radius (miles)'],
+    { key: `GHL_${K}_LOCATION_ID`,      label: 'GHL Location ID',            description: 'Unique ID for this gym location inside GoHighLevel',                                       link: 'https://app.gohighlevel.com/settings/locations', hint: 'Format: abc123xyz (alphanumeric)' },
+    { key: `GHL_${K}_API_KEY`,           label: 'GHL API Key (v1)',            description: 'Legacy v1 API key — used for contact and pipeline operations',                             link: 'https://app.gohighlevel.com/settings/api-keys',  hint: 'Format: eyJhbGci... (long JWT)' },
+    { key: `GHL_${K}_V2_KEY`,            label: 'GHL API Key (v2)',            description: 'Current v2 private integration key — used for webhooks and automation',                   link: 'https://app.gohighlevel.com/settings/api-keys',  hint: 'Format: eyJhbGci... (long JWT)' },
+    { key: `META_AD_ACCOUNT_ID_${K}`,   label: 'Meta Ad Account ID',          description: 'The ad account running campaigns for this gym location',                                   link: 'https://business.facebook.com/select/',          hint: 'Format: act_123456789' },
+    { key: `META_PAGE_ID_${K}`,          label: 'Meta Page ID',                description: 'Facebook Page ID for this gym — ads run from this page',                                  link: 'https://business.facebook.com/select/',          hint: 'Format: 123456789 (numeric)' },
+    { key: `META_ACCESS_TOKEN_${K}`,     label: 'Meta Access Token',           description: 'Long-lived user token for Meta Ads API — expires every 60 days',                          link: 'https://developers.facebook.com/tools/explorer/', hint: 'Format: EAAxxxxx... (starts with EAA)' },
+    { key: `META_PIXEL_ID_${K}`,         label: 'Meta Pixel ID',               description: 'Pixel tracking conversions on the landing page and thank-you page',                       link: 'https://business.facebook.com/events_manager/',  hint: 'Format: 123456789 (numeric)' },
+    { key: '__GOOGLE_ADS_SEPARATOR__',   label: '', description: '', link: '', hint: '' },
+    ...gadsVars,
   ];
 
-  const row = (varName, label) => {
-    if (varName === '__GOOGLE_ADS_SEPARATOR__') return `<tr><td colspan="3" style="padding:12px 8px 4px;font-family:var(--font-mono);font-size:10px;color:var(--violet);letter-spacing:1px">── GOOGLE ADS ──────────────────────────────</td></tr>`;
-    const oauthNote = varName.includes('REFRESH_TOKEN') ? `<div style="font-size:10px;color:var(--text-muted);margin-top:3px">Generate at developers.google.com/oauthplayground — use afanytimefitnessgyms@gmail.com</div>` : '';
+  const row = (v) => {
+    if (v.key === '__GOOGLE_ADS_SEPARATOR__') return `<tr><td colspan="4" style="padding:12px 8px 4px;font-family:var(--font-mono);font-size:10px;color:var(--violet);letter-spacing:1px">── GOOGLE ADS ──────────────────────────────</td></tr>`;
+    const descLine = v.description ? `<div style="font-size:10px;color:rgba(232,234,240,0.38);margin-top:2px">${v.description}</div>` : '';
+    const hintLine = v.hint       ? `<div style="font-size:10px;font-family:monospace;color:rgba(245,158,11,0.75);margin-top:2px">${v.hint}</div>` : '';
+    const getBtn  = v.link        ? `<a href="${v.link}" target="_blank" rel="noopener" style="font-size:10px;background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.25);border-radius:4px;padding:2px 7px;color:rgba(6,182,212,0.8);font-family:inherit;text-decoration:none;white-space:nowrap">GET →</a>` : '';
     return `
     <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
-      <td style="padding:6px 10px;font-family:monospace;font-size:11px;color:#a78bfa">${varName}</td>
-      <td style="padding:6px 10px;font-size:11px;color:rgba(232,234,240,0.45)">${label}${oauthNote}</td>
+      <td style="padding:6px 10px;font-family:monospace;font-size:11px;color:#a78bfa;white-space:nowrap">${v.key}</td>
       <td style="padding:6px 10px">
-        <button onclick="navigator.clipboard.writeText('${varName}');toast('Copied','success')" style="font-size:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:4px;padding:2px 7px;color:rgba(232,234,240,0.45);font-family:inherit;cursor:pointer">Copy name</button>
+        <div style="font-size:11px;color:rgba(232,234,240,0.8)">${v.label}</div>
+        ${descLine}${hintLine}
+      </td>
+      <td style="padding:6px 10px;white-space:nowrap">${getBtn}</td>
+      <td style="padding:6px 10px;white-space:nowrap">
+        <button onclick="navigator.clipboard.writeText('${v.key}');toast('Copied','success')" style="font-size:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:4px;padding:2px 7px;color:rgba(232,234,240,0.45);font-family:inherit;cursor:pointer">Copy name</button>
       </td>
     </tr>`;
   };
@@ -3471,8 +3472,9 @@ function buildRailwayChecklist(gymKey, tier, stored) {
           <th style="text-align:left;padding:4px 10px;font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(232,234,240,0.22)">Variable Name</th>
           <th style="text-align:left;padding:4px 10px;font-size:9px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(232,234,240,0.22)">Description</th>
           <th style="padding:4px 10px"></th>
+          <th style="padding:4px 10px"></th>
         </tr></thead>
-        <tbody>${vars.map(([v, l]) => row(v, l)).join('')}</tbody>
+        <tbody>${vars.map(v => row(v)).join('')}</tbody>
       </table>
     </div>`;
 
