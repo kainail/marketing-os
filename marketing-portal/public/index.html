@@ -346,6 +346,8 @@
     <div id="ab-tests-list"></div>
     <div class="section-title" style="margin-top:24px">AGENTIC ACTIVITY LOG</div>
     <div id="agentic-log" class="card"><div class="text-muted">No autonomous actions taken yet. System is in supervised mode.</div></div>
+    <div id="decision-kill-switch" class="card mb-16"></div>
+    <div id="decision-spend-controls" class="card mb-16"></div>
   </div>
 
   <!-- Section: Hook Library -->
@@ -1310,6 +1312,8 @@ async function loadDecision() {
   loadGadsConnectionStatus();
   loadGadsConversionStatus();
   loadGadsKeywordIntelligence();
+  loadKillSwitch();
+  loadSpendControls();
 }
 
 async function loadGadsConnectionStatus() {
@@ -1401,6 +1405,263 @@ async function loadGadsKeywordIntelligence() {
           <button onclick="dismissGadsNegative(${i})" style="font-size:11px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:4px;padding:4px 10px;color:var(--text-muted);font-family:inherit;cursor:pointer">Dismiss</button>
         </div>`).join('');
     }
+  }
+}
+
+async function loadKillSwitch() {
+  const location = (state.currentLocation || 'bloomington').toLowerCase();
+  const token = localStorage.getItem('gymsuite_token');
+  const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const el = document.getElementById('decision-kill-switch');
+  if (!el) return;
+
+  let status = { meta: { status: 'active' }, google: { status: 'active' } };
+  try {
+    const res = await fetch(`/api/kill-switch/status?location=${location}`, { headers });
+    status = await res.json();
+  } catch(e) {}
+
+  const channelCard = (channel, label, icon, data) => {
+    const isKilled = data.status === 'killed';
+    const statusColor = isKilled ? 'var(--red)' : 'var(--green)';
+    const statusLabel = isKilled ? 'KILLED' : 'ACTIVE';
+    const btnLabel = isKilled ? '▶ REACTIVATE' : '⚡ KILL';
+    const btnColor = isKilled ? 'var(--green)' : 'var(--red)';
+    const lastAction = data.last_action
+      ? `Last action: ${data.action} — ${data.reason || 'no reason'} — ${new Date(data.timestamp).toLocaleString()}`
+      : 'No kill actions taken';
+
+    return `
+      <div style="flex:1;background:var(--bg-card);border:1px solid var(--border);
+        border-radius:8px;padding:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;
+          margin-bottom:12px">
+          <div style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary)">
+            ${icon} ${label}
+          </div>
+          <div style="font-family:var(--font-mono);font-size:11px;color:${statusColor};
+            background:${statusColor}22;border:1px solid ${statusColor}44;
+            border-radius:4px;padding:2px 8px">
+            ${statusLabel}
+          </div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);
+          margin-bottom:12px">${lastAction}</div>
+        ${!isKilled ? `
+          <div style="margin-bottom:8px">
+            <input id="kill-reason-${channel}" type="text" placeholder="Kill reason (required)"
+              style="width:100%;background:var(--bg-void);border:1px solid var(--border);
+              border-radius:4px;padding:6px 10px;color:var(--text-primary);
+              font-family:var(--font-mono);font-size:11px;box-sizing:border-box"/>
+          </div>` : ''}
+        <button onclick="executeKillSwitch('${channel}','${isKilled ? 'activate' : 'kill'}')"
+          style="width:100%;padding:8px;background:transparent;border:1px solid ${btnColor};
+          border-radius:4px;color:${btnColor};font-family:var(--font-mono);font-size:11px;
+          cursor:pointer;font-weight:bold">
+          ${btnLabel}
+        </button>
+      </div>`;
+  };
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      margin-bottom:16px">
+      <div class="section-title" style="margin-bottom:0">KILL SWITCH</div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">
+        Immediately pauses all active campaigns for this location
+      </div>
+    </div>
+    <div style="display:flex;gap:16px;margin-bottom:16px">
+      ${channelCard('meta', 'META ADS', '📘', status.meta)}
+      ${channelCard('google', 'GOOGLE ADS', '🔍', status.google)}
+    </div>
+    <div style="text-align:center">
+      <button onclick="executeKillSwitch('all','kill')"
+        style="padding:10px 32px;background:rgba(239,68,68,0.1);
+        border:1px solid rgba(239,68,68,0.5);border-radius:6px;
+        color:var(--red);font-family:var(--font-mono);font-size:12px;
+        cursor:pointer;font-weight:bold;letter-spacing:1px">
+        ⚡ KILL ALL CHANNELS
+      </button>
+    </div>`;
+}
+
+async function executeKillSwitch(channel, action) {
+  const location = (state.currentLocation || 'bloomington').toLowerCase();
+  const token = localStorage.getItem('gymsuite_token');
+  const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+
+  let reason = '';
+  if (action === 'kill') {
+    const reasonEl = document.getElementById(`kill-reason-${channel}`);
+    reason = reasonEl ? reasonEl.value.trim() : '';
+    if (!reason && channel !== 'all') {
+      toast('Kill reason is required', 'error');
+      return;
+    }
+    if (channel === 'all') {
+      const metaReason   = document.getElementById('kill-reason-meta')?.value.trim();
+      const googleReason = document.getElementById('kill-reason-google')?.value.trim();
+      reason = metaReason || googleReason || 'Manual kill — all channels';
+    }
+    const confirmed = confirm(`Kill ${channel.toUpperCase()} campaigns for ${location}?\n\nReason: ${reason}\n\nThis will immediately pause all active campaigns.`);
+    if (!confirmed) return;
+  }
+
+  try {
+    const res = await fetch('/api/kill-switch', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ location, channel, action, reason })
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast(`${action === 'kill' ? 'Killed' : 'Activated'} ${channel} — ${data.campaigns_affected} campaigns affected`, 'success');
+      loadKillSwitch();
+    } else {
+      toast('Kill switch failed: ' + (data.reason || 'unknown error'), 'error');
+    }
+  } catch(e) {
+    toast('Kill switch error: ' + e.message, 'error');
+  }
+}
+
+async function loadSpendControls() {
+  const location = (state.currentLocation || 'bloomington').toLowerCase();
+  const token = localStorage.getItem('gymsuite_token');
+  const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+  const el = document.getElementById('decision-spend-controls');
+  if (!el) return;
+
+  let metaControls = { daily_budget_cents: null };
+  let googleControls = { daily_budget_micros: null };
+  try {
+    const metaRes = await fetch(`/api/performance?location=${location}`, { headers });
+    const metaData = await metaRes.json();
+    metaControls = metaData.spend_controls || metaControls;
+  } catch(e) {}
+
+  const metaBudgetDisplay = metaControls.daily_budget_cents
+    ? '$' + (metaControls.daily_budget_cents / 100).toFixed(2)
+    : 'Not set';
+  const googleBudgetDisplay = googleControls.daily_budget_micros
+    ? '$' + (googleControls.daily_budget_micros / 1000000).toFixed(2)
+    : 'Not set';
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+      margin-bottom:16px">
+      <div class="section-title" style="margin-bottom:0">SPEND CONTROLS</div>
+      <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">
+        Updates campaign budgets directly in Meta and Google Ads
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+      <div style="background:var(--bg-card);border:1px solid var(--border);
+        border-radius:8px;padding:16px">
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);
+          margin-bottom:8px">📘 META — DAILY BUDGET</div>
+        <div style="font-family:var(--font-mono);font-size:20px;margin-bottom:12px">
+          ${metaBudgetDisplay}
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="meta-budget-input" type="number" placeholder="Daily budget ($)"
+            min="1" step="1"
+            style="flex:1;background:var(--bg-void);border:1px solid var(--border);
+            border-radius:4px;padding:6px 10px;color:var(--text-primary);
+            font-family:var(--font-mono);font-size:12px"/>
+          <button onclick="updateSpendLimit('meta')"
+            style="padding:6px 16px;background:transparent;
+            border:1px solid var(--violet);border-radius:4px;
+            color:var(--violet);font-family:var(--font-mono);font-size:11px;
+            cursor:pointer">SET</button>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">
+          Enter amount in dollars. Pushes to Meta Ads API immediately.
+        </div>
+      </div>
+
+      <div style="background:var(--bg-card);border:1px solid var(--border);
+        border-radius:8px;padding:16px">
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);
+          margin-bottom:8px">🔍 GOOGLE — DAILY BUDGET</div>
+        <div style="font-family:var(--font-mono);font-size:20px;margin-bottom:12px">
+          ${googleBudgetDisplay}
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="google-budget-input" type="number" placeholder="Daily budget ($)"
+            min="1" step="1"
+            style="flex:1;background:var(--bg-void);border:1px solid var(--border);
+            border-radius:4px;padding:6px 10px;color:var(--text-primary);
+            font-family:var(--font-mono);font-size:12px"/>
+          <button onclick="updateSpendLimit('google')"
+            style="padding:6px 16px;background:transparent;
+            border:1px solid var(--violet);border-radius:4px;
+            color:var(--violet);font-family:var(--font-mono);font-size:11px;
+            cursor:pointer">SET</button>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">
+          Enter amount in dollars. Converts to micros and pushes to Google Ads API.
+        </div>
+      </div>
+
+    </div>`;
+}
+
+async function updateSpendLimit(channel) {
+  const location = (state.currentLocation || 'bloomington').toLowerCase();
+  const token = localStorage.getItem('gymsuite_token');
+  const headers = { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' };
+
+  const inputEl = document.getElementById(`${channel}-budget-input`);
+  const dollarAmount = parseFloat(inputEl?.value);
+
+  if (!dollarAmount || dollarAmount < 1) {
+    toast('Enter a valid daily budget amount', 'error');
+    return;
+  }
+
+  const confirmed = confirm(`Set ${channel.toUpperCase()} daily budget to $${dollarAmount.toFixed(2)} for ${location}?\n\nThis updates the live campaign budget immediately.`);
+  if (!confirmed) return;
+
+  try {
+    let endpoint, body;
+    if (channel === 'meta') {
+      endpoint = '/api/meta/spend-limit';
+      body = {
+        location,
+        daily_budget_cents: Math.round(dollarAmount * 100),
+        campaign_id: state.overview?.paid?.meta?.campaign_id || null
+      };
+    } else {
+      endpoint = '/api/google-ads/spend-limit';
+      body = {
+        location,
+        daily_budget_micros: Math.round(dollarAmount * 1000000),
+        campaign_id: state.overview?.paid?.google?.campaign_id || null
+      };
+    }
+
+    if (!body.campaign_id) {
+      toast('No active campaign ID found for ' + channel + '. Connect API first.', 'error');
+      return;
+    }
+
+    const res = await fetch(endpoint, {
+      method: 'POST', headers,
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      toast(`${channel.toUpperCase()} budget updated to $${dollarAmount.toFixed(2)}/day`, 'success');
+      loadSpendControls();
+    } else {
+      toast('Budget update failed: ' + (data.reason || 'unknown'), 'error');
+    }
+  } catch(e) {
+    toast('Budget update error: ' + e.message, 'error');
   }
 }
 
