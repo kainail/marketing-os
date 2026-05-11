@@ -3359,6 +3359,7 @@ async function provisionPageRow(userId, sessionId) {
 
 function buildRailwayChecklist(gymKey, tier, stored) {
   const doOps = tier === 'both';
+  const doPortal = true; // always show portal vars
   const K = gymKey;
 
   const opsVars = [
@@ -3371,10 +3372,12 @@ function buildRailwayChecklist(gymKey, tier, stored) {
     [`META_PIXEL_ID_${K}`,          'Meta Pixel ID'],
     [`ELEVENLABS_API_KEY_${K}`,              'ElevenLabs API Key'],
     [`ELEVENLABS_VOICE_ID_${K}`,             'ElevenLabs Voice ID'],
+    ['__GOOGLE_ADS_SEPARATOR__', ''],
     [`GOOGLE_ADS_CUSTOMER_ID_${K}`,          'Google Ads Customer ID (xxx-xxx-xxxx)'],
     [`GOOGLE_ADS_DEVELOPER_TOKEN`,           'Google Ads Developer Token (shared)'],
     [`GOOGLE_ADS_CLIENT_ID`,                 'Google Cloud OAuth Client ID (shared)'],
     [`GOOGLE_ADS_CLIENT_SECRET`,             'Google Cloud OAuth Client Secret (shared)'],
+    [`GOOGLE_ADS_MANAGER_CUSTOMER_ID`,       'Google Ads Manager Account ID (MCC — shared)'],
     [`GOOGLE_ADS_REFRESH_TOKEN_${K}`,        'Google Ads Refresh Token'],
     [`GOOGLE_ADS_CONVERSION_ACTION_ID_${K}`, 'Google Ads Conversion Action ID'],
     [`GOOGLE_ADS_CALL_TRACKING_PHONE_${K}`,  'Call Tracking Phone Number'],
@@ -3388,24 +3391,30 @@ function buildRailwayChecklist(gymKey, tier, stored) {
     [`META_PAGE_ID_${K}`,                    'Meta Page ID'],
     [`META_ACCESS_TOKEN_${K}`,               'Meta Access Token'],
     [`META_PIXEL_ID_${K}`,                   'Meta Pixel ID'],
+    ['__GOOGLE_ADS_SEPARATOR__', ''],
     [`GOOGLE_ADS_CUSTOMER_ID_${K}`,          'Google Ads Customer ID (xxx-xxx-xxxx)'],
     [`GOOGLE_ADS_DEVELOPER_TOKEN`,           'Google Ads Developer Token (shared)'],
     [`GOOGLE_ADS_CLIENT_ID`,                 'Google Cloud OAuth Client ID (shared)'],
     [`GOOGLE_ADS_CLIENT_SECRET`,             'Google Cloud OAuth Client Secret (shared)'],
+    [`GOOGLE_ADS_MANAGER_CUSTOMER_ID`,       'Google Ads Manager Account ID (MCC — shared)'],
     [`GOOGLE_ADS_REFRESH_TOKEN_${K}`,        'Google Ads Refresh Token'],
     [`GOOGLE_ADS_CONVERSION_ACTION_ID_${K}`, 'Google Ads Conversion Action ID'],
     [`GOOGLE_ADS_CALL_TRACKING_PHONE_${K}`,  'Call Tracking Phone Number'],
     [`GOOGLE_ADS_TARGET_RADIUS_${K}`,        'Target Radius (miles)'],
   ];
 
-  const row = (varName, label) => `
+  const row = (varName, label) => {
+    if (varName === '__GOOGLE_ADS_SEPARATOR__') return `<tr><td colspan="3" style="padding:12px 8px 4px;font-family:var(--font-mono);font-size:10px;color:var(--violet);letter-spacing:1px">── GOOGLE ADS ──────────────────────────────</td></tr>`;
+    const oauthNote = varName.includes('REFRESH_TOKEN') ? `<div style="font-size:10px;color:var(--text-muted);margin-top:3px">Generate at developers.google.com/oauthplayground — use afanytimefitnessgyms@gmail.com</div>` : '';
+    return `
     <tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
       <td style="padding:6px 10px;font-family:monospace;font-size:11px;color:#a78bfa">${varName}</td>
-      <td style="padding:6px 10px;font-size:11px;color:rgba(232,234,240,0.45)">${label}</td>
+      <td style="padding:6px 10px;font-size:11px;color:rgba(232,234,240,0.45)">${label}${oauthNote}</td>
       <td style="padding:6px 10px">
         <button onclick="navigator.clipboard.writeText('${varName}');toast('Copied','success')" style="font-size:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:4px;padding:2px 7px;color:rgba(232,234,240,0.45);font-family:inherit;cursor:pointer">Copy name</button>
       </td>
     </tr>`;
+  };
 
   const section = (title, railwayService, vars) => `
     <div style="margin-bottom:16px">
@@ -3432,8 +3441,8 @@ function buildRailwayChecklist(gymKey, tier, stored) {
     <div style="font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(245,158,11,0.9);margin-bottom:12px">Railway Setup Required</div>
     ${testimonialLine}
     <div style="font-size:12px;color:rgba(232,234,240,0.5);margin-bottom:14px">Add these env vars in Railway, then redeploy each service. Values come from GHL, Meta, and ElevenLabs dashboards.</div>
-    ${doOps     ? section('OPS Dashboard', 'gymsuiteai-dashboard', opsVars)    : ''}
-    ${doOps     ? section('Marketing Portal', 'marketing-os-portal', portalVars) : ''}
+    ${doOps ? section('OPS Dashboard', 'gymsuiteai-dashboard', opsVars) : ''}
+    ${section('Marketing Portal', 'marketing-os-portal', portalVars)}
     <div style="margin-top:4px">
       <button onclick="dismissRailwayChecklist(this)" style="background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.3);border-radius:6px;padding:7px 16px;color:#22c55e;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer">Mark as done — dismiss</button>
     </div>`;
