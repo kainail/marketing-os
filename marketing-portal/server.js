@@ -4383,6 +4383,81 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
         console.error(`[Drive] creative pipeline error (session ${sessionId}):`, err.message);
       }
     });
+
+    // Manus agentic tasks — fire concurrently after session complete, independent of Drive pipeline
+    setImmediate(async () => {
+      const webhookUrl = WEBHOOK_URL ? `${WEBHOOK_URL}/api/manus/callback` : null;
+      const locationKey = (session.city || 'unknown').toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
+
+      const triggerManusTask = async (filename, contextBlock, taskType) => {
+        try {
+          const taskTemplatePath = MANUS_TASKS_PATH ? path.join(MANUS_TASKS_PATH, filename) : null;
+          const taskTemplate = taskTemplatePath ? safeRead(taskTemplatePath) : null;
+          if (!taskTemplate) {
+            console.warn(`[onboarding] ${filename} not found in:`, MANUS_TASKS_PATH);
+            return;
+          }
+          const taskContent = [contextBlock, '---', '', taskTemplate].join('\n');
+          if (!MANUS_API_KEY) {
+            console.warn(`[onboarding] MANUS_API_KEY not set — skipping ${filename}`);
+            return;
+          }
+          const body = {
+            message: { content: [{ type: 'text', text: taskContent }] },
+            metadata: { source: 'ahri-onboarding', filename, task_type: taskType, session_id: sessionId },
+            ...(webhookUrl ? { webhook_url: webhookUrl } : {}),
+          };
+          const response = await fetch(`${MANUS_API_BASE}/task.create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-manus-api-key': MANUS_API_KEY },
+            body: JSON.stringify(body),
+          });
+          if (!response.ok) throw new Error(`Manus API ${response.status}`);
+          const data = await response.json();
+          const task_id = data.task_id || data.id || `manus-${Date.now()}`;
+          await saveTaskRun(task_id, {
+            task_type: taskType,
+            task_filename: filename,
+            session_id: sessionId,
+            started_at: new Date().toISOString(),
+            status: 'running',
+            task_url: data.task_url || null,
+          });
+          console.log(`[onboarding] Manus ${taskType} triggered: task_id=${task_id} session=${sessionId}`);
+        } catch (err) {
+          console.error(`[onboarding] Manus ${taskType} trigger failed:`, err.message);
+        }
+      };
+
+      await Promise.allSettled([
+        triggerManusTask(
+          'google-keyword-intelligence.md',
+          [
+            `SESSION_ID: ${sessionId}`,
+            `GYM_NAME: ${session.gymName}`,
+            `CITY: ${session.city}`,
+            `STATE: ${session.state}`,
+            `ZIP: ${session.zip || ''}`,
+            `LOCATION_KEY: ${locationKey}`,
+            `TARGET_RADIUS_MILES: 15`,
+          ].join('\n'),
+          'google-keyword-intelligence'
+        ),
+        triggerManusTask(
+          'paid-ads-setup.md',
+          [
+            `SESSION_ID: ${sessionId}`,
+            `GYM_NAME: ${session.gymName}`,
+            `CITY: ${session.city}`,
+            `STATE: ${session.state}`,
+            `FRANCHISE_TYPE: ${session.franchiseType}`,
+            `OFFER: 30-Day No-Risk Kickstart`,
+            `TARGET_AVATAR: Lifestyle Member (35-55, returning to fitness)`,
+          ].join('\n'),
+          'paid-ads-setup'
+        ),
+      ]);
+    });
   } catch (err) {
     console.error('[onboarding] complete failed:', err.message);
     res.status(500).json({ error: err.message });
