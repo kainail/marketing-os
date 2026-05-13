@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AHRI — User Management</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: 'Outfit', system-ui, sans-serif; background: #0a0a0a; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    body::before { content: ''; position: fixed; inset: 0; background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 28px 28px; pointer-events: none; }
+
+    /* Header */
+    .header { position: fixed; top: 0; left: 0; right: 0; height: 56px; background: rgba(10,10,10,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; padding: 0 24px; gap: 16px; z-index: 100; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-dot { width: 24px; height: 24px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 7px; flex-shrink: 0; }
+    .logo-text { font-size: 16px; font-weight: 700; color: #e8eaf0; }
+    .logo-sub { font-size: 10px; color: rgba(232,234,240,0.35); letter-spacing: 1.5px; text-transform: uppercase; }
+    .breadcrumb { font-size: 13px; color: rgba(232,234,240,0.35); display: flex; align-items: center; gap: 8px; }
+    .breadcrumb span { color: rgba(232,234,240,0.6); }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .back-link { font-size: 12px; color: rgba(232,234,240,0.45); text-decoration: none; padding: 6px 12px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; transition: all 0.15s; }
+    .back-link:hover { color: #e8eaf0; border-color: rgba(255,255,255,0.2); }
+
+    /* Page */
+    .page { padding: 80px 24px 40px; max-width: 1100px; margin: 0 auto; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .page-title { font-size: 20px; font-weight: 600; }
+    .page-sub { font-size: 13px; color: rgba(232,234,240,0.45); margin-top: 3px; }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 9px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover { background: #4f46e5; }
+    .btn-sm { padding: 5px 11px; font-size: 12px; border-radius: 7px; }
+    .btn-ghost { background: rgba(255,255,255,0.05); color: rgba(232,234,240,0.7); border: 1px solid rgba(255,255,255,0.08); }
+    .btn-ghost:hover { background: rgba(255,255,255,0.09); color: #e8eaf0; }
+    .btn-green { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+    .btn-green:hover { background: rgba(16,185,129,0.25); }
+    .btn-gold { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+    .btn-gold:hover { background: rgba(245,158,11,0.25); }
+    .btn-red { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+    .btn-red:hover { background: rgba(239,68,68,0.22); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Table */
+    .table-wrap { background: #111; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: rgba(232,234,240,0.35); border-bottom: 1px solid rgba(255,255,255,0.06); }
+    tbody td { padding: 14px 16px; font-size: 13px; color: rgba(232,234,240,0.8); border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* Badges */
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.5px; }
+    .badge-active { background: rgba(16,185,129,0.15); color: #10b981; }
+    .badge-demo { background: rgba(245,158,11,0.15); color: #f59e0b; }
+
+    .actions-cell { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+    /* Empty state */
+    .empty { text-align: center; padding: 56px 24px; color: rgba(232,234,240,0.3); }
+    .empty-icon { font-size: 36px; margin-bottom: 12px; }
+    .empty p { font-size: 14px; }
+
+    /* Loading */
+    .loading { text-align: center; padding: 48px; color: rgba(232,234,240,0.35); font-size: 13px; }
+    .spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.1); border-top-color: #6366f1; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; vertical-align: middle; margin-right: 8px; }
+
+    /* Modal */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(4px); z-index: 500; display: none; align-items: center; justify-content: center; padding: 20px; }
+    .overlay.open { display: flex; }
+    .modal { background: #141414; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; width: 100%; max-width: 480px; }
+    .modal-header { padding: 22px 24px 16px; border-bottom: 1px solid rgba(255,255,255,0.07); display: flex; align-items: center; justify-content: space-between; }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-close { background: none; border: none; color: rgba(232,234,240,0.35); font-size: 20px; cursor: pointer; padding: 2px 6px; line-height: 1; border-radius: 4px; }
+    .modal-close:hover { color: #e8eaf0; background: rgba(255,255,255,0.06); }
+    .modal-body { padding: 22px 24px; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid rgba(255,255,255,0.07); display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* Form fields */
+    .field { margin-bottom: 16px; }
+    .field:last-child { margin-bottom: 0; }
+    label { display: block; font-size: 12px; font-weight: 500; color: rgba(232,234,240,0.55); margin-bottom: 6px; }
+    input[type=text], input[type=email], select { width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 9px; padding: 10px 14px; font-family: inherit; font-size: 14px; color: #e8eaf0; outline: none; transition: border-color 0.15s; }
+    input:focus, select:focus { border-color: rgba(99,102,241,0.55); }
+    select option { background: #1a1a1a; }
+
+    /* Temp password display */
+    .temp-pw-box { background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.25); border-radius: 10px; padding: 16px 18px; margin-top: 4px; }
+    .temp-pw-label { font-size: 11px; color: rgba(232,234,240,0.45); margin-bottom: 6px; }
+    .temp-pw-value { font-family: 'Courier New', monospace; font-size: 20px; font-weight: 700; color: #a78bfa; letter-spacing: 2px; }
+    .temp-pw-note { font-size: 12px; color: rgba(232,234,240,0.4); margin-top: 8px; }
+
+    /* Error / info */
+    .msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+    .msg.show { display: block; }
+    .msg-error { background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.22); color: #fb7185; }
+    .msg-info { background: rgba(99,102,241,0.1); border: 1px solid rgba(99,102,241,0.22); color: #a78bfa; }
+
+    /* Delete confirm inline */
+    .confirm-row { display: flex; gap: 6px; align-items: center; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <a href="/dashboard" class="logo">
+      <div class="logo-dot"></div>
+      <div>
+        <div class="logo-text">AHRI</div>
+        <div class="logo-sub">Marketing OS</div>
+      </div>
+    </a>
+    <div class="breadcrumb">/ <span>Admin</span> / <span>Users</span></div>
+    <div class="header-right">
+      <a href="/dashboard" class="back-link">← Dashboard</a>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Gym Owner Accounts</div>
+        <div class="page-sub">Manage portal access for gym owners</div>
+      </div>
+      <button class="btn btn-primary" onclick="openAddModal()">+ Add Account</button>
+    </div>
+
+    <div id="table-container">
+      <div class="loading"><span class="spinner"></span>Loading accounts...</div>
+    </div>
+  </div>
+
+  <!-- Add Account Modal -->
+  <div class="overlay" id="add-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-title">Add Gym Owner Account</div>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <div class="msg msg-error" id="form-error"></div>
+        <div id="form-fields">
+          <div class="field">
+            <label>Owner Name</label>
+            <input type="text" id="f-name" placeholder="Jane Smith"/>
+          </div>
+          <div class="field">
+            <label>Email</label>
+            <input type="email" id="f-email" placeholder="jane@example.com"/>
+          </div>
+          <div class="field">
+            <label>Gym Name</label>
+            <input type="text" id="f-gymname" placeholder="Anytime Fitness Bloomington"/>
+          </div>
+          <div class="field">
+            <label>Location ID</label>
+            <select id="f-gymid">
+              <option value="">Select location...</option>
+              <option value="bloomington">bloomington</option>
+              <option value="eaton">eaton</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>City</label>
+            <input type="text" id="f-city" placeholder="Bloomington"/>
+          </div>
+        </div>
+        <div id="success-block" style="display:none;">
+          <div class="temp-pw-box">
+            <div class="temp-pw-label">TEMPORARY PASSWORD — COPY NOW</div>
+            <div class="temp-pw-value" id="show-pw"></div>
+            <div class="temp-pw-note">This password will not be shown again. Send it to the gym owner securely.</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="save-btn" onclick="submitAdd()">Create Account</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TOKEN_KEY = 'gymsuite_token';
+
+    function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+
+    function parseJwt(t) {
+      try { return JSON.parse(atob(t.split('.')[1])); } catch { return null; }
+    }
+
+    function authHeaders() {
+      return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() };
+    }
+
+    // Guard — admin only
+    (function() {
+      const t = getToken();
+      if (!t) { window.location.href = '/login'; return; }
+      const payload = parseJwt(t);
+      if (!payload || payload.role !== 'admin') { window.location.href = '/login'; }
+    })();
+
+    let users = [];
+    let pendingDelete = null;
+
+    async function loadUsers() {
+      const res = await fetch('/api/admin/users', { headers: authHeaders() });
+      if (res.status === 401 || res.status === 403) { window.location.href = '/login'; return; }
+      const data = await res.json();
+      users = data.users || [];
+      renderTable();
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function renderTable() {
+      const wrap = document.getElementById('table-container');
+      if (!users.length) {
+        wrap.innerHTML = `<div class="table-wrap"><div class="empty"><div class="empty-icon">👤</div><p>No gym owner accounts yet.</p></div></div>`;
+        return;
+      }
+      const rows = users.map(u => `
+        <tr id="row-${u.id}">
+          <td><strong style="color:#e8eaf0">${esc(u.name)}</strong></td>
+          <td style="color:rgba(232,234,240,0.55)">${esc(u.email)}</td>
+          <td>${esc(u.gymName || '—')}</td>
+          <td style="font-family:monospace;font-size:12px">${esc(u.gymId || u.locations?.[0] || '—')}</td>
+          <td><span class="badge ${u.status === 'active' ? 'badge-active' : 'badge-demo'}">${u.status || 'demo'}</span></td>
+          <td style="color:rgba(232,234,240,0.4)">${fmtDate(u.onboardedAt)}</td>
+          <td class="actions-cell" id="actions-${u.id}">
+            ${renderActions(u)}
+          </td>
+        </tr>`).join('');
+
+      wrap.innerHTML = `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th><th>Email</th><th>Gym</th><th>Location</th><th>Status</th><th>Created</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    }
+
+    function renderActions(u) {
+      const toggleBtn = u.status === 'active'
+        ? `<button class="btn btn-sm btn-gold" onclick="toggleAccess('${u.id}', false)">Deactivate</button>`
+        : `<button class="btn btn-sm btn-green" onclick="toggleAccess('${u.id}', true)">Activate</button>`;
+      const deleteBtn = `<button class="btn btn-sm btn-red" onclick="confirmDelete('${u.id}')">Delete</button>`;
+      return toggleBtn + deleteBtn;
+    }
+
+    async function toggleAccess(userId, active) {
+      const cell = document.getElementById('actions-' + userId);
+      cell.innerHTML = '<span class="spinner"></span>';
+      const res = await fetch('/api/admin/users/' + userId + '/access', {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ active }),
+      });
+      if (!res.ok) { alert('Failed to update access.'); await loadUsers(); return; }
+      const u = users.find(u => u.id === userId);
+      if (u) {
+        u.status = active ? 'active' : 'demo';
+        u.activatedAt = active ? new Date().toISOString() : null;
+        const row = document.getElementById('row-' + userId);
+        if (row) {
+          row.querySelector('.badge').className = 'badge ' + (active ? 'badge-active' : 'badge-demo');
+          row.querySelector('.badge').textContent = active ? 'active' : 'demo';
+          cell.innerHTML = renderActions(u);
+        }
+      }
+    }
+
+    function confirmDelete(userId) {
+      const cell = document.getElementById('actions-' + userId);
+      const u = users.find(u => u.id === userId);
+      cell.innerHTML = `
+        <div class="confirm-row">
+          <span style="font-size:12px;color:#f87171">Delete ${esc(u?.name || 'this account')}?</span>
+          <button class="btn btn-sm btn-red" onclick="doDelete('${userId}')">Confirm</button>
+          <button class="btn btn-sm btn-ghost" onclick="cancelDelete('${userId}')">Cancel</button>
+        </div>`;
+    }
+
+    function cancelDelete(userId) {
+      const u = users.find(u => u.id === userId);
+      const cell = document.getElementById('actions-' + userId);
+      if (u) cell.innerHTML = renderActions(u);
+    }
+
+    async function doDelete(userId) {
+      const cell = document.getElementById('actions-' + userId);
+      cell.innerHTML = '<span class="spinner"></span>';
+      const res = await fetch('/api/admin/users/' + userId, {
+        method: 'DELETE',
+        headers: authHeaders(),
+        body: JSON.stringify({ confirm: 'DELETE' }),
+      });
+      if (!res.ok) { alert('Delete failed.'); await loadUsers(); return; }
+      users = users.filter(u => u.id !== userId);
+      const row = document.getElementById('row-' + userId);
+      if (row) row.remove();
+      if (!users.length) renderTable();
+    }
+
+    function openAddModal() {
+      document.getElementById('form-fields').style.display = '';
+      document.getElementById('success-block').style.display = 'none';
+      document.getElementById('modal-title').textContent = 'Add Gym Owner Account';
+      document.getElementById('modal-footer').innerHTML = `
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" id="save-btn" onclick="submitAdd()">Create Account</button>`;
+      document.getElementById('form-error').classList.remove('show');
+      ['f-name','f-email','f-gymname','f-city'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('f-gymid').value = '';
+      document.getElementById('add-overlay').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('add-overlay').classList.remove('open');
+    }
+
+    async function submitAdd() {
+      const name    = document.getElementById('f-name').value.trim();
+      const email   = document.getElementById('f-email').value.trim();
+      const gymName = document.getElementById('f-gymname').value.trim();
+      const gymId   = document.getElementById('f-gymid').value;
+      const city    = document.getElementById('f-city').value.trim();
+      const errEl   = document.getElementById('form-error');
+
+      errEl.classList.remove('show');
+      if (!name || !email || !gymName || !gymId || !city) {
+        errEl.textContent = 'All fields are required.';
+        errEl.classList.add('show');
+        return;
+      }
+
+      const btn = document.getElementById('save-btn');
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ name, email, gymName, gymId, city }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        errEl.textContent = data.error || 'Failed to create account.';
+        errEl.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        return;
+      }
+
+      // Show temp password
+      document.getElementById('show-pw').textContent = data.tempPassword;
+      document.getElementById('form-fields').style.display = 'none';
+      document.getElementById('success-block').style.display = '';
+      document.getElementById('modal-title').textContent = 'Account Created';
+      document.getElementById('modal-footer').innerHTML = `<button class="btn btn-primary" onclick="closeModal(); loadUsers()">Done</button>`;
+      users.push(data.user);
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    loadUsers();
+  </script>
+</body>
+</html>

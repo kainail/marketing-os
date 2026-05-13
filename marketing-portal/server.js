@@ -643,6 +643,7 @@ app.get('/login', (req, res) => res.sendFile(path.join(__dirname, 'public', 'log
 app.get('/forgot-password', (req, res) => res.sendFile(path.join(__dirname, 'public', 'forgot-password.html')));
 app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, 'public', 'reset-password.html')));
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/admin/users', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-users.html')));
 
 // ── Blanket API auth — public exceptions listed explicitly ─────────────────
 const AHRI_PUBLIC_API = [
@@ -5256,6 +5257,52 @@ app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
   }
 
   res.json({ success: true, deletedUser: { name: user.name, email: user.email } });
+});
+
+// POST /api/admin/users — create a new gym owner account directly (admin only)
+app.post('/api/admin/users', requireAdmin, async (req, res) => {
+  const { name, email, gymName, gymId, city } = req.body || {};
+  if (!name || !email || !gymName || !gymId || !city) {
+    return res.status(400).json({ error: 'name, email, gymName, gymId, and city are required' });
+  }
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+
+  const normalizedEmail = email.toLowerCase().trim();
+  if (users.find(u => u.email === normalizedEmail)) {
+    return res.status(409).json({ error: 'An account with this email already exists' });
+  }
+
+  const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = crypto.randomBytes(8);
+  let tempPassword = '';
+  for (const b of bytes) tempPassword += CHARS[b % CHARS.length];
+  const passwordHash = await hashPassword(tempPassword);
+
+  const userId = crypto.randomUUID();
+  const sessionId = crypto.randomUUID();
+  const newUser = {
+    id: userId,
+    name,
+    email: normalizedEmail,
+    passwordHash,
+    role: 'owner',
+    locations: [gymId],
+    permissions: { hasAHRI: true, hasOPS: false },
+    status: 'demo',
+    sessionId,
+    gymId,
+    gymName,
+    city,
+    onboardedAt: new Date().toISOString(),
+    activatedAt: null,
+  };
+  users.push(newUser);
+  await saveUsers(users);
+
+  // eslint-disable-next-line no-unused-vars
+  const { passwordHash: _, ...safeUser } = newUser;
+  res.status(201).json({ success: true, user: safeUser, tempPassword });
 });
 
 // ── Meta Token Status ─────────────────────────────────────────────────────────
