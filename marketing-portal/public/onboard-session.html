@@ -1695,6 +1695,10 @@
         } else {
           interviewState.submitting = false;
           resetAnswerArea();
+          if (evalData.cleanedTranscript) {
+            interviewState.answers[q.id] = evalData.cleanedTranscript;
+            saveAnswers().catch(() => {});
+          }
           if (evalData.acknowledgment) {
             await speak(evalData.acknowledgment, document.getElementById('iv-question'));
             if (navVersion !== submitNav) return;

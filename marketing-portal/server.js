@@ -2835,19 +2835,28 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
     return res.json({ sufficient: true, branch: hasOffer ? 'A' : 'B' });
   }
 
+  // Persist raw transcript to R2 before any cleaning or generation
+  try {
+    const rawData = await r2GetShared(`onboarding/sessions/${sessionId}/transcript.json`) || {};
+    rawData[questionId] = transcript;
+    await r2PutShared(`onboarding/sessions/${sessionId}/transcript.json`, rawData);
+  } catch {}
+
   // Tile selection — sufficient by definition, just generate market-connected ack
   if (isTileSelection) {
     const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
     let acknowledgment = null;
+    let cleaned = transcript;
     if (apiKey) {
       try {
         const Anthropic = require('@anthropic-ai/sdk');
         const client = new Anthropic({ apiKey });
         const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
-        acknowledgment = await generateAcknowledgment(questionId, transcript, session, research, client, answers, sessionId);
+        cleaned = await cleanAnswer(transcript, questionId, apiKey);
+        acknowledgment = await generateAcknowledgment(questionId, cleaned, session, research, client, answers, sessionId);
       } catch {}
     }
-    return res.json({ sufficient: true, acknowledgment });
+    return res.json({ sufficient: true, acknowledgment, cleanedTranscript: cleaned });
   }
 
   // Graceful fallback for qa3/qa4 when the owner doesn't have the answer
@@ -2883,15 +2892,17 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
   const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
   if (acceptAnything.includes(questionId) || words.length >= 20) {
     let acknowledgment = null;
+    let cleaned = transcript;
     if (apiKey) {
       try {
         const Anthropic = require('@anthropic-ai/sdk');
         const client = new Anthropic({ apiKey });
         const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
-        acknowledgment = await generateAcknowledgment(questionId, transcript, session, research, client, answers, sessionId);
+        cleaned = await cleanAnswer(transcript, questionId, apiKey);
+        acknowledgment = await generateAcknowledgment(questionId, cleaned, session, research, client, answers, sessionId);
       } catch {}
     }
-    return res.json({ sufficient: true, acknowledgment });
+    return res.json({ sufficient: true, acknowledgment, cleanedTranscript: cleaned });
   }
 
   // Claude evaluates vague but non-empty answers
@@ -2901,6 +2912,7 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
     const research = await r2GetShared(`onboarding/sessions/${sessionId}/prospect-research.json`);
+    const cleaned = await cleanAnswer(transcript, questionId, apiKey);
     const [evalMsg, ackText] = await Promise.all([
       client.messages.create({
         model: 'claude-sonnet-4-6',
@@ -2910,24 +2922,58 @@ app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
           content: `Evaluate if this gym owner's answer is sufficient for our purpose.
 
 Purpose: Extract ${Q_PURPOSE[questionId] || 'relevant context'}
-Answer: "${transcript}"
+Answer: "${cleaned}"
 
 Is this answer specific enough to extract the required data, or does it need a follow-up?
 Respond JSON only: {"sufficient": boolean, "probeQuestion": "one follow-up question or null"}`
         }]
       }),
-      generateAcknowledgment(questionId, transcript, session, research, client, answers, sessionId).catch(() => null),
+      generateAcknowledgment(questionId, cleaned, session, research, client, answers, sessionId).catch(() => null),
     ]);
     const raw = evalMsg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
     const result = JSON.parse(raw);
     if (result.sufficient) {
-      return res.json({ sufficient: true, acknowledgment: ackText, probeQuestion: null });
+      return res.json({ sufficient: true, acknowledgment: ackText, probeQuestion: null, cleanedTranscript: cleaned });
     }
     return res.json({ sufficient: false, probeQuestion: result.probeQuestion || null });
   } catch {
     return res.json({ sufficient: true });
   }
 });
+
+/** Clean a raw spoken owner answer using Claude Haiku — fix typos/grammar, clean prose, preserve all facts. */
+async function cleanAnswer(rawTranscript, questionId, apiKey) {
+  if (!apiKey) return rawTranscript;
+  const words = rawTranscript.trim().split(/\s+/);
+  if (words.length < 4) return rawTranscript;
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      messages: [{
+        role: 'user',
+        content: `Clean this gym owner's spoken answer for use in marketing materials.
+
+Rules:
+- Fix typos and grammar
+- Convert casual or filler phrasing to clean prose
+- Preserve ALL facts, numbers, names, dollar amounts, and specifics exactly as stated
+- No marketing embellishment — keep the owner's meaning unchanged
+- Return as a single clean paragraph
+- If already clean, return it unchanged
+
+Answer: "${rawTranscript}"
+
+Output only the cleaned text. No preamble, no quotes.`,
+      }],
+    });
+    return msg.content[0].text.trim() || rawTranscript;
+  } catch {
+    return rawTranscript;
+  }
+}
 
 /** Generate 3 suggestion cards when an answer is too weak. */
 async function generateAnswerSuggestions(questionId, session, research) {
