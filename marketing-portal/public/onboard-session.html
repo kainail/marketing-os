@@ -108,6 +108,7 @@
     .continue-btn:hover { background: #4f46e5; }
     .skip-act-btn { display: none; align-items: center; gap: 6px; background: #7c3aed; border: none; border-radius: 10px; padding: 11px 20px; font-family: inherit; font-size: 14px; font-weight: 600; color: #fff; cursor: pointer; transition: background 0.15s; }
     .skip-act-btn:hover { background: #6d28d9; }
+    .cr-controls-row { display: flex; gap: 10px; justify-content: center; padding: 16px 0 4px; flex-shrink: 0; }
 
     /* ─── Right panel ─────────────────────────────────────────────── */
     .right-panel { background: rgba(255,255,255,0.013); display: flex; flex-direction: column; padding: 24px; overflow-y: auto; gap: 10px; }
@@ -496,6 +497,10 @@
         <!-- State 6: session complete -->
         <div class="state-pane hidden" id="state-complete">
           <div id="complete-speak-el" class="cr-speak-el"></div>
+          <div class="cr-controls-row" id="cr-controls-row">
+            <button class="skip-act-btn" id="cr-skip-btn" style="display:inline-flex" onclick="skipCr()">Skip →</button>
+            <button type="button" class="mute-act-btn" id="cr-mute-btn" onclick="toggleMute()">🔊</button>
+          </div>
 
           <div class="cr-section hidden" id="cr-avatar">
             <div class="cr-section-label">Your Member</div>
@@ -658,7 +663,7 @@
     function toggleMute() {
       isMuted = !isMuted;
       const icon = isMuted ? '🔇' : '🔊';
-      ['mute-btn', 'iv-mute-btn'].forEach(id => {
+      ['mute-btn', 'iv-mute-btn', 'cr-mute-btn'].forEach(id => {
         const btn = document.getElementById(id);
         if (btn) {
           btn.textContent = icon;
@@ -672,6 +677,7 @@
     let currentAudio = null;
     let currentAudioResolve = null;
     let navVersion = 0;
+    let crWaitResolve = null;
 
     // Tile pre-generation
     const tilePromises = {};
@@ -1313,6 +1319,18 @@
     }
 
     function sleep(ms) { return actSkipActive ? Promise.resolve() : new Promise(r => setTimeout(r, ms)); }
+
+    function crWait(ms) {
+      return new Promise(r => {
+        const t = setTimeout(r, ms);
+        crWaitResolve = () => { clearTimeout(t); crWaitResolve = null; r(); };
+      });
+    }
+
+    function skipCr() {
+      stopAudio();
+      if (crWaitResolve) { const fn = crWaitResolve; crWaitResolve = null; fn(); }
+    }
 
     function esc(s) {
       return String(s || '')
@@ -2577,18 +2595,33 @@
       updateStatusPip('active', 'Generating your system');
       showState('state-speaking');
       document.getElementById('speaking-text').textContent = '';
+      const row = document.getElementById('act-nav-row');
+      if (row) row.style.display = 'flex';
+      const sb = document.getElementById('skip-act-btn');
+      if (sb) { sb.style.display = 'inline-flex'; sb.textContent = 'Skip →'; sb.onclick = skipCr; }
       await speak("Your marketing system is configured. Every question answered. I am going to build the contents of your ad based on everything you have told me.", document.getElementById('speaking-text'));
-      await sleep(400);
+      await crWait(400);
       await triggerCompletion();
     }
 
     // ─── Trigger completion: generate final hooks + session complete ──────────
     async function triggerCompletion() {
       try {
-        const res = await fetch(`/api/onboarding/sessions/${sessionId}/complete`, { method: 'POST' });
-        if (!res.ok) throw new Error('complete API failed');
-        const data = await res.json();
-        await showCompleteReveal(data);
+        const fetchP = fetch(`/api/onboarding/sessions/${sessionId}/complete`, { method: 'POST' })
+          .then(r => r.ok ? r.json() : null).catch(() => null);
+        const raceResult = await Promise.race([
+          fetchP.then(d => ({ source: 'fetch', data: d })),
+          new Promise(r => { crWaitResolve = () => r({ source: 'skip' }); }),
+        ]);
+        crWaitResolve = null;
+        let data;
+        if (raceResult.source === 'fetch') {
+          data = raceResult.data;
+        } else {
+          // Skip pressed — give fetch 500ms more then proceed regardless
+          data = await Promise.race([fetchP, new Promise(r => setTimeout(() => r(null), 500))]);
+        }
+        await showCompleteReveal(data || { hooks: [], posts: [] });
       } catch (err) {
         console.error('[AHRI] completion failed:', err);
         showState('state-speaking');
@@ -2674,7 +2707,7 @@
         : `Here's who we're building for. ${avatarName}. Ready to make a change.`;
       await speak(avatarIntro, speakEl);
       if (navVersion !== revNav) return;
-      await sleep(400);
+      await crWait(400);
 
       // Act 2: Market position — no offer details here
       document.getElementById('cr-pos-gap').textContent = marketGap || 'Personalized accountability';
@@ -2687,12 +2720,12 @@
         ? `Here is your market position. Nobody in your market is talking about ${marketGap}. That is where we play.`
         : 'Here is your market position. You have a clear opening in your market that nobody else is filling.', speakEl);
       if (navVersion !== revNav) return;
-      await sleep(400);
+      await crWait(400);
 
       // Act 3: Hooks one by one
       crReveal('cr-hooks');
       await speak(`Here are your ${hooks.length} hooks.`, speakEl);
-      await sleep(200);
+      await crWait(200);
 
       for (let i = 0; i < hooks.length; i++) {
         if (navVersion !== revNav) return;
@@ -2707,17 +2740,17 @@
         await sleep(50);
         requestAnimationFrame(() => requestAnimationFrame(() => hookEl.classList.add('cr-visible')));
         await speak(hookText);
-        await sleep(250);
+        await crWait(250);
       }
 
       if (navVersion !== revNav) return;
 
       // Act 4: Content posts
       if (posts.length > 0) {
-        await sleep(300);
+        await crWait(300);
         crReveal('cr-posts');
         await speak('And your first three posts.', speakEl);
-        await sleep(200);
+        await crWait(200);
         for (const p of posts) {
           if (navVersion !== revNav) return;
           const postEl = document.createElement('div');
@@ -2726,14 +2759,14 @@
           document.getElementById('cr-posts-list').appendChild(postEl);
           await sleep(50);
           requestAnimationFrame(() => requestAnimationFrame(() => postEl.classList.add('cr-visible')));
-          await sleep(700);
+          await crWait(700);
         }
       }
 
       if (navVersion !== revNav) return;
 
       // Act 5: Offer analysis — THE ONLY PLACE THE OFFER APPEARS
-      await sleep(1500);
+      await crWait(1500);
       crReveal('cr-offer');
       await speak("Now let me show you what your offer looks like — and see if I can make it stronger.", speakEl);
       if (navVersion !== revNav) return;
@@ -2795,23 +2828,25 @@
         const tilesEl = document.getElementById('cr-offer-tiles');
         tilesEl.classList.remove('hidden');
         requestAnimationFrame(() => requestAnimationFrame(() => tilesEl.classList.add('cr-visible')));
-        await sleep(400);
+        await crWait(400);
 
         await speak("Here are two stronger versions of your offer. Both keep what you described — I just sharpened a specific part of each one based on what I know about your market.", speakEl);
         if (navVersion !== revNav) return;
-        await sleep(300);
+        await crWait(300);
         await speak(`${iterA.title}. ${iterA.explanation}`, speakEl);
-        await sleep(250);
+        await crWait(250);
         await speak(`${iterB.title}. ${iterB.explanation}`, speakEl);
-        await sleep(300);
+        await crWait(300);
         await speak("Which feels more like your gym?", speakEl);
 
-        // Wait for owner to select a tile and confirm
+        // Wait for owner to select a tile and confirm (skip advances past selection)
         const selectedIter = await new Promise(resolve => {
           let chosen = null;
           const tileA = document.getElementById('cr-offer-tile-a');
           const tileB = document.getElementById('cr-offer-tile-b');
           const continueBtn = document.getElementById('cr-offer-continue-btn');
+
+          function cleanup() { tileA.onclick = null; tileB.onclick = null; continueBtn.onclick = null; crWaitResolve = null; }
 
           function pickTile(which) {
             chosen = which === 'a' ? iterA : iterB;
@@ -2828,25 +2863,28 @@
           tileB.onclick = () => pickTile('b');
           continueBtn.onclick = () => {
             if (!chosen) return;
-            tileA.onclick = null; tileB.onclick = null; continueBtn.onclick = null;
+            cleanup();
             resolve(chosen);
           };
+          crWaitResolve = () => { cleanup(); resolve(null); };
         });
 
         if (navVersion !== revNav) return;
 
         // Hide continue, fire-and-forget confirm
         document.getElementById('cr-offer-continue').classList.add('hidden');
-        fetch(`/api/onboarding/sessions/${sessionId}/confirm-offer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ iteration: selectedIter }),
-        }).catch(() => {});
+        if (selectedIter) {
+          fetch(`/api/onboarding/sessions/${sessionId}/confirm-offer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ iteration: selectedIter }),
+          }).catch(() => {});
+        }
 
       }
 
       if (navVersion !== revNav) return;
-      await sleep(600);
+      await crWait(600);
 
       // CTA — fetch credentials and show portal login details
       try {
