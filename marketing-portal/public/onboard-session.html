@@ -1196,6 +1196,7 @@
             audio.onerror = (e) => {
               console.warn('[speak] audio error:', e);
               cancelWordReveal();
+              if (displayEl) showTextInstant(text, displayEl);
               audioPlaying = false;
               currentAudio = null;
               currentAudioResolve = null;
@@ -1368,7 +1369,7 @@
       // Section 3 — Your Edge
       { id:'q5', section:3, sectionName:'Your Edge', kbFile:'brain-state',
         text:null,
-        probe:"Walk me through what actually happens — what does someone experience in the first 30 days that they could not get anywhere else?" },
+        probe:"" },
       { id:'q6', section:3, sectionName:'Your Edge', kbFile:'objections',
         text:"What is the most common reason someone does not sign up after hearing your offer? Say it in their exact words. Then tell me — what do you say that changes their mind?",
         probe:"Give me the objection in their exact words, then the line that consistently gets them to say yes." },
