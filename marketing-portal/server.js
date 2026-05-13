@@ -19,6 +19,7 @@ const PORT = process.env.PORT || 3003;
 const ALLOWED_ORIGINS = [
   'https://gymsuiteai-dashboard-production.up.railway.app',
   'https://marketing-os-production-2b85.up.railway.app',
+  'https://app.ahrimarketing.com',
 ];
 
 // --- Path constants ---
@@ -1857,7 +1858,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
 
     // STEP 4 — Create Cold Creative
     console.log('[Meta] Creating cold creative...');
-    const coldLink = destination_url || 'https://marketing-os-production-2b85.up.railway.app/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-parent-child&utm_term=cold-lifestyle&redirect=landing';
+    const coldLink = destination_url || (process.env.BASE_URL || 'https://marketing-os-production-2b85.up.railway.app') + '/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-parent-child&utm_term=cold-lifestyle&redirect=landing';
     const coldLinkData = {
       message: cold_primary_text || `The moment you realized you couldn't keep up with your own kids.\n\nThat feeling isn't about fitness. It's about who you want to be.\n\nAt ${campaignLoc.gymName}, your first 30 days are fully coached for $1.\n\nPrivate orientation. Weekly check-ins. A coach who texts you in week two — because that's when people stop. We know.\n\nShow up 12 times. If it's not worth it, full refund. You keep everything.\n\nThe form is below.`,
       link: coldLink,
@@ -1885,7 +1886,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
 
     // STEP 6 — Create Warm Creative
     console.log('[Meta] Creating warm creative...');
-    const warmLink = destination_url || 'https://marketing-os-production-2b85.up.railway.app/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-offer-direct&utm_term=warm-retarget&redirect=landing';
+    const warmLink = destination_url || (process.env.BASE_URL || 'https://marketing-os-production-2b85.up.railway.app') + '/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-offer-direct&utm_term=warm-retarget&redirect=landing';
     const warmCreative = await metaApiCall(`${locMeta.adAccountId}/adcreatives`, 'POST', {
       name: 'Hook E — Offer Direct — Warm',
       object_story_spec: JSON.stringify({
@@ -2251,7 +2252,7 @@ app.get('/go', async (req, res) => {
   const loc = locationConfig.getLocation(locationId) || locationConfig.getLocation('bloomington');
   const sessionId = crypto.randomUUID();
   const FRANCHISE_URL = loc.franchiseUrl || 'https://www.anytimefitness.com/locations/bloomington-indiana-2822/';
-  const LANDING_PAGE_URL = 'https://no-risk-comeback-landing-page-production.up.railway.app';
+  const LANDING_PAGE_URL = process.env.LANDING_PAGE_URL || 'https://no-risk-comeback-landing-page-production.up.railway.app';
   const destination = redirect === 'landing' ? `${LANDING_PAGE_URL}/?location=${loc.id}&session_id=${sessionId}` : FRANCHISE_URL;
 
   const session = {
@@ -4866,7 +4867,7 @@ async function sendCredentialsEmail(session, tempPassword) {
     return;
   }
   const firstName = (session.ownerName || 'there').split(' ')[0];
-  const loginUrl = 'https://marketing-os-production-2b85.up.railway.app/login';
+  const loginUrl = (process.env.BASE_URL || 'https://marketing-os-production-2b85.up.railway.app') + '/login';
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const html = `<!DOCTYPE html>
 <html>
