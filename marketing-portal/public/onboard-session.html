@@ -455,7 +455,7 @@
             <textarea id="text-answer" placeholder="Type your answer here..." rows="2" oninput="onTextInput(this.value)"></textarea>
             <div class="iv-btns-row">
               <button class="iv-submit" id="submit-btn" onclick="submitAnswer()" disabled>Submit answer</button>
-              <button class="iv-back-btn" id="prev-btn" type="button" onclick="goToPrevQuestion()" disabled title="Go back to previous question">← Back</button>
+              <button class="iv-back-btn" id="prev-btn" type="button" onclick="stopAudio(); goToPrevQuestion()" disabled title="Go back to previous question">← Back</button>
               <button class="iv-skip-btn" id="iv-skip-btn" onclick="skipAct()">Skip →</button>
               <button type="button" class="iv-mute-btn" id="iv-mute-btn" onclick="toggleMute()">🔊</button>
             </div>
@@ -1079,10 +1079,10 @@
     // ─── Audio cancellation — called before any navigation that triggers new audio ─
     function stopAudio() {
       console.log('[stopAudio] cancelling audio');
-      cancelWordReveal();
-      if (currentAudioResolve) { const r = currentAudioResolve; currentAudioResolve = null; r(); }
       if (currentAudio) { try { currentAudio.pause(); currentAudio.src = ''; } catch {} currentAudio = null; }
       audioPlaying = false;
+      cancelWordReveal();
+      if (currentAudioResolve) { const r = currentAudioResolve; currentAudioResolve = null; r(); }
     }
 
     // ─── Skip current briefing act (two-mode) ────────────────────────────────
@@ -1767,6 +1767,7 @@
 
     async function goToPrevQuestion() {
       stopAudio();
+      cancelWordReveal();
       const prevIdx = prevValidIdx(interviewState.currentQIndex);
       if (prevIdx < 0) return;
 
@@ -1779,6 +1780,7 @@
       const prevQ = QUESTIONS[prevIdx];
       const prevAnswer = interviewState.answers[prevQ.id] || '';
 
+      await new Promise(r => setTimeout(r, 100));
       await askQuestion(prevIdx);
 
       if (prevAnswer) {
