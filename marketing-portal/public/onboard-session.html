@@ -2576,6 +2576,7 @@
       setProgress('processing');
       updateStatusPip('active', 'Generating your system');
       showState('state-speaking');
+      document.getElementById('speaking-text').textContent = '';
       await speak("Your marketing system is configured. Every question answered. I am going to build the contents of your ad based on everything you have told me.", document.getElementById('speaking-text'));
       await sleep(400);
       await triggerCompletion();
