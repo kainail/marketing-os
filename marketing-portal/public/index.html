@@ -3130,8 +3130,9 @@ function parseJwt(token) {
     if (e.key === 'gymsuite_token' && !e.newValue) window.location.href = '/login';
   });
 
-  // Gym owners: load session data into overview
+  // Gym owners: populate switcher immediately from JWT, then load session data
   if (user.role === 'owner') {
+    populateOwnerLocationSwitcher(user);
     loadOwnerPortalData();
   }
 })();
