@@ -3212,8 +3212,47 @@ function closeAddClubModal() {
   document.getElementById('add-club-modal').style.display = 'none';
 }
 
-function submitAddClub() {
-  closeAddClubModal();
+async function submitAddClub() {
+  const gymName     = document.getElementById('acm-name').value.trim();
+  const city        = document.getElementById('acm-city').value.trim();
+  const state       = document.getElementById('acm-state').value.trim().toUpperCase();
+  const managerName = document.getElementById('acm-manager').value.trim();
+
+  if (!gymName || !city || !state) {
+    document.getElementById('acm-error').textContent = 'Club name, city, and state are required.';
+    return;
+  }
+
+  const btn = document.querySelector('#add-club-modal .modal-submit');
+  btn.textContent = 'Starting…';
+  btn.disabled = true;
+  document.getElementById('acm-error').textContent = '';
+
+  try {
+    const token = localStorage.getItem('gymsuite_token');
+    const res = await fetch('/api/onboarding/sessions/add-location', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ gymName, city, state, managerName }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      document.getElementById('acm-error').textContent = data.error || 'Something went wrong.';
+      btn.textContent = 'Start Onboarding →';
+      btn.disabled = false;
+      return;
+    }
+    closeAddClubModal();
+    const sessionUrl = data.hostUrl || data.shareUrl || '';
+    if (sessionUrl) {
+      try { await navigator.clipboard.writeText(sessionUrl); } catch {}
+    }
+    toast(`Onboarding started for ${gymName}. Session link copied to clipboard.`, 'success');
+  } catch (err) {
+    document.getElementById('acm-error').textContent = 'Request failed — please try again.';
+    btn.textContent = 'Start Onboarding →';
+    btn.disabled = false;
+  }
 }
 
 // ── Owner portal data ────────────────────────────────────────────────────────
@@ -4030,6 +4069,7 @@ async function doLogout() {
       <div class="modal-field"><label>State</label><input id="acm-state" type="text" placeholder="IL" maxlength="2"></div>
       <div class="modal-field"><label>Manager first name</label><input id="acm-manager" type="text" placeholder="Sarah"></div>
     </div>
+    <div id="acm-error" style="padding:0 24px 8px;font-size:12px;color:#f87171;min-height:18px"></div>
     <div class="modal-footer">
       <button class="modal-cancel" onclick="closeAddClubModal()">Cancel</button>
       <button class="modal-submit" onclick="submitAddClub()">Start Onboarding →</button>

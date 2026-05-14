@@ -2655,6 +2655,91 @@ app.post('/api/onboarding/sessions', requireAdmin, async (req, res) => {
   });
 });
 
+// POST /api/onboarding/sessions/add-location — owner adds a second club to their account
+app.post('/api/onboarding/sessions/add-location', requireAuth, async (req, res) => {
+  if (req.user.role !== 'owner') return res.status(403).json({ error: 'Owner access only' });
+
+  const { gymName, city, state, managerName } = req.body || {};
+  if (!gymName || !city || !state) return res.status(400).json({ error: 'gymName, city, and state are required' });
+
+  const { activeGymId, locations } = req.user;
+  const activeLoc = Array.isArray(locations)
+    ? locations.find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId)
+    : null;
+  const parentSessionId = typeof activeLoc === 'object' ? activeLoc?.sessionId : null;
+
+  const newSessionId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const session = {
+    sessionId: newSessionId,
+    gymName,
+    ownerName: managerName || '',
+    ownerEmail: req.user.email,
+    city,
+    state,
+    zip: '',
+    franchiseType: 'anytime-fitness',
+    websiteUrl: '',
+    status: 'created',
+    created_at: now,
+    created_by: req.user.email,
+    additionalLocation: true,
+    parentSessionId: parentSessionId || null,
+    shareUrl: `/onboard/session/${newSessionId}`,
+    hostUrl: `/onboard/host/${newSessionId}`,
+    research_task_id: null,
+    host_notes: '',
+  };
+
+  await r2PutShared(`onboarding/sessions/${newSessionId}/session.json`, session);
+
+  if (parentSessionId) {
+    const kbFiles = [
+      'knowledge-base/brain-state/current-state.md',
+      'knowledge-base/fitness/lifestyle-avatar.md',
+      'knowledge-base/compliance-b2c.md',
+    ];
+    await Promise.allSettled(kbFiles.map(async (f) => {
+      const content = await r2GetShared(`onboarding/sessions/${parentSessionId}/${f}`);
+      if (content !== null) await r2PutShared(`onboarding/sessions/${newSessionId}/${f}`, content);
+    }));
+  }
+
+  const manusResult = await triggerProspectResearch(newSessionId, session);
+  if (manusResult.task_id) {
+    session.status = 'researching';
+    session.research_task_id = manusResult.task_id;
+    await r2PutShared(`onboarding/sessions/${newSessionId}/session.json`, session);
+  }
+
+  let users;
+  try { users = await getUsers(); } catch { users = null; }
+  if (users) {
+    const u = users.find(u => u.id === req.user.userId);
+    if (u && Array.isArray(u.locations)) {
+      u.locations.push({
+        gymId: newSessionId,
+        sessionId: newSessionId,
+        gymName,
+        city,
+        state,
+        active: false,
+      });
+      await saveUsers(users);
+    }
+  }
+
+  const baseUrl = WEBHOOK_URL || '';
+  res.json({
+    success: true,
+    sessionId: newSessionId,
+    hostUrl: `${baseUrl}/onboard/host/${newSessionId}`,
+    shareUrl: `${baseUrl}/onboard/session/${newSessionId}`,
+    manus: { triggered: !!manusResult.task_id, task_id: manusResult.task_id || null, fallback: !!manusResult.fallback },
+  });
+});
+
 // GET /api/onboarding/sessions/:sessionId — get session state (no auth — secured by UUID)
 app.get('/api/onboarding/sessions/:sessionId', async (req, res) => {
   const { sessionId } = req.params;
