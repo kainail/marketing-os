@@ -575,6 +575,8 @@ const state = {
   currentSection: 'overview',
 };
 
+let ownerPortalData = null;
+
 // ════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════
@@ -1917,6 +1919,7 @@ function setAgenticMode(mode, btn) {
 // HOOKS LIBRARY
 // ════════════════════════════════════════════
 async function loadHooks() {
+  if (ownerPortalData === null) await loadOwnerPortalData();
   if (ownerPortalData?.hooks?.length > 0) {
     const el = document.getElementById('hooks-list');
     if (el) {
@@ -3262,8 +3265,6 @@ async function submitAddClub() {
 }
 
 // ── Owner portal data ────────────────────────────────────────────────────────
-let ownerPortalData = null;
-
 async function loadOwnerPortalData() {
   try {
     const token = localStorage.getItem('gymsuite_token');
