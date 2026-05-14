@@ -1637,6 +1637,8 @@
       prefetchTiles(q);
       const qText = buildQuestionText(q);
       await speak(qText, document.getElementById('iv-question'));
+      document.getElementById('iv-question').style.transition = '';
+      document.getElementById('iv-question').style.opacity = '1';
 
       if (navVersion !== thisNav) { console.log('[askQuestion] stale nav, aborting post-speak'); return; }
 
@@ -1722,6 +1724,8 @@
           btn.textContent = 'Submit answer';
           resetAnswerArea();
           await speak(evalData.acknowledgment, document.getElementById('iv-question'));
+          document.getElementById('iv-question').style.transition = '';
+          document.getElementById('iv-question').style.opacity = '1';
           if (navVersion !== submitNav) return;
           if (evalData.tiles?.length > 0) showSuggestionTiles(evalData.tiles);
         } else if (!evalData.sufficient && interviewState.probeCount < 2 && q.probe) {
@@ -1730,6 +1734,8 @@
           btn.textContent = 'Submit answer';
           resetAnswerArea();
           await speak(evalData.probeQuestion || q.probe, document.getElementById('iv-question'));
+          document.getElementById('iv-question').style.transition = '';
+          document.getElementById('iv-question').style.opacity = '1';
         } else {
           interviewState.submitting = false;
           resetAnswerArea();
