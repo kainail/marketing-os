@@ -738,7 +738,7 @@ app.get('/api/test-email-now', async (req, res) => {
 function assertLocation(req, res) {
   if (!req.user || req.user.role === 'admin') return true;
   const loc = req.query.location || req.params.locationId || 'bloomington';
-  if (!req.user.locations.includes(loc)) {
+  if (!req.user.locations.some(l => (typeof l === 'string' ? l : l.gymId) === loc)) {
     res.status(403).json({ error: 'Location access denied' });
     return false;
   }
@@ -4292,10 +4292,20 @@ async function createOnboardingAccount(session, sessionId) {
 
   if (existingIdx >= 0) {
     const u = users[existingIdx];
+    const locCfg = locationConfig.getLocation('bloomington') || {};
     u.sessionId = sessionId;
     u.gymId = gymId;
     u.gymName = gymName;
     u.city = city;
+    u.activeGymId = gymId;
+    u.locations = [{
+      gymId,
+      sessionId,
+      gymName: gymName || '',
+      city:    city    || '',
+      state:   locCfg.state || '',
+      active:  true,
+    }];
     u.status = 'demo';
     u.onboardedAt = new Date().toISOString();
     u.activatedAt = null;
@@ -4316,7 +4326,15 @@ async function createOnboardingAccount(session, sessionId) {
     email,
     passwordHash,
     role: 'owner',
-    locations: [gymId],
+    locations: [{
+      gymId,
+      sessionId,
+      gymName: gymName || '',
+      city:    city    || '',
+      state:   '',
+      active:  true,
+    }],
+    activeGymId: gymId,
     permissions: { hasAHRI: true, hasOPS: false },
     status: 'demo',
     sessionId,
@@ -4334,6 +4352,55 @@ async function createOnboardingAccount(session, sessionId) {
   return { userId, tempPassword };
 }
 
+/** One-time migration: convert owner locations from string array to object array. */
+async function migrateUsersToMultiLocation() {
+  let users;
+  try { users = await getUsers(); } catch (e) {
+    console.error('[Migration] Could not load users:', e.message);
+    return;
+  }
+
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  let changed = 0;
+  for (const u of users) {
+    if (u.role !== 'owner') continue;
+    if (
+      Array.isArray(u.locations) &&
+      u.locations.length > 0 &&
+      typeof u.locations[0] === 'object' &&
+      u.activeGymId
+    ) continue;
+
+    let gymId = u.gymId || '';
+    if (UUID_RE.test(gymId)) {
+      const allLocs = locationConfig.getAllLocations();
+      const matched = allLocs.find(l =>
+        u.gymName && l.gymName && l.gymName.toLowerCase() === u.gymName.toLowerCase()
+      );
+      if (matched) gymId = matched.id;
+    }
+
+    const locCfg = locationConfig.getLocation(gymId);
+    u.locations = [{
+      gymId,
+      sessionId: u.sessionId || null,
+      gymName:   u.gymName   || locCfg?.gymName || '',
+      city:      u.city      || locCfg?.city    || '',
+      state:     locCfg?.state || '',
+      active:    true,
+    }];
+    u.activeGymId = gymId;
+    changed++;
+  }
+
+  if (changed > 0) {
+    await saveUsers(users);
+    console.log(`[Migration] ${changed} owner account(s) migrated to multi-location schema`);
+  } else {
+    console.log('[Migration] No accounts needed migration');
+  }
+}
 
 // POST /api/onboarding/sessions/:sessionId/complete — generate final hooks, mark done, email Kai
 app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
@@ -5040,8 +5107,12 @@ app.get('/api/onboarding/sessions/:sessionId/credentials', async (req, res) => {
 
 // GET /api/portal/session-data — load session data for logged-in gym owner using JWT sessionId
 app.get('/api/portal/session-data', requireAuth, async (req, res) => {
-  const { sessionId, role } = req.user;
+  const { role, activeGymId, locations } = req.user;
   if (role === 'admin') return res.status(400).json({ error: 'Admin must use /api/onboarding/sessions/:id/portal-data' });
+  const activeLoc = Array.isArray(locations)
+    ? locations.find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId)
+    : null;
+  const sessionId = (typeof activeLoc === 'object' ? activeLoc?.sessionId : null) ?? req.user.sessionId ?? null;
   if (!sessionId) return res.status(400).json({ error: 'No sessionId linked to this account — contact support' });
 
   const [session, research, hooksData, confirmedHooks, selectedOffer, contentPosts, brainState, avatar, photoScores] = await Promise.all([
@@ -5333,7 +5404,15 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
     email: normalizedEmail,
     passwordHash,
     role: 'owner',
-    locations: [gymId],
+    locations: [{
+      gymId,
+      sessionId,
+      gymName: gymName || '',
+      city:    city    || '',
+      state:   locationConfig.getLocation(gymId)?.state || '',
+      active:  true,
+    }],
+    activeGymId: gymId,
     permissions: { hasAHRI: true, hasOPS: false },
     status: 'demo',
     sessionId,
@@ -5955,6 +6034,8 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+
+migrateUsersToMultiLocation().catch(e => console.error('[Migration] Startup migration failed:', e.message));
 
 app.listen(PORT, () => {
   console.log(`AHRI Marketing Command Center running on port ${PORT}`);

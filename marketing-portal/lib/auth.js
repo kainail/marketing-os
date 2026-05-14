@@ -48,7 +48,7 @@ function requireLocation(req, res, next) {
   requireAuth(req, res, () => {
     if (req.user.role === 'admin') return next();
     const locationId = req.params.locationId || req.body.locationId || req.query.location;
-    if (!locationId || !req.user.locations.includes(locationId)) {
+    if (!locationId || !req.user.locations.some(l => (typeof l === 'string' ? l : l.gymId) === locationId)) {
       return res.status(403).json({ error: 'Location access denied' });
     }
     next();
@@ -62,6 +62,7 @@ function generateToken(user) {
       email: user.email,
       role: user.role,
       locations: user.locations,
+      activeGymId: user.activeGymId ?? null,
       permissions: user.permissions,
       sessionId: user.sessionId ?? null,
       status: user.status ?? null,
