@@ -4608,7 +4608,9 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
   const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
   if (!session) return res.status(404).json({ error: 'Session not found' });
 
-  const apiKey = locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  const sessionLocationId = session.locationId || null;
+  const apiKey = (sessionLocationId ? locationConfig.getLocation(sessionLocationId)?.keys?.anthropicApiKey : null)
+    || Object.values(locationConfig.locations || {}).find(l => l.keys?.anthropicApiKey)?.keys?.anthropicApiKey;
   if (!apiKey) return res.status(503).json({ error: 'No API key' });
 
   try {
@@ -4840,6 +4842,32 @@ ${frameworkLines}
     newHooks = JSON.parse(json);
   } catch {
     newHooks = [{ hook: msg.content[0].text.trim(), framework: 'Generated', awarenessLevel: 'L3' }];
+  }
+
+  // Retry once with simplified prompt if model returned empty array
+  if (newHooks.length === 0) {
+    const fallbackPrompt = `Generate ${needCount} short ad hooks for a gym called ${gym}${city ? ' in ' + city : ''}. Each hook under 15 words. Speak to someone who feels out of shape and wants to change. One hook per framework below. Output a JSON array only:\n[\n${remainingFrameworks.map(f => `  {"hook": "...", "framework": "${f.name}", "awarenessLevel": "${f.level}"}`).join(',\n')}\n]`;
+    try {
+      const retryMsg = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 600,
+        messages: [{ role: 'user', content: fallbackPrompt }],
+      });
+      const raw2 = retryMsg.content[0].text.trim();
+      const json2 = raw2.match(/\[[\s\S]*\]/)?.[0];
+      newHooks = JSON.parse(json2);
+    } catch {
+      newHooks = [];
+    }
+  }
+
+  // Hard fallback — hooks.json is never written empty
+  if (newHooks.length === 0) {
+    newHooks = [
+      { hook: `${gym} — the gym that actually fits into your life.`, framework: 'Relatability', awarenessLevel: 'L2-3' },
+      { hook: `You've tried motivation. ${gym} gives you structure.`, framework: 'Pain Point', awarenessLevel: 'L2' },
+      { hook: `Most people quit in week two. ${gym} is built for that moment.`, framework: 'Curiosity Gap', awarenessLevel: 'L3' },
+    ].slice(0, needCount);
   }
 
   return [...confirmedObjects, ...newHooks];
@@ -5260,6 +5288,41 @@ async function sendCredentialsEmail(session, tempPassword) {
     throw err;
   }
 }
+
+// POST /api/admin/sessions/:sessionId/regenerate-hooks — re-run generateFinalHooks with existing R2 data (admin only)
+app.post('/api/admin/sessions/:sessionId/regenerate-hooks', requireAdmin, async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+
+  const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+
+  const sessionLocationId = session.locationId || null;
+  const apiKey = (sessionLocationId ? locationConfig.getLocation(sessionLocationId)?.keys?.anthropicApiKey : null)
+    || Object.values(locationConfig.locations || {}).find(l => l.keys?.anthropicApiKey)?.keys?.anthropicApiKey;
+  if (!apiKey) return res.status(503).json({ error: 'No API key' });
+
+  try {
+    const [brainState, avatar, objections, compliance, confirmedHooksData] = await Promise.all([
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/brain-state/current-state.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/lifestyle-avatar.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/fitness/objection-vault.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/knowledge-base/compliance-b2c.md`),
+      r2GetShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`),
+    ]);
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const hooks = await generateFinalHooks(session, brainState, avatar, objections, compliance, confirmedHooksData, client);
+
+    await r2PutShared(`onboarding/sessions/${sessionId}/hooks.json`, { hooks, generated_at: new Date().toISOString(), regenerated: true });
+    console.log(`[admin] regenerated ${hooks.length} hooks for session ${sessionId}`);
+    res.json({ success: true, count: hooks.length, hooks });
+  } catch (err) {
+    console.error('[admin] regenerate-hooks failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /api/onboarding/sessions/:sessionId/portal-data — structured data for portal page
 app.get('/api/onboarding/sessions/:sessionId/portal-data', async (req, res) => {
