@@ -25,9 +25,13 @@
     </div>
   </div>
   <div class="header-center">
-    <select class="location-select" id="location-select">
-      <option>All Locations</option>
-    </select>
+    <div class="loc-switcher" id="loc-switcher">
+      <button class="loc-switcher-btn" id="loc-switcher-btn" onclick="toggleLocDropdown(event)">
+        <span id="loc-switcher-label">Loading...</span>
+        <span class="loc-switcher-caret">▾</span>
+      </button>
+      <div class="loc-switcher-dropdown" id="loc-switcher-dropdown"></div>
+    </div>
   </div>
   <div class="header-right">
     <a id="ops-link" class="nav-toggle" href="#" onclick="event.preventDefault(); switchToOPS();">GymSuite AI</a>
@@ -586,7 +590,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       state.gymName = status.gym_name;
       document.title = `AHRI — ${status.gym_name}`;
       document.getElementById('ops-link').href = status.ops_url;
-      document.querySelector('.location-select').innerHTML = `<option>${status.gym_name}</option>`;
+      const _lbl = document.getElementById('loc-switcher-label');
+      if (_lbl) _lbl.textContent = status.gym_name || 'All Locations';
     }
     await loadOverview();
     setInterval(refreshAlerts, 60000);
@@ -3126,6 +3131,91 @@ function parseJwt(token) {
   }
 })();
 
+// ── Location Switcher ────────────────────────────────────────────────────────
+function populateOwnerLocationSwitcher(user) {
+  const label = document.getElementById('loc-switcher-label');
+  const dropdown = document.getElementById('loc-switcher-dropdown');
+  if (!label || !dropdown) return;
+
+  const locs = Array.isArray(user.locations) ? user.locations : [];
+  const activeId = user.activeGymId;
+  const activeLoc = locs.find(l => (typeof l === 'object' ? l.gymId : l) === activeId);
+  const activeGymName = typeof activeLoc === 'object' ? activeLoc.gymName : (activeLoc || activeId || 'Your Gym');
+  label.textContent = activeGymName;
+
+  if (locs.length <= 1) {
+    document.getElementById('loc-switcher-btn').style.cursor = 'default';
+    document.getElementById('loc-switcher-caret').style.display = 'none';
+    return;
+  }
+
+  let html = '';
+  for (const loc of locs) {
+    const gId = typeof loc === 'object' ? loc.gymId : loc;
+    const gName = typeof loc === 'object' ? loc.gymName : loc;
+    const isActive = gId === activeId;
+    html += `<div class="loc-switcher-item${isActive ? ' active' : ''}" onclick="switchActiveClub('${esc(gId)}')">${esc(gName)}</div>`;
+  }
+  html += `<div class="loc-switcher-divider"></div>`;
+  html += `<div class="loc-switcher-add" onclick="showAddClubModal()">Add Club +</div>`;
+  dropdown.innerHTML = html;
+}
+
+function toggleLocDropdown(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('loc-switcher-dropdown');
+  if (!dd || !dd.innerHTML) return;
+  dd.classList.toggle('open');
+}
+
+document.addEventListener('click', () => {
+  const dd = document.getElementById('loc-switcher-dropdown');
+  if (dd) dd.classList.remove('open');
+});
+
+async function switchActiveClub(gymId) {
+  document.getElementById('loc-switcher-dropdown')?.classList.remove('open');
+  const token = localStorage.getItem('gymsuite_token');
+  try {
+    const res = await fetch('/api/auth/active-gym', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ gymId }),
+    });
+    if (!res.ok) { console.error('[switcher] switch failed', res.status); return; }
+    const { token: newToken } = await res.json();
+    localStorage.setItem('gymsuite_token', newToken);
+    const user = parseJwt(newToken);
+    if (user) {
+      populateOwnerLocationSwitcher(user);
+      const locs = Array.isArray(user.locations) ? user.locations : [];
+      const loc = locs.find(l => (typeof l === 'object' ? l.gymId : l) === gymId);
+      const gymName = typeof loc === 'object' ? loc.gymName : gymId;
+      document.title = `AHRI — ${gymName}`;
+    }
+    await loadOwnerPortalData();
+  } catch (err) {
+    console.error('[switcher] error:', err);
+  }
+}
+
+function showAddClubModal() {
+  document.getElementById('loc-switcher-dropdown')?.classList.remove('open');
+  ['acm-name','acm-city','acm-state','acm-manager'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('add-club-modal').style.display = 'flex';
+}
+
+function closeAddClubModal() {
+  document.getElementById('add-club-modal').style.display = 'none';
+}
+
+function submitAddClub() {
+  closeAddClubModal();
+}
+
 // ── Owner portal data ────────────────────────────────────────────────────────
 let ownerPortalData = null;
 
@@ -3148,10 +3238,9 @@ function populateOwnerOverview(data) {
   const { session, hooks, selectedOffer, brainState, avatar, research, contentPosts } = data;
 
   // Gym name in header + tab title
-  const locSelect = document.getElementById('location-select');
-  if (locSelect) {
-    locSelect.innerHTML = `<option>${session.gymName || 'Your Gym'} — ${session.city || ''}</option>`;
-  }
+  const token = localStorage.getItem('gymsuite_token');
+  const _u = token ? parseJwt(token) : null;
+  if (_u) populateOwnerLocationSwitcher(_u);
   document.title = `AHRI — ${session.gymName || 'Your Gym'}`;
 
   // Overview brief card
@@ -3930,5 +4019,22 @@ async function doLogout() {
   window.location.href = '/login';
 }
 </script>
+
+<!-- Add Club Modal -->
+<div id="add-club-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeAddClubModal()">
+  <div class="modal-box">
+    <div class="modal-title">Add a Club</div>
+    <div class="modal-body">
+      <div class="modal-field"><label>Club name</label><input id="acm-name" type="text" placeholder="Anytime Fitness Springfield"></div>
+      <div class="modal-field"><label>City</label><input id="acm-city" type="text" placeholder="Springfield"></div>
+      <div class="modal-field"><label>State</label><input id="acm-state" type="text" placeholder="IL" maxlength="2"></div>
+      <div class="modal-field"><label>Manager first name</label><input id="acm-manager" type="text" placeholder="Sarah"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-cancel" onclick="closeAddClubModal()">Cancel</button>
+      <button class="modal-submit" onclick="submitAddClub()">Start Onboarding →</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

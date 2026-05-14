@@ -1000,3 +1000,126 @@ body {
 .chip-red { background: rgba(239,68,68,0.2); color: var(--red); }
 .chip-gold { background: rgba(245,158,11,0.2); color: var(--gold); }
 .chip-cyan { background: rgba(6,182,212,0.2); color: var(--cyan); }
+
+/* ── Location Switcher ─────────────────────────────────────────────────────── */
+.loc-switcher { position: relative; }
+.loc-switcher-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 160px;
+  justify-content: space-between;
+}
+.loc-switcher-btn:hover { border-color: rgba(255,255,255,0.18); }
+.loc-switcher-caret { font-size: 10px; color: var(--text-muted); }
+.loc-switcher-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 200px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 999;
+  overflow: hidden;
+}
+.loc-switcher-dropdown.open { display: block; }
+.loc-switcher-item {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.loc-switcher-item:hover { background: rgba(255,255,255,0.05); }
+.loc-switcher-item.active { color: var(--green); font-weight: 600; }
+.loc-switcher-divider { height: 1px; background: var(--border); margin: 4px 0; }
+.loc-switcher-add {
+  padding: 10px 14px;
+  font-size: 13px;
+  color: #a78bfa;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.1s;
+}
+.loc-switcher-add:hover { background: rgba(167,139,250,0.08); }
+
+/* ── Add Club Modal ────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+.modal-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 400px;
+  max-width: 92vw;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+}
+.modal-title {
+  padding: 20px 24px 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.modal-body { padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+.modal-field { display: flex; flex-direction: column; gap: 5px; }
+.modal-field label { font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); }
+.modal-field input {
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+.modal-field input:focus { border-color: #7c3aed; }
+.modal-footer {
+  padding: 12px 24px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.modal-cancel {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.modal-cancel:hover { border-color: rgba(255,255,255,0.2); color: var(--text-primary); }
+.modal-submit {
+  background: #7c3aed;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 18px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.modal-submit:hover { background: #6d28d9; }

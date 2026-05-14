@@ -775,6 +775,29 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   res.json({ token, user: safeUser });
 });
 
+// PATCH /api/auth/active-gym — switch the active gym for a multi-location owner
+app.patch('/api/auth/active-gym', requireAuth, async (req, res) => {
+  const { gymId } = req.body || {};
+  if (!gymId) return res.status(400).json({ error: 'gymId required' });
+
+  let users;
+  try { users = await getUsers(); } catch { return res.status(503).json({ error: 'User database unavailable' }); }
+
+  const user = users.find(u => u.id === req.user.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const hasLocation = Array.isArray(user.locations) &&
+    user.locations.some(l => (typeof l === 'string' ? l : l.gymId) === gymId);
+  if (!hasLocation) return res.status(403).json({ error: 'Location not on this account' });
+
+  user.activeGymId = gymId;
+  await saveUsers(users);
+
+  const { passwordHash, resetToken, resetTokenExpiry, ...safeUser } = user;
+  const token = generateToken(safeUser);
+  res.json({ token });
+});
+
 app.get('/api/status', (req, res) => {
   const locationId = req.query.location || 'bloomington';
   const loc = locationConfig.getLocation(locationId) || locationConfig.getLocation('bloomington');
