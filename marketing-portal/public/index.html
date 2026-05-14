@@ -3135,6 +3135,7 @@ function parseJwt(token) {
 
   // Gym owners: populate switcher immediately from JWT, then load session data
   if (user.role === 'owner') {
+    console.log('[initAuth] owner JWT — locations:', JSON.stringify(user.locations), '| activeGymId:', user.activeGymId, '| sessionId:', user.sessionId);
     populateOwnerLocationSwitcher(user);
     loadOwnerPortalData();
   }
