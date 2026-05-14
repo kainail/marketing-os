@@ -133,7 +133,26 @@
       <button class="filter-chip" onclick="filterQueue('email',this)">Email</button>
       <button class="filter-chip" onclick="filterQueue('nurture',this)">Nurture</button>
     </div>
-    <div id="queue-list"></div>
+    <div class="queue-layout">
+      <div id="queue-list"></div>
+      <div id="queue-panel" class="queue-panel">
+        <div class="queue-panel-inner">
+          <div class="queue-panel-header">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0">
+              <span id="qp-badge" class="asset-badge"></span>
+            </div>
+            <button class="queue-panel-close" onclick="closeQueuePanel()">✕</button>
+          </div>
+          <div id="qp-meta" class="queue-panel-meta"></div>
+          <div id="qp-body" class="queue-panel-body"></div>
+          <div class="queue-panel-footer">
+            <button id="qp-approve-btn" class="btn green">✓ Approve</button>
+            <button id="qp-revise-btn" class="btn yellow">↻ Revise</button>
+            <button id="qp-reject-btn" class="btn red">✗ Reject</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Section: Calendar -->
@@ -567,6 +586,7 @@ const state = {
   alerts: [],
   selectedAssets: new Set(),
   queueFilter: 'all',
+  activeQueueFilename: null,
   perfCharts: {},
   attributionChart: null,
   agenticMode: 'supervised',
@@ -932,11 +952,27 @@ async function loadQueue() {
   renderQueue(state.queue);
 }
 
+function skillBadgeClass(skill) {
+  const s = (skill || '').toLowerCase();
+  if (s.includes('hook')) return 'badge-hook';
+  if (s.includes('ad')) return 'badge-ad';
+  if (s.includes('content') || s.includes('calendar')) return 'badge-content';
+  if (s.includes('email')) return 'badge-email';
+  if (s.includes('landing')) return 'badge-landing';
+  if (s.includes('nurture')) return 'badge-nurture';
+  return 'badge-content';
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function renderQueue(assets) {
   const filtered = state.queueFilter === 'all' ? assets :
     assets.filter(a => a.skill.toLowerCase().includes(state.queueFilter) || a.filename.toLowerCase().includes(state.queueFilter));
 
   if (!filtered || filtered.length === 0) {
+    closeQueuePanel();
     document.getElementById('queue-list').innerHTML = `
       <div class="empty-state">
         <div class="icon">✓</div>
@@ -947,35 +983,20 @@ function renderQueue(assets) {
     return;
   }
 
-  const skillBadgeClass = (skill) => {
-    if (skill.includes('hook')) return 'badge-hook';
-    if (skill.includes('ad')) return 'badge-ad';
-    if (skill.includes('content') || skill.includes('calendar')) return 'badge-content';
-    if (skill.includes('email')) return 'badge-email';
-    if (skill.includes('landing')) return 'badge-landing';
-    if (skill.includes('nurture')) return 'badge-nurture';
-    return 'badge-content';
-  };
-
   document.getElementById('queue-list').innerHTML = filtered.map(a => `
-    <div class="asset-card" id="asset-${a.filename}">
-      <div style="display:flex;align-items:center;flex-shrink:0">
+    <div class="asset-card${state.activeQueueFilename === a.filename ? ' selected' : ''}" id="asset-${a.filename}" onclick="openQueuePanel('${a.filename}')">
+      <div style="display:flex;align-items:center;flex-shrink:0" onclick="event.stopPropagation()">
         <input type="checkbox" style="width:16px;height:16px;cursor:pointer;margin-right:10px" onchange="toggleAssetSelect('${a.filename}',this.checked)">
       </div>
       <div class="asset-meta">
-        <div>
-          <span class="asset-badge ${skillBadgeClass(a.skill)}">${a.skill}</span>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+          <span class="asset-badge ${skillBadgeClass(a.skill)}">${escHtml(a.skill)}</span>
           ${a.has_budget_flag ? '<span class="badge-budget">$ BUDGET</span>' : ''}
         </div>
-        ${a.platform ? `<div class="text-muted">${a.platform} · ${a.format || ''}</div>` : ''}
-        ${a.awareness_level ? `<div class="text-muted">L${a.awareness_level}</div>` : ''}
-        <div class="text-muted">${a.days_in_queue === 0 ? 'today' : a.days_in_queue + 'd in queue'}</div>
-      </div>
-      <div class="asset-preview">${a.preview || a.asset_id}</div>
-      <div class="asset-actions">
-        <button class="btn green" onclick="approveAsset('${a.filename}')">✓ Approve</button>
-        <button class="btn yellow" onclick="reviseAsset('${a.filename}')">↻ Revise</button>
-        <button class="btn red" onclick="rejectAsset('${a.filename}')">✗ Reject</button>
+        <div class="asset-list-preview">${escHtml((a.preview || a.asset_id || '').slice(0, 80))}</div>
+        <div class="text-muted" style="font-size:11px;margin-top:4px">
+          ${[a.platform, a.days_in_queue === 0 ? 'today' : a.days_in_queue + 'd in queue'].filter(Boolean).join(' · ')}
+        </div>
       </div>
     </div>
   `).join('');
@@ -997,6 +1018,8 @@ async function approveAsset(filename) {
     state.selectedAssets.delete(filename);
     if (state.overview) state.overview.queue.pending_count = Math.max(0, state.overview.queue.pending_count - 1);
     document.getElementById('queue-badge').textContent = Math.max(0, parseInt(document.getElementById('queue-badge').textContent) - 1);
+    state.queue = (state.queue || []).filter(a => a.filename !== filename);
+    if (state.activeQueueFilename === filename) advanceQueuePanel();
   } else {
     toast('Failed to approve asset', 'error');
   }
@@ -1006,12 +1029,16 @@ async function rejectAsset(filename) {
   const res = await apiPost('/api/queue/reject', { filename, note: 'Rejected from portal' });
   if (res && res.success) {
     const card = document.getElementById(`asset-${filename}`);
-    if (card) card.remove();
+    if (card) { card.classList.add('approved'); setTimeout(() => card.remove(), 400); }
     toast('Asset moved to revision queue', 'warning');
+    state.selectedAssets.delete(filename);
+    state.queue = (state.queue || []).filter(a => a.filename !== filename);
+    if (state.activeQueueFilename === filename) advanceQueuePanel();
   }
 }
 
 function reviseAsset(filename) {
+  closeQueuePanel();
   toggleAhriPanel();
   switchAhriTab('chat', document.querySelector('.ahri-mode-tab'));
   setTimeout(() => sendAhriMessage(`Suggest a revision for asset: ${filename}. What should I change?`), 300);
@@ -1041,6 +1068,112 @@ async function rejectSelected() {
 function toggleAssetSelect(filename, checked) {
   if (checked) state.selectedAssets.add(filename);
   else state.selectedAssets.delete(filename);
+}
+
+// ── Queue Side Panel ──────────────────────────
+
+function openQueuePanel(filename) {
+  const asset = (state.queue || []).find(a => a.filename === filename);
+  if (!asset) return;
+  state.activeQueueFilename = filename;
+
+  document.querySelectorAll('.asset-card').forEach(c => c.classList.remove('selected'));
+  const card = document.getElementById(`asset-${filename}`);
+  if (card) card.classList.add('selected');
+
+  const badge = document.getElementById('qp-badge');
+  badge.className = `asset-badge ${skillBadgeClass(asset.skill)}`;
+  badge.textContent = asset.skill;
+
+  const metaParts = [];
+  if (asset.platform) metaParts.push(asset.platform);
+  if (asset.format) metaParts.push(asset.format);
+  if (asset.awareness_level) metaParts.push(`L${asset.awareness_level}`);
+  metaParts.push(asset.days_in_queue === 0 ? 'today' : `${asset.days_in_queue}d in queue`);
+  document.getElementById('qp-meta').innerHTML =
+    metaParts.map(p => `<span class="qp-meta-chip">${escHtml(p)}</span>`).join('') +
+    (asset.has_budget_flag ? '<span class="badge-budget" style="align-self:center">$ BUDGET APPROVAL REQUIRED</span>' : '');
+
+  document.getElementById('qp-body').innerHTML = renderPanelContent(asset);
+
+  document.getElementById('qp-approve-btn').onclick = () => approveAsset(filename);
+  document.getElementById('qp-revise-btn').onclick = () => reviseAsset(filename);
+  document.getElementById('qp-reject-btn').onclick = () => rejectAsset(filename);
+
+  document.getElementById('queue-panel').classList.add('open');
+}
+
+function closeQueuePanel() {
+  state.activeQueueFilename = null;
+  const panel = document.getElementById('queue-panel');
+  if (panel) panel.classList.remove('open');
+  document.querySelectorAll('.asset-card').forEach(c => c.classList.remove('selected'));
+}
+
+function advanceQueuePanel() {
+  const remaining = state.queue || [];
+  if (remaining.length === 0) { closeQueuePanel(); return; }
+  openQueuePanel(remaining[0].filename);
+}
+
+function renderPanelContent(asset) {
+  const skill = (asset.skill || '').toLowerCase();
+  const raw = asset.full_content || '';
+  const body = raw.replace(/^---[\s\S]*?---\n*/, '').trim();
+  if (!body) return '<p style="color:var(--text-muted);font-size:13px">No content preview available.</p>';
+  if (skill.includes('hook')) return renderHooksBody(body);
+  return renderSectionedBody(body);
+}
+
+function renderHooksBody(body) {
+  let html = '';
+  body.split('\n').forEach(rawLine => {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('---')) return;
+    const stripped = line.replace(/^[\d]+\.\s+/, '').replace(/^[-•*]\s+/, '');
+    const fm = stripped.match(/^\[([^\]]+)\]\s*(.+)/) || stripped.match(/^\(([^)]+)\)\s*(.+)/);
+    if (fm) {
+      html += `<div class="qp-hook-card"><span class="qp-hook-framework">${escHtml(fm[1])}</span><span class="qp-hook-text">${escHtml(fm[2])}</span></div>`;
+    } else if (stripped.length > 8) {
+      html += `<div class="qp-hook-card"><span class="qp-hook-text">${escHtml(stripped)}</span></div>`;
+    }
+  });
+  return html || `<div class="qp-section-body">${escHtml(body)}</div>`;
+}
+
+function renderSectionedBody(body) {
+  const sections = [];
+  let currentLabel = null;
+  let currentLines = [];
+
+  for (const rawLine of body.split('\n')) {
+    const inlineMatch = rawLine.match(/^\*\*([^*\n]+?)\*\*\s*:?\s+(.+)$/);
+    const standaloneMatch = !inlineMatch && (rawLine.match(/^\*\*([^*\n]+?)\*\*\s*:?\s*$/) || rawLine.match(/^#{1,3}\s+(.+)$/));
+
+    if (inlineMatch || standaloneMatch) {
+      if (currentLabel !== null || currentLines.some(l => l.trim())) {
+        sections.push({ label: currentLabel, text: currentLines.join('\n').trim() });
+      }
+      const label = (inlineMatch || standaloneMatch)[1].trim();
+      currentLabel = label;
+      currentLines = inlineMatch ? [inlineMatch[2]] : [];
+    } else {
+      currentLines.push(rawLine);
+    }
+  }
+  if (currentLabel !== null || currentLines.some(l => l.trim())) {
+    sections.push({ label: currentLabel, text: currentLines.join('\n').trim() });
+  }
+
+  if (sections.length === 0 || (sections.length === 1 && !sections[0].label)) {
+    return `<div class="qp-section-body">${escHtml(body).replace(/\n\n/g, '</p><p style="margin-top:10px">').replace(/\n/g, '<br>')}</div>`;
+  }
+
+  return sections.map(s => {
+    if (!s.label && !s.text) return '';
+    if (!s.label) return `<div class="qp-section-body" style="margin-bottom:10px">${escHtml(s.text).replace(/\n/g, '<br>')}</div>`;
+    return `<div class="qp-section"><div class="qp-section-label">${escHtml(s.label)}</div><div class="qp-section-body">${escHtml(s.text).replace(/\n/g, '<br>')}</div></div>`;
+  }).join('');
 }
 
 // ════════════════════════════════════════════
