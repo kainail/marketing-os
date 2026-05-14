@@ -919,7 +919,11 @@ function quickSuggestion(text) {
 async function loadQueue() {
   document.getElementById('queue-list').innerHTML = '<div class="skeleton skeleton-text" style="height:80px;margin-bottom:10px"></div>'.repeat(3);
   const data = await api('/api/queue');
-  if (!data) return;
+  if (!data) {
+    console.error('[loadQueue] Failed to load queue — check auth or server logs');
+    document.getElementById('queue-list').innerHTML = '<div class="empty-state" style="padding:24px;text-align:center;color:var(--text-muted)">Failed to load queue. Please refresh or contact support.</div>';
+    return;
+  }
   state.queue = data.assets;
   document.getElementById('queue-badge').textContent = data.total;
   renderQueue(state.queue);

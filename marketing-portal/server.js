@@ -1054,56 +1054,84 @@ app.get('/api/performance', (req, res) => {
   });
 });
 
-app.get('/api/queue', (req, res) => {
+app.get('/api/queue', requireAuth, async (req, res) => {
   const locationFilter = req.query.location || null;
   if (!assertLocation(req, res)) return;
-  const files = safeReadDir(QUEUE).filter(f => f.endsWith('.md'));
-  let assets = files.map(filename => {
-    const content = safeRead(path.join(QUEUE, filename)) || '';
+
+  const R2_QUEUE_PREFIX = 'intelligence-db/queue/pending-review/';
+
+  function buildAsset(filename, content) {
     const { headers, body } = extractFrontmatter(content);
     const skillType = headers.skill || filename.split('-')[0] || 'unknown';
-    const platform = headers.platform || SKILL_PLATFORM_MAP[skillType] || '';
     const captionPreview = cleanBodyText(body).slice(0, 200).trim();
     const hasBudget = /\[BUDGET/.test(content) || headers.budget_required === 'true';
     const createdTs = headers.date || headers.created_date || '';
-    const daysOld = createdTs
-      ? Math.max(0, Math.floor((Date.now() - new Date(createdTs).getTime()) / 86400000))
-      : 0;
-    const assetLocationId = headers.location_id || 'bloomington';
+    const daysOld = createdTs ? Math.max(0, Math.floor((Date.now() - new Date(createdTs).getTime()) / 86400000)) : 0;
     return {
       filename,
       asset_id: headers.asset_id || filename.replace('.md', ''),
-      location_id: assetLocationId,
-      skill_type: skillType,
+      location_id: headers.location_id || 'bloomington',
+      skill: skillType,
       variant: headers.variant || '',
-      platform,
+      platform: headers.platform || SKILL_PLATFORM_MAP[skillType] || '',
+      format: headers.format || '',
       awareness_level: headers.awareness_level || '',
       created_date: headers.date || '',
       days_in_queue: daysOld,
       has_budget_flag: hasBudget,
-      caption_preview: captionPreview,
+      preview: captionPreview,
       full_content: content,
     };
-  });
-  if (locationFilter) {
-    assets = assets.filter(a => a.location_id === locationFilter);
   }
+
+  let assets = [];
+
+  // Try R2 first
+  try {
+    const r2Keys = await r2ListShared(R2_QUEUE_PREFIX);
+    const r2Paths = r2Keys.map(k => k.replace(/^shared\//, '')).filter(k => k.endsWith('.md'));
+    if (r2Paths.length > 0) {
+      const contents = await Promise.all(r2Paths.map(p => r2GetShared(p)));
+      assets = r2Paths.map((p, i) => buildAsset(p.split('/').pop(), typeof contents[i] === 'string' ? contents[i] : ''));
+    }
+  } catch (err) {
+    console.error('[queue] R2 read failed:', err.message);
+  }
+
+  // Fall back to filesystem if R2 returned nothing
+  if (assets.length === 0) {
+    const files = safeReadDir(QUEUE).filter(f => f.endsWith('.md'));
+    assets = files.map(filename => buildAsset(filename, safeRead(path.join(QUEUE, filename)) || ''));
+  }
+
+  if (locationFilter) assets = assets.filter(a => a.location_id === locationFilter);
   assets = assets.sort((a, b) => a.created_date.localeCompare(b.created_date));
   res.json({ assets, total: assets.length });
 });
 
-app.post('/api/queue/approve', (req, res) => {
+app.post('/api/queue/approve', requireAuth, async (req, res) => {
   const { filename } = req.body;
   if (!filename) return res.status(400).json({ error: 'filename required' });
-  const src = path.join(QUEUE, filename);
-  const dst = path.join(READY, filename);
+  const R2_SRC = `intelligence-db/queue/pending-review/${filename}`;
+  const R2_DST = `intelligence-db/queue/ready-to-post/${filename}`;
   try {
-    fs.mkdirSync(READY, { recursive: true });
-    let content = safeRead(src) || '';
+    let content = null;
+    let usedR2 = false;
+    try {
+      content = await r2GetShared(R2_SRC);
+      if (content) usedR2 = true;
+    } catch (_) {}
+    if (!content) content = safeRead(path.join(QUEUE, filename)) || '';
     content = content.replace(/^status:\s*pending-review/m, 'status: ready-to-post');
     content = `approved_date: ${new Date().toISOString()}\n` + content;
-    fs.writeFileSync(dst, content);
-    fs.unlinkSync(src);
+    if (usedR2) {
+      await r2PutShared(R2_DST, content);
+      await r2DeleteShared(R2_SRC);
+    } else {
+      fs.mkdirSync(READY, { recursive: true });
+      fs.writeFileSync(path.join(READY, filename), content);
+      fs.unlinkSync(path.join(QUEUE, filename));
+    }
     logToSession('portal_approve', `Approved: ${filename}`);
     res.json({ success: true, filename });
   } catch (err) {
@@ -1111,16 +1139,27 @@ app.post('/api/queue/approve', (req, res) => {
   }
 });
 
-app.post('/api/queue/reject', (req, res) => {
+app.post('/api/queue/reject', requireAuth, async (req, res) => {
   const { filename, note } = req.body;
   if (!filename) return res.status(400).json({ error: 'filename required' });
-  const src = path.join(QUEUE, filename);
-  const dst = path.join(QUEUE, 'REVISE-' + filename);
+  const R2_SRC = `intelligence-db/queue/pending-review/${filename}`;
+  const R2_DST = `intelligence-db/queue/pending-review/REVISE-${filename}`;
   try {
-    let content = safeRead(src) || '';
+    let content = null;
+    let usedR2 = false;
+    try {
+      content = await r2GetShared(R2_SRC);
+      if (content) usedR2 = true;
+    } catch (_) {}
+    if (!content) content = safeRead(path.join(QUEUE, filename)) || '';
     content = `rejection_note: ${(note || 'Needs revision').replace(/\n/g, ' ')}\n` + content;
-    fs.writeFileSync(dst, content);
-    fs.unlinkSync(src);
+    if (usedR2) {
+      await r2PutShared(R2_DST, content);
+      await r2DeleteShared(R2_SRC);
+    } else {
+      fs.writeFileSync(path.join(QUEUE, 'REVISE-' + filename), content);
+      fs.unlinkSync(path.join(QUEUE, filename));
+    }
     logToSession('portal_reject', `Rejected: ${filename} — ${note || ''}`);
     res.json({ success: true });
   } catch (err) {
