@@ -3233,7 +3233,7 @@ async function submitAddClub() {
     const res = await fetch('/api/onboarding/sessions/add-location', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ gymName, city, state, managerName }),
+      body: JSON.stringify({ gymName, city, state, managerName, ...(_acmAdminTargetUserId ? { targetUserId: _acmAdminTargetUserId } : {}) }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -3242,6 +3242,7 @@ async function submitAddClub() {
       btn.disabled = false;
       return;
     }
+    _acmAdminTargetUserId = null;
     closeAddClubModal();
     const sessionUrl = data.hostUrl || data.shareUrl || '';
     if (sessionUrl) {
@@ -3518,9 +3519,15 @@ function renderAccountRow(u) {
   const lbl = 'font-size:10px;color:rgba(232,234,240,0.4);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px';
   const tryFreeDefault = isAF ? 'https://www.anytimefitness.com/try-us-free' : '';
 
+  const _locs = Array.isArray(u.locations) ? u.locations : [];
+  const _clubCount = _locs.filter(l => typeof l === 'object').length;
+  const clubCountBadge = _clubCount > 0
+    ? `<span style="font-size:10px;color:rgba(232,234,240,0.3);font-weight:400;margin-left:6px">• ${_clubCount} club${_clubCount !== 1 ? 's' : ''}</span>`
+    : '';
+
   return `<tr id="acc-row-${u.id}" style="border-bottom:1px solid rgba(255,255,255,0.04)">
     <td style="padding:12px 12px">
-      <div style="font-weight:500;color:rgba(232,234,240,0.85)">${u.name || '—'}</div>
+      <div style="font-weight:500;color:rgba(232,234,240,0.85)">${u.name || '—'}${clubCountBadge}</div>
       <div style="font-size:11px;color:rgba(232,234,240,0.35);margin-top:1px">${u.email}</div>
     </td>
     <td style="padding:12px 12px;color:rgba(232,234,240,0.65)">${u.gymName || '—'}<span style="font-size:11px;color:rgba(232,234,240,0.3);margin-left:5px">${u.city || ''}</span></td>
@@ -3533,9 +3540,15 @@ function renderAccountRow(u) {
       </label>
     </td>
     <td style="padding:12px 12px">
+      <button onclick="toggleLocationExpand('${u.id}',${JSON.stringify(u).replace(/"/g,'&quot;')})" id="loc-expand-btn-${u.id}" style="font-size:14px;background:none;border:none;color:rgba(232,234,240,0.4);cursor:pointer;padding:0 6px 0 0;font-family:inherit;transition:transform 0.15s" title="Show locations">⌄</button>
       ${provisionBtn}
       <a href="/dashboard" target="_blank" onclick="viewOwnerPortal(event,'${u.sessionId || ''}')" style="font-size:12px;color:#6366f1;text-decoration:none;margin-right:12px">View portal</a>
       <button onclick="promptDeleteAccount('${u.id}','${(u.name||'').replace(/'/g,"\\'")}','${u.email}')" style="font-size:12px;background:none;border:1px solid rgba(244,63,94,0.3);border-radius:6px;padding:3px 8px;color:rgba(244,63,94,0.6);cursor:pointer;font-family:inherit">Delete</button>
+    </td>
+  </tr>
+  <tr id="acc-row-${u.id}-locations" style="display:none">
+    <td colspan="6" style="padding:0 12px 12px">
+      <div id="loc-subtable-${u.id}"></div>
     </td>
   </tr>
   <tr id="acc-row-${u.id}-provision" style="display:none">
@@ -3625,6 +3638,85 @@ function cancelDeleteAccount(userId) {
   document.getElementById('acc-row-' + userId + '-confirm').style.display = 'none';
   const inp = document.getElementById('del-confirm-' + userId);
   if (inp) inp.value = '';
+}
+
+// ── Location sub-table (admin Account Access) ────────────────────────────────
+let _acmAdminTargetUserId = null;
+
+function toggleLocationExpand(userId, user) {
+  const row = document.getElementById('acc-row-' + userId + '-locations');
+  const btn = document.getElementById('loc-expand-btn-' + userId);
+  if (!row) return;
+  const isOpen = row.style.display !== 'none';
+  row.style.display = isOpen ? 'none' : '';
+  if (btn) btn.style.transform = isOpen ? '' : 'rotate(180deg)';
+  if (!isOpen) {
+    const container = document.getElementById('loc-subtable-' + userId);
+    if (container) container.innerHTML = renderLocationSubtable(user);
+  }
+}
+
+function renderLocationSubtable(u) {
+  const locs = Array.isArray(u.locations) ? u.locations.filter(l => typeof l === 'object') : [];
+  const th = 'padding:6px 10px;font-size:10px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:rgba(232,234,240,0.28);text-align:left';
+  const td = 'padding:8px 10px;font-size:12px;color:rgba(232,234,240,0.65);vertical-align:middle';
+  const rows = locs.map(loc => {
+    const isActive = loc.gymId === u.activeGymId;
+    const statusBadge = isActive
+      ? '<span style="padding:2px 7px;border-radius:20px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);font-size:10px;font-weight:600;color:#10b981">Active</span>'
+      : '<span style="padding:2px 7px;border-radius:20px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);font-size:10px;color:rgba(232,234,240,0.3)">Pending</span>';
+    const sid = esc(loc.sessionId || '');
+    const gid = esc(loc.gymId || '');
+    const gname = esc(loc.gymName || '—');
+    return `<tr style="border-bottom:1px solid rgba(255,255,255,0.04)">
+      <td style="${td}">${gname}</td>
+      <td style="${td}">${esc(loc.city || '—')}</td>
+      <td style="${td}">${esc(loc.state || '—')}</td>
+      <td style="${td};font-size:11px;color:rgba(232,234,240,0.3);font-family:monospace">${sid ? sid.substring(0,12) + '…' : '—'}</td>
+      <td style="${td}">${statusBadge}</td>
+      <td style="${td}">
+        ${sid ? `<a href="/onboard/host/${sid}" target="_blank" style="font-size:12px;color:#6366f1;text-decoration:none;margin-right:10px">View Portal</a>` : ''}
+        <button onclick="removeLocation('${esc(u.id)}','${gid}','${gname}')" style="font-size:12px;background:none;border:1px solid rgba(244,63,94,0.25);border-radius:5px;padding:2px 8px;color:rgba(244,63,94,0.55);cursor:pointer;font-family:inherit">Remove</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:8px;margin-top:2px;overflow:hidden">
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+        <th style="${th}">Club Name</th>
+        <th style="${th}">City</th>
+        <th style="${th}">State</th>
+        <th style="${th}">Session ID</th>
+        <th style="${th}">Status</th>
+        <th style="${th}">Actions</th>
+      </tr></thead>
+      <tbody>${rows || '<tr><td colspan="6" style="padding:12px 10px;font-size:12px;color:rgba(232,234,240,0.3)">No locations found</td></tr>'}</tbody>
+    </table>
+    <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.06)">
+      <button onclick="adminAddLocation('${esc(u.id)}')" style="font-size:12px;background:none;border:1px solid rgba(167,139,250,0.35);border-radius:6px;padding:4px 12px;color:#a78bfa;cursor:pointer;font-family:inherit;font-weight:600">Add Location +</button>
+    </div>
+  </div>`;
+}
+
+async function removeLocation(userId, gymId, gymName) {
+  if (!confirm(`Remove "${gymName}" from this account?\n\nThis removes the location record only — session data in R2 is not deleted.`)) return;
+  const res = await api('/api/admin/users/' + userId + '/locations/' + gymId, { method: 'DELETE' });
+  if (res && res.success) {
+    toast(`Removed ${gymName}`, 'success');
+    loadAccountAccess();
+  } else {
+    toast('Failed to remove location', 'error');
+  }
+}
+
+function adminAddLocation(userId) {
+  _acmAdminTargetUserId = userId;
+  ['acm-name','acm-city','acm-state','acm-manager'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  document.getElementById('acm-error').textContent = '';
+  document.getElementById('add-club-modal').style.display = 'flex';
 }
 
 // ── Provision helpers (admin Account Access) ─────────────────────────────────

@@ -2655,14 +2655,31 @@ app.post('/api/onboarding/sessions', requireAdmin, async (req, res) => {
   });
 });
 
-// POST /api/onboarding/sessions/add-location — owner adds a second club to their account
+// POST /api/onboarding/sessions/add-location — owner (or admin on behalf of owner) adds a club
 app.post('/api/onboarding/sessions/add-location', requireAuth, async (req, res) => {
-  if (req.user.role !== 'owner') return res.status(403).json({ error: 'Owner access only' });
+  const isAdmin = req.user.role === 'admin';
+  if (!isAdmin && req.user.role !== 'owner') return res.status(403).json({ error: 'Owner or admin access required' });
 
-  const { gymName, city, state, managerName } = req.body || {};
+  const { gymName, city, state, managerName, targetUserId } = req.body || {};
   if (!gymName || !city || !state) return res.status(400).json({ error: 'gymName, city, and state are required' });
+  if (isAdmin && !targetUserId) return res.status(400).json({ error: 'targetUserId required for admin calls' });
 
-  const { activeGymId, locations } = req.user;
+  let resolvedUserId = req.user.userId;
+  let resolvedEmail  = req.user.email;
+  let activeGymId    = req.user.activeGymId;
+  let locations      = req.user.locations;
+
+  if (isAdmin) {
+    let allUsers;
+    try { allUsers = await getUsers(); } catch { return res.status(503).json({ error: 'User database unavailable' }); }
+    const targetUser = allUsers.find(u => u.id === targetUserId);
+    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+    resolvedUserId = targetUser.id;
+    resolvedEmail  = targetUser.email;
+    activeGymId    = targetUser.activeGymId;
+    locations      = targetUser.locations;
+  }
+
   const activeLoc = Array.isArray(locations)
     ? locations.find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId)
     : null;
@@ -2675,7 +2692,7 @@ app.post('/api/onboarding/sessions/add-location', requireAuth, async (req, res) 
     sessionId: newSessionId,
     gymName,
     ownerName: managerName || '',
-    ownerEmail: req.user.email,
+    ownerEmail: resolvedEmail,
     city,
     state,
     zip: '',
@@ -2717,7 +2734,7 @@ app.post('/api/onboarding/sessions/add-location', requireAuth, async (req, res) 
   let users;
   try { users = await getUsers(); } catch { users = null; }
   if (users) {
-    const u = users.find(u => u.id === req.user.userId);
+    const u = users.find(u => u.id === resolvedUserId);
     if (u && Array.isArray(u.locations)) {
       u.locations.push({
         gymId: newSessionId,
@@ -5483,6 +5500,29 @@ app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
   }
 
   res.json({ success: true, deletedUser: { name: user.name, email: user.email } });
+});
+
+// DELETE /api/admin/users/:userId/locations/:gymId — remove one location from an owner account
+app.delete('/api/admin/users/:userId/locations/:gymId', requireAdmin, async (req, res) => {
+  const { userId, gymId } = req.params;
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+
+  const u = users.find(u => u.id === userId);
+  if (!u) return res.status(404).json({ error: 'User not found' });
+
+  const before = (u.locations || []).length;
+  u.locations = (u.locations || []).filter(l => (typeof l === 'object' ? l.gymId : l) !== gymId);
+  if (u.locations.length === before) return res.status(404).json({ error: 'Location not found on this account' });
+
+  if (u.activeGymId === gymId) {
+    const first = u.locations[0];
+    u.activeGymId = first ? (typeof first === 'object' ? first.gymId : first) : null;
+  }
+
+  await saveUsers(users);
+  const { passwordHash, resetToken, resetTokenExpiry, ...safeUser } = u;
+  res.json({ success: true, user: safeUser });
 });
 
 // POST /api/admin/users — create a new gym owner account directly (admin only)
