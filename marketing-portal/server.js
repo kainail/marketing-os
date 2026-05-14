@@ -4418,24 +4418,41 @@ async function createOnboardingAccount(session, sessionId) {
 
   if (existingIdx >= 0) {
     const u = users[existingIdx];
-    const locCfg = locationConfig.getLocation('bloomington') || {};
-    u.sessionId = sessionId;
-    u.gymId = gymId;
-    u.gymName = gymName;
-    u.city = city;
-    u.activeGymId = gymId;
-    u.locations = [{
-      gymId,
-      sessionId,
-      gymName: gymName || '',
-      city:    city    || '',
-      state:   locCfg.state || '',
-      active:  true,
-    }];
-    u.status = 'demo';
-    u.onboardedAt = new Date().toISOString();
-    u.activatedAt = null;
-    if (u.role === 'owner') u.passwordHash = passwordHash;
+    if (u.role === 'admin') {
+      // Admin completing an onboarding session — add as a new location, don't overwrite
+      const newLoc = {
+        gymId,
+        sessionId,
+        gymName: gymName || '',
+        city:    city    || '',
+        state:   '',
+        active:  true,
+      };
+      if (!Array.isArray(u.locations)) u.locations = [];
+      const alreadyHas = u.locations.some(l => (typeof l === 'object' ? l.gymId : l) === gymId);
+      if (!alreadyHas) u.locations.push(newLoc);
+      if (!u.activeGymId) u.activeGymId = gymId;
+    } else {
+      // Owner path — existing behavior
+      const locCfg = locationConfig.getLocation('bloomington') || {};
+      u.sessionId = sessionId;
+      u.gymId = gymId;
+      u.gymName = gymName;
+      u.city = city;
+      u.activeGymId = gymId;
+      u.locations = [{
+        gymId,
+        sessionId,
+        gymName: gymName || '',
+        city:    city    || '',
+        state:   locCfg.state || '',
+        active:  true,
+      }];
+      u.status = 'demo';
+      u.onboardedAt = new Date().toISOString();
+      u.activatedAt = null;
+      u.passwordHash = passwordHash;
+    }
     await saveUsers(users);
     const userId = u.id;
     await r2PutShared(`onboarding/sessions/${sessionId}/credentials.json`, {
@@ -5234,7 +5251,9 @@ app.get('/api/onboarding/sessions/:sessionId/credentials', async (req, res) => {
 // GET /api/portal/session-data — load session data for logged-in gym owner using JWT sessionId
 app.get('/api/portal/session-data', requireAuth, async (req, res) => {
   const { role, activeGymId, locations } = req.user;
-  if (role === 'admin') return res.status(400).json({ error: 'Admin must use /api/onboarding/sessions/:id/portal-data' });
+  if (role === 'admin' && (!Array.isArray(locations) || !locations.length || !activeGymId)) {
+    return res.status(400).json({ error: 'Admin must use /api/onboarding/sessions/:id/portal-data' });
+  }
   const activeLoc = Array.isArray(locations)
     ? locations.find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId)
     : null;
