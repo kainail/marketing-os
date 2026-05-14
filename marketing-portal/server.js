@@ -3221,8 +3221,13 @@ ${availableList}
 
 These data points have already been used this session — do not reference any of them again: ${usedList}
 
-RULE 3 — FORWARD LEAN:
-End with a statement that creates forward momentum toward the next question. Not a question. Not generic. Must feel like AHRI already knows what comes next and has something specific prepared.
+RULE 3 — FORWARD LEAN (no questions — ever):
+End with a statement that creates forward momentum toward the next question.
+- Never end with a question of any kind
+- Never end with "What do you think?", "Does that make sense?", "How does that sound?", "Right?", or any variation
+- The final sentence must be a declarative statement, not a question
+- If you feel the urge to ask something, convert it to a statement instead
+Must feel like AHRI already knows what comes next and has something specific prepared.
 
 RULE 4 — VOICE RULES:
 - Never start with: I, Got, Perfect, Great, That, Interesting, Thanks, Awesome, Excellent
@@ -3244,8 +3249,13 @@ YOUR RULES — violating any one of these fails:
 RULE 1 — OWNER'S WORDS ARE YOUR ONLY SOURCE:
 Quote or closely paraphrase something specific from the owner's answer above. Their words are your entire source material — no research, no outside context.
 
-RULE 2 — FORWARD LEAN:
-End with a statement that creates forward momentum toward the next question. Not a question. Must feel like AHRI already has something specific in mind.
+RULE 2 — FORWARD LEAN (no questions — ever):
+End with a statement that creates forward momentum toward the next question.
+- Never end with a question of any kind
+- Never end with "What do you think?", "Does that make sense?", "How does that sound?", "Right?", or any variation
+- The final sentence must be a declarative statement, not a question
+- If you feel the urge to ask something, convert it to a statement instead
+Must feel like AHRI already has something specific in mind.
 
 RULE 3 — VOICE RULES:
 - Never start with: I, Got, Perfect, Great, That, Interesting, Thanks, Awesome, Excellent
@@ -3262,9 +3272,15 @@ Output only the 1-2 sentence response. No quotes. No preamble.`;
   });
   let ack = msg.content[0].text.trim().replace(/^["']|["']$/g, '');
 
-  // Safety net: strip any question that slipped through
-  if (ack.includes('?')) {
-    ack = ack.substring(0, ack.lastIndexOf('?')).trimEnd().replace(/[,;:\s]+$/, '') + '.';
+  // Safety net: if the last sentence ends with a question, rewrite via second Haiku call
+  const lastSentenceHasQuestion = /[^.!]*\?/.test(ack.split(/[.!]/).pop() || ack);
+  if (lastSentenceHasQuestion) {
+    const fix = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 250,
+      messages: [{ role: 'user', content: `Rewrite this acknowledgment so it ends with a statement instead of a question. Keep everything else identical. Output only the rewritten text, no quotes, no preamble:\n\n${ack}` }],
+    });
+    ack = fix.content[0].text.trim().replace(/^["']|["']$/g, '');
   }
 
   // ── Update usedReferences in session and persist to R2 ───────────────────
