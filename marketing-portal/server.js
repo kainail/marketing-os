@@ -737,7 +737,7 @@ app.get('/api/test-email-now', async (req, res) => {
 // Location enforcement — admins pass through; owners must own the requested location
 function assertLocation(req, res) {
   if (!req.user || req.user.role === 'admin') return true;
-  const loc = req.query.location || req.params.locationId || 'bloomington';
+  const loc = req.query.location || req.params.locationId || req.user.activeGymId || '';
   if (!req.user.locations.some(l => (typeof l === 'string' ? l : l.gymId) === loc)) {
     res.status(403).json({ error: 'Location access denied' });
     return false;
