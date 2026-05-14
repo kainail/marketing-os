@@ -4929,7 +4929,7 @@ async function sendKaiNotification(session, sessionId, hooks, brainState) {
   try {
     const resend = new Resend(resendKey);
     const { error: kaiErr } = await resend.emails.send({
-      from: 'AHRI <notifications@gymsuite.ai>',
+      from: 'AHRI <notifications@ahrimarketing.com>',
       to: ['kaialexandernail@gmail.com'],
       subject: `New Gym Onboarded: ${gym} — ${city}`,
       text: `Onboarding complete.\n\nGym: ${gym}\nOwner: ${owner}\nCity: ${city}\nSession: ${sessionId}\n\nFINAL HOOKS:\n${hookLines}\n\nBRAIN STATE (first 15 lines):\n${brainSnippet}\n\nPortal: https://marketing-os-production-2b85.up.railway.app/onboard/portal/${sessionId}`,
@@ -5177,7 +5177,7 @@ async function sendOwnerEmail(session, sessionId, hooks) {
 </body>
 </html>`;
 
-  const ownerFrom = 'AHRI <onboarding@resend.dev>';
+  const ownerFrom = 'AHRI <notifications@ahrimarketing.com>';
   console.log(`[Email] Sending owner email to ${ownerEmail} from ${ownerFrom}`);
   try {
     const resend = new Resend(resendKey);
@@ -5271,7 +5271,7 @@ async function sendCredentialsEmail(session, tempPassword) {
   </table>
 </body>
 </html>`;
-  const credFrom = 'AHRI <onboarding@resend.dev>';
+  const credFrom = 'AHRI <notifications@ahrimarketing.com>';
   console.log(`[Email] Sending credentials email to ${ownerEmail} from ${credFrom}`);
   try {
     const resend = new Resend(resendKey);
@@ -5575,7 +5575,7 @@ async function sendActivationEmail(user) {
 </body></html>`;
   const resend = new Resend(resendKey);
   const { error: activationErr } = await resend.emails.send({
-    from: 'AHRI <onboarding@resend.dev>',
+    from: 'AHRI <notifications@ahrimarketing.com>',
     to: [user.email],
     subject: `Your GymSuite AI account is now live, ${firstName}`,
     html,
