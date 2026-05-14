@@ -2686,6 +2686,7 @@ app.post('/api/onboarding/sessions/add-location', requireAuth, async (req, res) 
     created_by: req.user.email,
     additionalLocation: true,
     parentSessionId: parentSessionId || null,
+    parentGymName: (typeof activeLoc === 'object' ? activeLoc?.gymName : null) || null,
     shareUrl: `/onboard/session/${newSessionId}`,
     hostUrl: `/onboard/host/${newSessionId}`,
     research_task_id: null,

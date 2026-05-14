@@ -713,6 +713,11 @@
         session = await res.json();
         document.getElementById('gym-name').textContent = session.gymName || 'Your Gym';
         document.title = `AHRI — ${session.gymName}`;
+        if (session.additionalLocation) {
+          QUESTIONS      = QUESTIONS_LOCATION;
+          SECTION_WRITES = SECTION_WRITES_LOCATION;
+          SECTION_INTRO  = SECTION_INTRO_LOCATION;
+        }
         if (session.status === 'research_complete') {
           await loadAndRevealResearch();
           return;
@@ -948,7 +953,10 @@
 
       showState('state-transition');
       setProgress('q1');
-      await speak("What I just showed you came from public data alone — your competitors, your reviews, your market. Now I want to learn about your gym directly from you. Together we are going to build your first ad, define who you are speaking to, and find the angle that nobody in your market is using. Let's start by talking about your offer.", document.getElementById('transition-text'));
+      const _transitionText = session.additionalLocation
+        ? `Your brand foundation from ${session.parentGymName || 'your first club'} is already built. I just need to understand your ${session.city || 'local'} market and a few location-specific details. This will only take about 5 minutes.`
+        : "What I just showed you came from public data alone — your competitors, your reviews, your market. Now I want to learn about your gym directly from you. Together we are going to build your first ad, define who you are speaking to, and find the angle that nobody in your market is using. Let's start by talking about your offer.";
+      await speak(_transitionText, document.getElementById('transition-text'));
       briefingStarted = false;
       await sleep(1500);
       await startInterview();
@@ -1340,7 +1348,7 @@
     }
 
     // ─── Interview question bank — 8 questions across 4 sections ───────────────
-    const QUESTIONS = [
+    let QUESTIONS = [
       // Section 1 — The Offer
       { id:'q1', section:1, sectionName:'The Offer', kbFile:'brain-state',
         text:'Do you currently have a front-end offer to get new members in the door?',
@@ -1382,6 +1390,22 @@
         probe:"Which of your Google reviews feels most like what you want new members to read first?" },
     ];
 
+    // ─── Shortened 4-question flow for additional locations ──────────────────
+    const QUESTIONS_LOCATION = [
+      { id:'ql1', section:1, sectionName:'Location Details', kbFile:'brain-state',
+        text:"Your brand foundation is already built from your first club. I just need a few details about this specific location. Who is the manager here, and is your offer any different from your other clubs?",
+        probe:"What makes this location different from your main club, if anything?" },
+      { id:'ql2', section:2, sectionName:'Your Market', kbFile:'brain-state',
+        text:null,
+        probe:"Are there any other gyms in this area I should know about?" },
+      { id:'ql3', section:3, sectionName:'Location Edge', kbFile:'brain-state',
+        text:"Is there anything unique about this specific location compared to your other clubs — different equipment, different community, different vibe?",
+        probe:"What would a member notice that is different here versus your other locations?" },
+      { id:'ql4', section:4, sectionName:'Your Market', kbFile:'brain-state',
+        text:null,
+        probe:"Which of your Google reviews feels most like what you want new members to read first?" },
+    ];
+
     // fileKey → element ID maps for right panel
     const KB_PIP     = { 'brain-state':'pip-brain-state',   'lifestyle-avatar':'pip-avatar',     'objections':'pip-objections',     'compliance':'pip-compliance' };
     const KB_STATE   = { 'brain-state':'state-brain-state', 'lifestyle-avatar':'state-avatar',    'objections':'state-objections',   'compliance':'state-compliance' };
@@ -1390,7 +1414,8 @@
     const KB_FILE_EL = { 'brain-state':'file-brain-state',  'lifestyle-avatar':'file-avatar',     'objections':'file-objections',    'compliance':'file-compliance' };
 
     // Section → KB file written after that section completes
-    const SECTION_WRITES = { 1:'brain-state', 2:'lifestyle-avatar', 3:'objections', 4:'brain-state' };
+    let SECTION_WRITES = { 1:'brain-state', 2:'lifestyle-avatar', 3:'objections', 4:'brain-state' };
+    const SECTION_WRITES_LOCATION = { 1:'brain-state', 2:'brain-state', 3:'brain-state', 4:'brain-state' };
 
     // Track last section per fileKey for retry
     const lastSectionForFile = {};
@@ -1400,11 +1425,12 @@
     let lastNavCommandAt   = null;
 
     // Section transition speeches
-    const SECTION_INTRO = {
+    let SECTION_INTRO = {
       2: "Good. Now let's talk about who you're built for.",
       3: "Now I want to understand what makes you different.",
       4: "Last section — a little local context.",
     };
+    const SECTION_INTRO_LOCATION = {};
 
     // ─── Interview state ──────────────────────────────────────────────────────
     let interviewState = {
@@ -1470,8 +1496,15 @@
         }
         return `${prefix} Is there anything happening in ${city} right now — events, school calendar, local news — that your ideal member is thinking about?`;
       }
-      if (q.id === 'q8') {
+      if (q.id === 'q8' || q.id === 'ql4') {
         return 'When you read through your Google reviews, which ones make you the happiest? What do they say?';
+      }
+      if (q.id === 'ql2') {
+        const city = session?.city || 'your city';
+        const comps = (researchData?.competitors || []).slice(0, 2).map(c => c.name);
+        if (comps.length >= 2) return `I found ${comps[0]} and ${comps[1]} as the main gyms you compete with in ${city}. Does that sound right, or is there someone else I should know about?`;
+        if (comps.length === 1) return `I found ${comps[0]} as the main gym you compete with in ${city}. Does that sound right, or is there someone else I should know about?`;
+        return `Who are the main gyms you compete with in ${city}?`;
       }
       return '—';
     }
@@ -1512,6 +1545,11 @@
       preview3:   { pct: 77, label: 'Sharpening your angles...' },
       q7:         { pct: 82, label: 'Last section — about 2 minutes left' },
       q8:         { pct: 91, label: 'Final question — almost done' },
+      // Additional location — shortened 4-question flow
+      ql1:        { pct: 20, label: 'Location — question 1 of 4' },
+      ql2:        { pct: 40, label: 'Location — question 2 of 4' },
+      ql3:        { pct: 60, label: 'Location — question 3 of 4' },
+      ql4:        { pct: 80, label: 'Location — question 4 of 4, almost done' },
       processing: { pct: 94, label: 'Building your system now...' },
       complete:   { pct: 100, label: 'Your system is ready' },
     };
