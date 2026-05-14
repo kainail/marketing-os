@@ -20,6 +20,7 @@ const ALLOWED_ORIGINS = [
   'https://gymsuiteai-dashboard-production.up.railway.app',
   'https://marketing-os-production-2b85.up.railway.app',
   'https://app.ahrimarketing.com',
+  'https://go.ahrimarketing.com',
 ];
 
 // --- Path constants ---
