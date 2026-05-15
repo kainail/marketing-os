@@ -4632,6 +4632,18 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
       r2PutShared(`onboarding/sessions/${sessionId}/hooks.json`, { hooks, generated_at: new Date().toISOString() }),
       r2PutShared(`onboarding/sessions/${sessionId}/content-posts.json`, { posts, generated_at: new Date().toISOString() }),
     ]);
+
+    // Push each hook as an individual approval queue item
+    try {
+      await Promise.all(hooks.map((h, i) => {
+        const assetId = `hook-${sessionId.slice(0, 8)}-${String(i).padStart(2, '0')}`;
+        return r2PutShared(`intelligence-db/queue/pending-review/${assetId}.md`, buildHookQueueItem(assetId, sessionId, h));
+      }));
+      console.log(`[onboarding] ${hooks.length} hooks pushed to approval queue for session ${sessionId}`);
+    } catch (qErr) {
+      console.error('[onboarding] hook queue write failed (non-fatal):', qErr.message);
+    }
+
     session.status = 'complete';
     session.completed_at = new Date().toISOString();
     await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
@@ -4781,6 +4793,26 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
 });
 
 /** Generate final hooks: prepend owner-confirmed hooks, then generate the remainder with Sonnet. */
+function buildHookQueueItem(assetId, sessionId, hook) {
+  const hookText = typeof hook === 'string' ? hook : (hook.hook || '');
+  const framework = typeof hook === 'object' ? (hook.framework || '') : '';
+  const awarenessLevel = typeof hook === 'object' ? (hook.awarenessLevel || '') : '';
+  const lines = [
+    '---',
+    `asset_id: ${assetId}`,
+    `skill: hook`,
+    `location_id: ${sessionId}`,
+    `session_id: ${sessionId}`,
+    `platform: meta`,
+  ];
+  if (awarenessLevel) lines.push(`awareness_level: ${awarenessLevel}`);
+  if (framework) lines.push(`framework: ${framework.replace(/:/g, '-')}`);
+  lines.push(`date: ${new Date().toISOString()}`, `status: pending-review`, '---', '', hookText);
+  if (framework) lines.push('', `Framework: ${framework}`);
+  if (awarenessLevel) lines.push(`Awareness Level: ${awarenessLevel}`);
+  return lines.join('\n');
+}
+
 async function generateFinalHooks(session, brainState, avatar, objections, compliance, confirmedHooksData, client) {
   const gym = session.gymName || 'Unknown Gym';
   const city = session.city || '';
@@ -5321,6 +5353,29 @@ app.post('/api/admin/sessions/:sessionId/regenerate-hooks', requireAdmin, async 
     res.json({ success: true, count: hooks.length, hooks });
   } catch (err) {
     console.error('[admin] regenerate-hooks failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/sessions/:sessionId/push-hooks-to-queue — backfill queue items from an existing hooks.json (admin only)
+app.post('/api/admin/sessions/:sessionId/push-hooks-to-queue', requireAdmin, async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+
+  const hooksData = await r2GetShared(`onboarding/sessions/${sessionId}/hooks.json`);
+  if (!hooksData || !Array.isArray(hooksData.hooks) || hooksData.hooks.length === 0) {
+    return res.status(404).json({ error: 'hooks.json not found or empty for this session' });
+  }
+
+  try {
+    await Promise.all(hooksData.hooks.map((h, i) => {
+      const assetId = `hook-${sessionId.slice(0, 8)}-${String(i).padStart(2, '0')}`;
+      return r2PutShared(`intelligence-db/queue/pending-review/${assetId}.md`, buildHookQueueItem(assetId, sessionId, h));
+    }));
+    console.log(`[admin] pushed ${hooksData.hooks.length} hooks to queue for session ${sessionId}`);
+    res.json({ success: true, count: hooksData.hooks.length, sessionId });
+  } catch (err) {
+    console.error('[admin] push-hooks-to-queue failed:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
