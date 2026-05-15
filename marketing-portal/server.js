@@ -5474,6 +5474,27 @@ app.get('/api/portal/session-data', requireAuth, async (req, res) => {
   });
 });
 
+// Derives the lastname_city env var key for a gym (e.g. "smith_bloomington")
+function gymKeyFromLocation(user, loc) {
+  const last = (user.lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const city = (typeof loc === 'object' ? loc.city || '' : '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  return `${last}_${city}`;
+}
+
+// Checks presence of all four Meta credentials for a gymKey in Railway env vars.
+// Returns { allPresent, missing: string[] }
+function checkMetaCredentials(gymKey) {
+  const upper = gymKey.toUpperCase();
+  const names = [
+    `META_AD_ACCOUNT_ID_${upper}`,
+    `META_PAGE_ID_${upper}`,
+    `META_ACCESS_TOKEN_${upper}`,
+    `META_PIXEL_ID_${upper}`,
+  ];
+  const missing = names.filter(n => !process.env[n]);
+  return { allPresent: missing.length === 0, missing };
+}
+
 // GET /api/portal/campaign-status — returns campaign_status for the authenticated owner's activeGymId
 app.get('/api/portal/campaign-status', requireAuth, async (req, res) => {
   const { activeGymId } = req.user;
@@ -5488,8 +5509,9 @@ app.get('/api/portal/campaign-status', requireAuth, async (req, res) => {
   const loc = (user.locations || []).find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
   const campaign_status = (typeof loc === 'object' ? loc?.campaign_status : null) || 'not_started';
   const launched_at = (typeof loc === 'object' ? loc?.launched_at : null) || null;
+  const meta_setup_pending = (typeof loc === 'object' ? loc?.meta_setup_pending : false) || false;
 
-  res.json({ campaign_status, launched_at, gymId: activeGymId });
+  res.json({ campaign_status, launched_at, meta_setup_pending, gymId: activeGymId });
 });
 
 // POST /api/portal/launch-campaign — flip campaign_status from ready_to_launch → active
@@ -5515,19 +5537,33 @@ app.post('/api/portal/launch-campaign', requireAuth, async (req, res) => {
     });
   }
 
+  // Check Meta credentials before writing — never block the launch
+  const gymKey = gymKeyFromLocation(user, loc || { city: '' });
+  const metaCheck = checkMetaCredentials(gymKey);
+  const meta_setup_pending = !metaCheck.allPresent;
+
+  if (meta_setup_pending) {
+    console.warn(`[campaign] META CREDENTIALS MISSING for gymKey "${gymKey}" (gymId: ${activeGymId})`);
+    metaCheck.missing.forEach(name => console.warn(`  [campaign]   missing: ${name}`));
+    console.warn(`[campaign] Status set to active with meta_setup_pending=true — no Meta API call will be made until credentials are present.`);
+  } else {
+    console.log(`[campaign] Meta credentials verified for gymKey "${gymKey}" — all four present`);
+  }
+
   const launched_at = new Date().toISOString();
   if (loc) {
     loc.campaign_status = 'active';
     loc.launched_at = launched_at;
+    loc.meta_setup_pending = meta_setup_pending;
   } else {
     if (!Array.isArray(user.locations)) user.locations = [];
-    if (locIdx >= 0) user.locations[locIdx] = { gymId: activeGymId, campaign_status: 'active', launched_at };
-    else user.locations.push({ gymId: activeGymId, campaign_status: 'active', launched_at });
+    if (locIdx >= 0) user.locations[locIdx] = { gymId: activeGymId, campaign_status: 'active', launched_at, meta_setup_pending };
+    else user.locations.push({ gymId: activeGymId, campaign_status: 'active', launched_at, meta_setup_pending });
   }
 
   await saveUsers(users);
-  console.log(`[campaign] launched for gym ${activeGymId} at ${launched_at}`);
-  res.json({ success: true, campaign_status: 'active', launched_at, gymId: activeGymId });
+  console.log(`[campaign] launched for gym ${activeGymId} at ${launched_at} (meta_setup_pending: ${meta_setup_pending})`);
+  res.json({ success: true, campaign_status: 'active', launched_at, meta_setup_pending, gymId: activeGymId });
 });
 
 // POST /api/portal/pause-campaign — flip active → paused

@@ -3536,6 +3536,7 @@ function showResultsDashboard(data, campData) {
   const launchedAt = campData?.launched_at;
   const isActive = status === 'active';
   const dayNum = calcDaysActive(launchedAt);
+  const metaPending = campData?.meta_setup_pending === true;
   const hooks = Array.isArray(data.hooks) ? data.hooks : [];
   const firstHook = hooks[0];
   const firstHookText = firstHook ? (typeof firstHook === 'object' ? firstHook.hook : firstHook) : '—';
@@ -3559,6 +3560,7 @@ function showResultsDashboard(data, campData) {
           </div>
           <div class="results-day-badge">Day ${dayNum}</div>
         </div>
+        ${metaPending ? `<div class="results-pending-notice">Your ad account is being connected — campaigns will start automatically once setup is complete.</div>` : ''}
         <div style="margin-top:18px">
           ${isActive
             ? `<button class="btn results-pause-btn" onclick="handlePauseCampaign()">⏸ Pause Campaign</button>`
