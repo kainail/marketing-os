@@ -692,11 +692,13 @@ async function loadOverview() {
   if (_campaignStatus === 'active' || _campaignStatus === 'paused') {
     const fresh = await api('/api/portal/campaign-status');
     if (fresh) { _campaignData = fresh; _campaignStatus = fresh.campaign_status; }
-    showResultsDashboard(ownerPortalData, _campaignData);
+    const data = ownerPortalData || buildFallbackPortalData();
+    showResultsDashboard(data, _campaignData);
     return;
   }
   if (_campaignStatus === 'ready_to_launch') {
-    showLaunchCard(ownerPortalData);
+    const data = ownerPortalData || buildFallbackPortalData();
+    showLaunchCard(data);
     return;
   }
   const data = await api('/api/overview');
@@ -3428,6 +3430,20 @@ async function submitAddClub() {
 }
 
 // ── Owner portal data ────────────────────────────────────────────────────────
+
+// Builds a minimal portal data object from the JWT when session-data fails.
+function buildFallbackPortalData() {
+  const token = localStorage.getItem('gymsuite_token');
+  const jwtUser = token ? parseJwt(token) : {};
+  const activeGymId = jwtUser?.activeGymId;
+  const locs = Array.isArray(jwtUser?.locations) ? jwtUser.locations : [];
+  const activeLoc = locs.find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  const gymName = (typeof activeLoc === 'object' && activeLoc?.gymName)
+    ? activeLoc.gymName
+    : (jwtUser?.gymName || 'Your Gym');
+  return { session: { gymName }, hooks: [], selectedOffer: null, avatar: null };
+}
+
 async function loadOwnerPortalData() {
   console.log('[loadOwnerPortalData] start — firing session-data + campaign-status in parallel');
   try {
@@ -3435,29 +3451,41 @@ async function loadOwnerPortalData() {
       api('/api/portal/session-data'),
       api('/api/portal/campaign-status'),
     ]);
-    console.log('[loadOwnerPortalData] session-data result:', sessionData === null ? 'NULL (fetch failed or non-2xx)' : 'OK');
-    console.log('[loadOwnerPortalData] campaign-status result:', campaignData === null ? 'NULL (fetch failed or non-2xx)' : JSON.stringify(campaignData));
 
-    if (!sessionData) {
-      console.warn('[loadOwnerPortalData] sessionData is null — returning early. campaign_status will NOT be evaluated. _campaignStatus stays:', _campaignStatus);
-      return;
-    }
+    console.log('[loadOwnerPortalData] session-data:', sessionData ? 'OK' : 'NULL (non-2xx or network error)');
+    console.log('[loadOwnerPortalData] campaign-status:', campaignData ? JSON.stringify(campaignData) : 'NULL');
 
-    ownerPortalData = sessionData;
+    // Campaign status is read independently — session-data failure does not gate this branch
     _campaignData = campaignData;
     _campaignStatus = campaignData?.campaign_status || 'not_started';
     console.log('[loadOwnerPortalData] _campaignStatus set to:', _campaignStatus);
 
+    if (sessionData) {
+      ownerPortalData = sessionData;
+    } else {
+      console.warn('[loadOwnerPortalData] session-data failed — using JWT fallback for gym name. Hooks and offer will be empty if not fetched separately.');
+    }
+
     if (_campaignStatus === 'ready_to_launch') {
       console.log('[loadOwnerPortalData] branch → showLaunchCard()');
-      showLaunchCard(ownerPortalData);
+      const data = ownerPortalData || buildFallbackPortalData();
+      if (!ownerPortalData) ownerPortalData = data;
+      showLaunchCard(data);
+
     } else if (_campaignStatus === 'active' || _campaignStatus === 'paused') {
       console.log('[loadOwnerPortalData] branch → showResultsDashboard()');
-      showResultsDashboard(ownerPortalData, _campaignData);
-    } else {
+      const data = ownerPortalData || buildFallbackPortalData();
+      if (!ownerPortalData) ownerPortalData = data;
+      showResultsDashboard(data, _campaignData);
+
+    } else if (ownerPortalData) {
       console.log('[loadOwnerPortalData] branch → populateOwnerOverview() (status:', _campaignStatus, ')');
       populateOwnerOverview(ownerPortalData);
+
+    } else {
+      console.warn('[loadOwnerPortalData] no session data and status is', _campaignStatus, '— nothing to render');
     }
+
   } catch (err) {
     console.error('[loadOwnerPortalData] caught exception:', err.message, err);
   }
@@ -3562,8 +3590,8 @@ function calcDaysActive(launchedAt) {
 }
 
 function showResultsDashboard(data, campData) {
-  if (!data) return;
-  const gym = data.session?.gymName || 'Your Gym';
+  if (!campData) return;
+  const gym = data?.session?.gymName || 'Your Gym';
   const status = campData?.campaign_status || 'active';
   const launchedAt = campData?.launched_at;
   const isActive = status === 'active';
