@@ -4483,10 +4483,15 @@ async function createOnboardingAccount(session, sessionId) {
         city:    city    || '',
         state:   '',
         active:  true,
+        campaign_status: 'ready_to_launch',
       };
       if (!Array.isArray(u.locations)) u.locations = [];
       const alreadyHas = u.locations.some(l => (typeof l === 'object' ? l.gymId : l) === gymId);
       if (!alreadyHas) u.locations.push(newLoc);
+      else {
+        const existLoc = u.locations.find(l => (typeof l === 'object' ? l.gymId : l) === gymId);
+        if (existLoc && typeof existLoc === 'object') existLoc.campaign_status = 'ready_to_launch';
+      }
       if (!u.activeGymId) u.activeGymId = gymId;
     } else {
       // Owner path — existing behavior
@@ -4503,6 +4508,7 @@ async function createOnboardingAccount(session, sessionId) {
         city:    city    || '',
         state:   locCfg.state || '',
         active:  true,
+        campaign_status: 'ready_to_launch',
       }];
       u.status = 'demo';
       u.onboardedAt = new Date().toISOString();
@@ -4532,6 +4538,7 @@ async function createOnboardingAccount(session, sessionId) {
       city:    city    || '',
       state:   '',
       active:  true,
+      campaign_status: 'ready_to_launch',
     }],
     activeGymId: gymId,
     permissions: { hasAHRI: true, hasOPS: false },
@@ -5465,6 +5472,62 @@ app.get('/api/portal/session-data', requireAuth, async (req, res) => {
     avatar: avatar || null,
     photoScores: photoScores || null,
   });
+});
+
+// GET /api/portal/campaign-status — returns campaign_status for the authenticated owner's activeGymId
+app.get('/api/portal/campaign-status', requireAuth, async (req, res) => {
+  const { activeGymId } = req.user;
+  if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+
+  const user = users.find(u => u.id === req.user.userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const loc = (user.locations || []).find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  const campaign_status = (typeof loc === 'object' ? loc?.campaign_status : null) || 'not_started';
+  const launched_at = (typeof loc === 'object' ? loc?.launched_at : null) || null;
+
+  res.json({ campaign_status, launched_at, gymId: activeGymId });
+});
+
+// POST /api/portal/launch-campaign — flip campaign_status from ready_to_launch → active
+app.post('/api/portal/launch-campaign', requireAuth, async (req, res) => {
+  const { activeGymId } = req.user;
+  if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+
+  const userIdx = users.findIndex(u => u.id === req.user.userId);
+  if (userIdx < 0) return res.status(404).json({ error: 'User not found' });
+
+  const user = users[userIdx];
+  const locIdx = (user.locations || []).findIndex(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  const loc = locIdx >= 0 && typeof user.locations[locIdx] === 'object' ? user.locations[locIdx] : null;
+  const current_status = loc?.campaign_status || 'not_started';
+
+  if (current_status !== 'ready_to_launch') {
+    return res.status(409).json({
+      error: `Campaign cannot be launched from status: ${current_status}`,
+      campaign_status: current_status,
+    });
+  }
+
+  const launched_at = new Date().toISOString();
+  if (loc) {
+    loc.campaign_status = 'active';
+    loc.launched_at = launched_at;
+  } else {
+    if (!Array.isArray(user.locations)) user.locations = [];
+    if (locIdx >= 0) user.locations[locIdx] = { gymId: activeGymId, campaign_status: 'active', launched_at };
+    else user.locations.push({ gymId: activeGymId, campaign_status: 'active', launched_at });
+  }
+
+  await saveUsers(users);
+  console.log(`[campaign] launched for gym ${activeGymId} at ${launched_at}`);
+  res.json({ success: true, campaign_status: 'active', launched_at, gymId: activeGymId });
 });
 
 // GET /api/onboard/creative-files — list files in the owner's Generated Drive folder
