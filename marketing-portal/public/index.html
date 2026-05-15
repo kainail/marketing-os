@@ -3429,25 +3429,37 @@ async function submitAddClub() {
 
 // ── Owner portal data ────────────────────────────────────────────────────────
 async function loadOwnerPortalData() {
+  console.log('[loadOwnerPortalData] start — firing session-data + campaign-status in parallel');
   try {
     const [sessionData, campaignData] = await Promise.all([
       api('/api/portal/session-data'),
       api('/api/portal/campaign-status'),
     ]);
-    if (!sessionData) return;
+    console.log('[loadOwnerPortalData] session-data result:', sessionData === null ? 'NULL (fetch failed or non-2xx)' : 'OK');
+    console.log('[loadOwnerPortalData] campaign-status result:', campaignData === null ? 'NULL (fetch failed or non-2xx)' : JSON.stringify(campaignData));
+
+    if (!sessionData) {
+      console.warn('[loadOwnerPortalData] sessionData is null — returning early. campaign_status will NOT be evaluated. _campaignStatus stays:', _campaignStatus);
+      return;
+    }
+
     ownerPortalData = sessionData;
     _campaignData = campaignData;
     _campaignStatus = campaignData?.campaign_status || 'not_started';
+    console.log('[loadOwnerPortalData] _campaignStatus set to:', _campaignStatus);
 
     if (_campaignStatus === 'ready_to_launch') {
+      console.log('[loadOwnerPortalData] branch → showLaunchCard()');
       showLaunchCard(ownerPortalData);
     } else if (_campaignStatus === 'active' || _campaignStatus === 'paused') {
+      console.log('[loadOwnerPortalData] branch → showResultsDashboard()');
       showResultsDashboard(ownerPortalData, _campaignData);
     } else {
+      console.log('[loadOwnerPortalData] branch → populateOwnerOverview() (status:', _campaignStatus, ')');
       populateOwnerOverview(ownerPortalData);
     }
   } catch (err) {
-    console.error('[owner] load failed:', err);
+    console.error('[loadOwnerPortalData] caught exception:', err.message, err);
   }
 }
 
