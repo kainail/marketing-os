@@ -226,6 +226,11 @@ body {
 }
 .nav-item:hover { background: var(--bg-card); color: var(--text-primary); }
 .nav-item.active { background: var(--bg-card); color: #fff; border-left-color: var(--purple); }
+.nav-item.owner-coming-soon {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
 .nav-item .nav-icon { font-size: 15px; width: 20px; text-align: center; }
 .nav-item .nav-badge {
   margin-left: auto;

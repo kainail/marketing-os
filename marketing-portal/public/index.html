@@ -529,7 +529,7 @@
     <div class="actions-section-label">DAILY</div>
     <div class="actions-grid">
       <div class="action-btn" onclick="quickAction('Generate this morning\'s performance brief')">📋 Morning Brief</div>
-      <div class="action-btn" onclick="navigate('queue')">✅ Review Queue</div>
+      <div class="action-btn" id="action-review-queue" onclick="navigate('queue')">✅ Review Queue</div>
       <div class="action-btn" onclick="quickAction('What content should I post this week based on current performance?')">📅 This Week</div>
       <div class="action-btn" onclick="navigate('overview')">🔔 Active Alerts</div>
     </div>
@@ -654,6 +654,10 @@ async function apiPost(url, body) {
 // NAVIGATION
 // ════════════════════════════════════════════
 function navigate(section) {
+  // Block owner navigation to sections that have no function yet
+  const navEl = document.querySelector(`[data-section="${section}"]`);
+  if (navEl && navEl.classList.contains('owner-coming-soon')) return;
+
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const el = document.getElementById(`section-${section}`);
@@ -689,6 +693,10 @@ async function loadOverview() {
     const fresh = await api('/api/portal/campaign-status');
     if (fresh) { _campaignData = fresh; _campaignStatus = fresh.campaign_status; }
     showResultsDashboard(ownerPortalData, _campaignData);
+    return;
+  }
+  if (_campaignStatus === 'ready_to_launch') {
+    showLaunchCard(ownerPortalData);
     return;
   }
   const data = await api('/api/overview');
@@ -1217,7 +1225,7 @@ async function loadCalendar() {
   const all = [...data.scheduled, ...data.posted];
 
   if (all.length === 0) {
-    grid.innerHTML = `<div class="empty-state"><div class="icon">📅</div><h3>No scheduled content</h3><p>Approve assets from the queue to see them here.</p><button class="btn primary" onclick="navigate('queue')">→ Go to Queue</button></div>`;
+    grid.innerHTML = `<div class="empty-state"><div class="icon">📅</div><h3>No scheduled content</h3><p>Your content calendar will populate once your first campaign is live.</p></div>`;
     return;
   }
 
@@ -2088,7 +2096,7 @@ async function loadHooks() {
 function renderHooks(hooks) {
   const el = document.getElementById('hooks-list');
   if (!hooks || hooks.length === 0) {
-    el.innerHTML = `<div class="empty-state"><div class="icon">🔗</div><h3>No hooks yet</h3><p>Hooks appear here after the first campaign runs. Generate hooks from the approval queue.</p></div>`;
+    el.innerHTML = `<div class="empty-state"><div class="icon">🔗</div><h3>No hooks yet</h3><p>Hooks will appear here once your first campaign is live and collecting data.</p></div>`;
     return;
   }
   el.innerHTML = hooks.map(h => `
@@ -3263,11 +3271,23 @@ function parseJwt(token) {
     document.querySelectorAll('.admin-only').forEach(el => { el.style.display = ''; });
   }
 
-  // Show owner-only nav items; hide items owners shouldn't see
+  // Show owner-only nav items; hide and grey out items owners shouldn't see
   if (user.role === 'owner') {
     document.querySelectorAll('.owner-only').forEach(el => { el.style.display = ''; });
+
+    // Hide queue entirely
     const queueNav = document.querySelector('.nav-item[data-section="queue"]');
     if (queueNav) queueNav.style.display = 'none';
+
+    // Hide "Review Queue" quick action
+    const reviewQueueBtn = document.getElementById('action-review-queue');
+    if (reviewQueueBtn) reviewQueueBtn.style.display = 'none';
+
+    // Grey out sections with no function yet for a newly launched owner
+    ['calendar', 'performance', 'google-ads', 'decision', 'journey', 'landing', 'nurture', 'manus', 'archive'].forEach(s => {
+      const navItem = document.querySelector(`.nav-item[data-section="${s}"]`);
+      if (navItem) navItem.classList.add('owner-coming-soon');
+    });
   }
 
   // Multi-tab logout
