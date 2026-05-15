@@ -5776,6 +5776,165 @@ async function sendActivationEmail(user) {
   console.log(`[activation-email] sent → ${user.email}`);
 }
 
+/** Weekly report email — sent every Monday to owners with an active campaign. */
+async function sendWeeklyOwnerReport(user, loc, hooks) {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) { console.warn('[weekly-report] RESEND_API_KEY not set — skipping'); return; }
+
+  const gymId = loc.gymId || '';
+  const gymName = loc.gymName || 'Your Gym';
+  const ownerEmail = user.email;
+  const firstName = (user.name || user.firstName || 'there').split(' ')[0];
+
+  const launchedAt = loc.launched_at || null;
+  const daysRunning = launchedAt
+    ? Math.max(1, Math.floor((Date.now() - new Date(launchedAt).getTime()) / 86400000) + 1)
+    : 1;
+
+  const firstHook = Array.isArray(hooks) && hooks.length > 0 ? hooks[0] : null;
+  const bestHookText = firstHook
+    ? (typeof firstHook === 'object' ? (firstHook.hook || '') : firstHook)
+    : '—';
+
+  const weekDate = new Date().toLocaleDateString('en-US', {
+    timeZone: 'America/Chicago',
+    month: 'long', day: 'numeric', year: 'numeric',
+  });
+
+  const from = 'AHRI <notifications@ahrimarketing.com>';
+  const subject = `Your AHRI report — week of ${weekDate}`;
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body { margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .wrap { max-width: 560px; margin: 32px auto; background: #ffffff; border-radius: 8px; overflow: hidden; }
+  .header { background: #0A0A12; padding: 24px 32px; }
+  .header-logo { font-size: 13px; font-weight: 700; letter-spacing: 3px; color: #8B5CF6; text-transform: uppercase; }
+  .header-gym { font-size: 20px; font-weight: 700; color: #ffffff; margin-top: 4px; }
+  .body { padding: 28px 32px; }
+  .intro { font-size: 15px; color: #374151; line-height: 1.6; margin-bottom: 24px; }
+  .divider { border: none; border-top: 1px solid #e5e7eb; margin: 20px 0; }
+  .metrics { display: flex; gap: 0; margin-bottom: 24px; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; }
+  .metric { flex: 1; padding: 16px 14px; text-align: center; border-right: 1px solid #e5e7eb; }
+  .metric:last-child { border-right: none; }
+  .metric-label { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #9ca3af; margin-bottom: 6px; }
+  .metric-value { font-size: 24px; font-weight: 700; color: #111827; }
+  .hook-section { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px 18px; margin-bottom: 24px; }
+  .hook-label { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #9ca3af; margin-bottom: 8px; }
+  .hook-text { font-size: 15px; color: #374151; line-height: 1.5; font-style: italic; }
+  .banner { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 12px 16px; margin-bottom: 24px; font-size: 13px; color: #1d4ed8; line-height: 1.5; }
+  .days-line { font-size: 14px; color: #6b7280; margin-bottom: 24px; }
+  .cta { text-align: center; margin-bottom: 8px; }
+  .cta a { display: inline-block; background: #7c3aed; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 6px; }
+  .footer { padding: 16px 32px 24px; font-size: 12px; color: #9ca3af; text-align: center; }
+</style></head>
+<body><div class="wrap">
+  <div class="header">
+    <div class="header-logo">AHRI</div>
+    <div class="header-gym">${gymName}</div>
+  </div>
+  <div class="body">
+    <p class="intro">Hi ${firstName}, here's your weekly snapshot for the week of <strong>${weekDate}</strong>.</p>
+    <div class="metrics">
+      <div class="metric">
+        <div class="metric-label">Leads This Week</div>
+        <div class="metric-value">0</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Cost Per Lead</div>
+        <div class="metric-value">$0.00</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">Days Active</div>
+        <div class="metric-value">${daysRunning}</div>
+      </div>
+    </div>
+    <div class="hook-section">
+      <div class="hook-label">Best Performing Hook</div>
+      <div class="hook-text">&ldquo;${bestHookText}&rdquo;</div>
+    </div>
+    <div class="banner">
+      Live performance data connects once your first campaign has been running for 48 hours. Real numbers will appear here next week.
+    </div>
+    <p class="days-line">Your campaign has been running for <strong>${daysRunning} day${daysRunning === 1 ? '' : 's'}</strong>.</p>
+    <div class="cta">
+      <a href="https://app.ahrimarketing.com/dashboard">View your dashboard &rarr;</a>
+    </div>
+  </div>
+  <div class="footer">AHRI by GymSuite AI &mdash; You're receiving this because your campaign is active.</div>
+</div></body></html>`;
+
+  try {
+    const resend = new Resend(resendKey);
+    const { error } = await resend.emails.send({ from, to: [ownerEmail], subject, html });
+    if (error) throw new Error(JSON.stringify(error));
+    console.log(`[weekly-report] ✓ sent | gymId=${gymId} | to=${ownerEmail}`);
+  } catch (err) {
+    console.error(`[weekly-report] ✗ failed | gymId=${gymId} | to=${ownerEmail} | error=${err.message}`);
+  }
+}
+
+/** Sent in place of the weekly report when meta_setup_pending is true. */
+async function sendMetaPendingNotice(user, loc) {
+  const resendKey = process.env.RESEND_API_KEY;
+  if (!resendKey) { console.warn('[weekly-report] RESEND_API_KEY not set — skipping pending notice'); return; }
+
+  const gymId = loc.gymId || '';
+  const ownerEmail = user.email;
+  const firstName = (user.name || user.firstName || 'there').split(' ')[0];
+  const gymName = loc.gymName || 'Your Gym';
+  const from = 'AHRI <notifications@ahrimarketing.com>';
+
+  const weekDate = new Date().toLocaleDateString('en-US', {
+    timeZone: 'America/Chicago',
+    month: 'long', day: 'numeric', year: 'numeric',
+  });
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body { margin: 0; padding: 0; background: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .wrap { max-width: 560px; margin: 32px auto; background: #ffffff; border-radius: 8px; overflow: hidden; }
+  .header { background: #0A0A12; padding: 24px 32px; }
+  .header-logo { font-size: 13px; font-weight: 700; letter-spacing: 3px; color: #8B5CF6; text-transform: uppercase; }
+  .header-gym { font-size: 20px; font-weight: 700; color: #ffffff; margin-top: 4px; }
+  .body { padding: 28px 32px; }
+  .notice { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 16px 18px; font-size: 14px; color: #92400e; line-height: 1.6; margin-bottom: 24px; }
+  .cta { text-align: center; margin-bottom: 8px; }
+  .cta a { display: inline-block; background: #7c3aed; color: #ffffff; text-decoration: none; font-size: 14px; font-weight: 600; padding: 12px 28px; border-radius: 6px; }
+  .footer { padding: 16px 32px 24px; font-size: 12px; color: #9ca3af; text-align: center; }
+</style></head>
+<body><div class="wrap">
+  <div class="header">
+    <div class="header-logo">AHRI</div>
+    <div class="header-gym">${gymName}</div>
+  </div>
+  <div class="body">
+    <p style="font-size:15px;color:#374151;line-height:1.6;margin-bottom:20px;">Hi ${firstName},</p>
+    <div class="notice">
+      Your campaign is almost ready — Kai is finishing your ad account setup. You'll receive your first report once your campaign goes live.
+    </div>
+    <div class="cta">
+      <a href="https://app.ahrimarketing.com/dashboard">View your dashboard &rarr;</a>
+    </div>
+  </div>
+  <div class="footer">AHRI by GymSuite AI &mdash; Week of ${weekDate}</div>
+</div></body></html>`;
+
+  try {
+    const resend = new Resend(resendKey);
+    const { error } = await resend.emails.send({
+      from,
+      to: [ownerEmail],
+      subject: `Your AHRI report — week of ${weekDate}`,
+      html,
+    });
+    if (error) throw new Error(JSON.stringify(error));
+    console.log(`[weekly-report] ✓ pending notice sent | gymId=${gymId} | to=${ownerEmail}`);
+  } catch (err) {
+    console.error(`[weekly-report] ✗ pending notice failed | gymId=${gymId} | to=${ownerEmail} | error=${err.message}`);
+  }
+}
+
 // DELETE /api/admin/users/:userId — permanently delete account and R2 session data (admin only)
 app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
   const { userId } = req.params;
@@ -6860,3 +7019,60 @@ cron.schedule('0 6 * * *', async () => {
     }
   }
 }, { timezone: 'America/Indiana/Indianapolis' });
+
+// ── Weekly owner report — every Monday 8:00 AM Central ───────────────────────
+cron.schedule('0 8 * * 1', async () => {
+  console.log('[weekly-report] Starting Monday send run...');
+  let sent = 0, skipped = 0, failed = 0;
+
+  const users = await getUsers().catch(err => {
+    console.error('[weekly-report] Could not load users:', err.message);
+    return null;
+  });
+  if (!users) return;
+
+  for (const user of users) {
+    if (user.role !== 'owner') continue;
+    const locations = Array.isArray(user.locations) ? user.locations : [];
+
+    for (const loc of locations) {
+      if (typeof loc !== 'object' || !loc) continue;
+      if (loc.campaign_status !== 'active') continue;
+
+      const gymId = loc.gymId || loc.sessionId || '';
+      const sessionId = loc.sessionId || loc.gymId || '';
+
+      if (loc.meta_setup_pending === true) {
+        console.log(`[weekly-report] meta_setup_pending=true | gymId=${gymId} | to=${user.email} — sending pending notice`);
+        try {
+          await sendMetaPendingNotice(user, loc);
+          sent++;
+        } catch (err) {
+          console.error(`[weekly-report] pending notice error | gymId=${gymId}:`, err.message);
+          failed++;
+        }
+        continue;
+      }
+
+      let hooks = [];
+      if (sessionId) {
+        try {
+          const hooksData = await r2GetShared(`onboarding/sessions/${sessionId}/hooks.json`);
+          hooks = Array.isArray(hooksData?.hooks) ? hooksData.hooks : [];
+        } catch (err) {
+          console.warn(`[weekly-report] Could not load hooks for ${sessionId}:`, err.message);
+        }
+      }
+
+      try {
+        await sendWeeklyOwnerReport(user, loc, hooks);
+        sent++;
+      } catch (err) {
+        console.error(`[weekly-report] report error | gymId=${gymId}:`, err.message);
+        failed++;
+      }
+    }
+  }
+
+  console.log(`[weekly-report] Run complete — sent=${sent} skipped=${skipped} failed=${failed}`);
+}, { timezone: 'America/Chicago' });
