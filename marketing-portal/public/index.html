@@ -594,6 +594,8 @@ const state = {
 };
 
 let ownerPortalData = null;
+let _campaignData = null;
+let _campaignStatus = null;
 
 // ════════════════════════════════════════════
 // INIT
@@ -683,6 +685,12 @@ function navigate(section) {
 // OVERVIEW
 // ════════════════════════════════════════════
 async function loadOverview() {
+  if (_campaignStatus === 'active' || _campaignStatus === 'paused') {
+    const fresh = await api('/api/portal/campaign-status');
+    if (fresh) { _campaignData = fresh; _campaignStatus = fresh.campaign_status; }
+    showResultsDashboard(ownerPortalData, _campaignData);
+    return;
+  }
   const data = await api('/api/overview');
   if (!data) return;
   state.overview = data;
@@ -3255,9 +3263,11 @@ function parseJwt(token) {
     document.querySelectorAll('.admin-only').forEach(el => { el.style.display = ''; });
   }
 
-  // Show owner-only nav items
+  // Show owner-only nav items; hide items owners shouldn't see
   if (user.role === 'owner') {
     document.querySelectorAll('.owner-only').forEach(el => { el.style.display = ''; });
+    const queueNav = document.querySelector('.nav-item[data-section="queue"]');
+    if (queueNav) queueNav.style.display = 'none';
   }
 
   // Multi-tab logout
@@ -3406,9 +3416,13 @@ async function loadOwnerPortalData() {
     ]);
     if (!sessionData) return;
     ownerPortalData = sessionData;
+    _campaignData = campaignData;
+    _campaignStatus = campaignData?.campaign_status || 'not_started';
 
-    if (campaignData?.campaign_status === 'ready_to_launch') {
+    if (_campaignStatus === 'ready_to_launch') {
       showLaunchCard(ownerPortalData);
+    } else if (_campaignStatus === 'active' || _campaignStatus === 'paused') {
+      showResultsDashboard(ownerPortalData, _campaignData);
     } else {
       populateOwnerOverview(ownerPortalData);
     }
@@ -3487,6 +3501,8 @@ async function handleLaunchCampaign() {
   const res = await apiPost('/api/portal/launch-campaign', {});
 
   if (res && res.success) {
+    _campaignData = res;
+    _campaignStatus = 'active';
     const launchScreen = document.getElementById('launch-screen');
     if (launchScreen) {
       launchScreen.classList.add('fading-out');
@@ -3496,8 +3512,7 @@ async function handleLaunchCampaign() {
         launchScreen.classList.remove('fading-out');
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.classList.remove('launch-active');
-        populateOwnerOverview(ownerPortalData);
-        navigate('overview');
+        showResultsDashboard(ownerPortalData, _campaignData);
       }, 350);
     }
   } else {
@@ -3505,6 +3520,143 @@ async function handleLaunchCampaign() {
     btn.textContent = 'Launch My Campaign';
     btn.classList.remove('loading');
     toast('Launch failed — please try again', 'error');
+  }
+}
+
+function calcDaysActive(launchedAt) {
+  if (!launchedAt) return 1;
+  const diff = Date.now() - new Date(launchedAt).getTime();
+  return Math.max(1, Math.floor(diff / 86400000) + 1);
+}
+
+function showResultsDashboard(data, campData) {
+  if (!data) return;
+  const gym = data.session?.gymName || 'Your Gym';
+  const status = campData?.campaign_status || 'active';
+  const launchedAt = campData?.launched_at;
+  const isActive = status === 'active';
+  const dayNum = calcDaysActive(launchedAt);
+  const hooks = Array.isArray(data.hooks) ? data.hooks : [];
+  const firstHook = hooks[0];
+  const firstHookText = firstHook ? (typeof firstHook === 'object' ? firstHook.hook : firstHook) : '—';
+
+  document.title = `AHRI — ${gym}`;
+  const token = localStorage.getItem('gymsuite_token');
+  const _u = token ? parseJwt(token) : null;
+  if (_u) populateOwnerLocationSwitcher(_u);
+
+  const overviewEl = document.getElementById('section-overview');
+  if (!overviewEl) return;
+
+  overviewEl.innerHTML = `
+    <div class="results-section">
+      <div class="section-title">IS IT RUNNING?</div>
+      <div class="card results-running-card">
+        <div class="results-running-row">
+          <div class="results-indicator ${isActive ? 'is-active' : 'is-paused'}">
+            <span class="results-indicator-dot"></span>
+            <span class="results-indicator-text">${isActive ? 'Campaign Active' : 'Campaign Paused'}</span>
+          </div>
+          <div class="results-day-badge">Day ${dayNum}</div>
+        </div>
+        <div style="margin-top:18px">
+          ${isActive
+            ? `<button class="btn results-pause-btn" onclick="handlePauseCampaign()">⏸ Pause Campaign</button>`
+            : `<button class="btn green results-resume-btn" onclick="handleResumeCampaign()">▶ Resume Campaign</button>`
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="results-section">
+      <div class="section-title">IS IT WORKING?</div>
+      <div class="results-data-banner">
+        Live performance data connects once your first campaign has been running for 48 hours.
+      </div>
+      <div class="results-metrics-grid">
+        <div class="card results-metric-card">
+          <div class="card-label">Leads This Week</div>
+          <div class="metric-value" style="font-size:32px">0</div>
+          <div class="results-metric-unit">leads</div>
+        </div>
+        <div class="card results-metric-card">
+          <div class="card-label">Cost Per Lead</div>
+          <div class="metric-value" style="font-size:32px">$0.00</div>
+          <div class="results-metric-unit">per lead</div>
+        </div>
+        <div class="card results-metric-card">
+          <div class="card-label">Best Hook</div>
+          <div class="results-metric-hook">${esc(firstHookText.length > 52 ? firstHookText.slice(0, 52) + '…' : firstHookText)}</div>
+          <div class="results-metric-unit">running</div>
+        </div>
+        <div class="card results-metric-card">
+          <div class="card-label">Week Over Week</div>
+          <div class="metric-value" style="font-size:32px;color:var(--text-muted)">—</div>
+          <div class="results-metric-unit results-metric-neutral">no data yet</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="results-section">
+      <div class="section-title">WHAT WENT OUT</div>
+      ${hooks.length === 0
+        ? `<div class="card" style="padding:20px 24px"><p class="text-muted" style="margin:0">No hooks found for this campaign.</p></div>`
+        : hooks.map((h, i) => {
+            const hookTxt = typeof h === 'object' ? (h.hook || '') : String(h);
+            const framework = typeof h === 'object' ? (h.framework || '') : '';
+            const level = typeof h === 'object' ? (h.awarenessLevel || '') : '';
+            return `
+            <div class="card results-hook-card">
+              <div class="results-hook-body">
+                <div class="results-hook-text">${esc(hookTxt)}</div>
+                <div class="results-hook-tags">
+                  ${framework ? `<span class="results-hook-tag">${esc(framework)}</span>` : ''}
+                  ${level ? `<span class="results-hook-tag">${esc(level)}</span>` : ''}
+                </div>
+              </div>
+              <div class="results-hook-stats">
+                <span class="results-hook-stat-label">Since launch</span>
+                <span class="results-hook-stat-value">0 leads</span>
+              </div>
+            </div>`;
+          }).join('')
+      }
+    </div>`;
+
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  overviewEl.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector('[data-section="overview"]')?.classList.add('active');
+  state.currentSection = 'overview';
+}
+
+async function handlePauseCampaign() {
+  const btn = document.querySelector('.results-pause-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Pausing…'; }
+  const res = await apiPost('/api/portal/pause-campaign', {});
+  if (res?.success) {
+    _campaignStatus = 'paused';
+    _campaignData = { ..._campaignData, campaign_status: 'paused' };
+    showResultsDashboard(ownerPortalData, _campaignData);
+    toast('Campaign paused', 'warning');
+  } else {
+    if (btn) { btn.disabled = false; btn.textContent = '⏸ Pause Campaign'; }
+    toast('Pause failed — please try again', 'error');
+  }
+}
+
+async function handleResumeCampaign() {
+  const btn = document.querySelector('.results-resume-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Resuming…'; }
+  const res = await apiPost('/api/portal/resume-campaign', {});
+  if (res?.success) {
+    _campaignStatus = 'active';
+    _campaignData = { ..._campaignData, campaign_status: 'active' };
+    showResultsDashboard(ownerPortalData, _campaignData);
+    toast('Campaign resumed', 'success');
+  } else {
+    if (btn) { btn.disabled = false; btn.textContent = '▶ Resume Campaign'; }
+    toast('Resume failed — please try again', 'error');
   }
 }
 

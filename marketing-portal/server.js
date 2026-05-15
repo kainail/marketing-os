@@ -5530,6 +5530,44 @@ app.post('/api/portal/launch-campaign', requireAuth, async (req, res) => {
   res.json({ success: true, campaign_status: 'active', launched_at, gymId: activeGymId });
 });
 
+// POST /api/portal/pause-campaign — flip active → paused
+app.post('/api/portal/pause-campaign', requireAuth, async (req, res) => {
+  const { activeGymId } = req.user;
+  if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+  const userIdx = users.findIndex(u => u.id === req.user.userId);
+  if (userIdx < 0) return res.status(404).json({ error: 'User not found' });
+  const user = users[userIdx];
+  const loc = (user.locations || []).find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  if (!loc || typeof loc !== 'object') return res.status(404).json({ error: 'Gym location not found' });
+  if (loc.campaign_status !== 'active') return res.status(409).json({ error: `Cannot pause from status: ${loc.campaign_status}`, campaign_status: loc.campaign_status });
+  loc.campaign_status = 'paused';
+  loc.paused_at = new Date().toISOString();
+  await saveUsers(users);
+  console.log(`[campaign] paused for gym ${activeGymId}`);
+  res.json({ success: true, campaign_status: 'paused', gymId: activeGymId });
+});
+
+// POST /api/portal/resume-campaign — flip paused → active
+app.post('/api/portal/resume-campaign', requireAuth, async (req, res) => {
+  const { activeGymId } = req.user;
+  if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+  const userIdx = users.findIndex(u => u.id === req.user.userId);
+  if (userIdx < 0) return res.status(404).json({ error: 'User not found' });
+  const user = users[userIdx];
+  const loc = (user.locations || []).find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  if (!loc || typeof loc !== 'object') return res.status(404).json({ error: 'Gym location not found' });
+  if (loc.campaign_status !== 'paused') return res.status(409).json({ error: `Cannot resume from status: ${loc.campaign_status}`, campaign_status: loc.campaign_status });
+  loc.campaign_status = 'active';
+  loc.paused_at = null;
+  await saveUsers(users);
+  console.log(`[campaign] resumed for gym ${activeGymId}`);
+  res.json({ success: true, campaign_status: 'active', gymId: activeGymId });
+});
+
 // GET /api/onboard/creative-files — list files in the owner's Generated Drive folder
 app.get('/api/onboard/creative-files', requireAuth, async (req, res) => {
   const { sessionId, role } = req.user;
