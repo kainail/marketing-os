@@ -103,6 +103,9 @@
 <!-- Main Content -->
 <main id="main">
 
+  <!-- Launch Screen (shown when campaign_status === ready_to_launch) -->
+  <div id="launch-screen"></div>
+
   <!-- Section: Overview -->
   <div id="section-overview" class="section active">
     <div id="overview-metrics" class="metrics-row"></div>
@@ -3397,15 +3400,111 @@ async function submitAddClub() {
 // ── Owner portal data ────────────────────────────────────────────────────────
 async function loadOwnerPortalData() {
   try {
-    const token = localStorage.getItem('gymsuite_token');
-    const res = await fetch('/api/portal/session-data', {
-      headers: { Authorization: 'Bearer ' + token },
-    });
-    if (!res.ok) return;
-    ownerPortalData = await res.json();
-    populateOwnerOverview(ownerPortalData);
+    const [sessionData, campaignData] = await Promise.all([
+      api('/api/portal/session-data'),
+      api('/api/portal/campaign-status'),
+    ]);
+    if (!sessionData) return;
+    ownerPortalData = sessionData;
+
+    if (campaignData?.campaign_status === 'ready_to_launch') {
+      showLaunchCard(ownerPortalData);
+    } else {
+      populateOwnerOverview(ownerPortalData);
+    }
   } catch (err) {
     console.error('[owner] load failed:', err);
+  }
+}
+
+function showLaunchCard(data) {
+  const gym = data?.session?.gymName || 'Your Gym';
+
+  const hook = data?.hooks?.[0];
+  const hookText = hook ? (typeof hook === 'object' ? hook.hook : hook) : '';
+  const hookFramework = hook && typeof hook === 'object' ? (hook.framework || '') : '';
+
+  const offer = data?.selectedOffer;
+  let offerText = '';
+  if (offer) {
+    const parts = [offer.duration, offer.name].filter(Boolean);
+    if (offer.price) parts.push('$' + offer.price);
+    offerText = parts.join(' · ');
+  }
+
+  const avatarMd = data?.avatar || '';
+  const avatarClean = avatarMd.split('\n').map(l => l.trim())
+    .filter(l => l && !l.startsWith('#') && !l.startsWith('---') && !l.startsWith('*'))
+    .join(' ');
+  const sentenceMatch = avatarClean.match(/^(.+?[.!?])(?:\s|$)/);
+  const avatarLine = sentenceMatch ? sentenceMatch[1] : avatarClean.slice(0, 120);
+
+  const el = document.getElementById('launch-screen');
+  if (!el) return;
+
+  el.innerHTML = `
+    <div class="launch-card">
+      <div class="launch-gym-name">${esc(gym)}</div>
+      <div class="launch-ready-badge">Ready to Launch</div>
+      ${hookText ? `
+      <div class="launch-section">
+        <div class="launch-section-label">Winning Hook</div>
+        <div class="launch-hook">&ldquo;${esc(hookText)}&rdquo;</div>
+        ${hookFramework ? `<div class="launch-hook-meta">${esc(hookFramework)}</div>` : ''}
+      </div>` : ''}
+      ${offerText ? `
+      <div class="launch-section">
+        <div class="launch-section-label">Your Offer</div>
+        <div class="launch-offer-text">${esc(offerText)}</div>
+      </div>` : ''}
+      ${avatarLine ? `
+      <div class="launch-section">
+        <div class="launch-section-label">Your Audience</div>
+        <div class="launch-avatar-line">${esc(avatarLine)}</div>
+      </div>` : ''}
+      <button id="launch-btn" class="launch-btn" onclick="handleLaunchCampaign()">
+        Launch My Campaign
+      </button>
+    </div>`;
+
+  el.style.display = 'flex';
+
+  // Remove .active from all sections so nothing renders behind the card
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+
+  // Dim inactive nav items
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) sidebar.classList.add('launch-active');
+}
+
+async function handleLaunchCampaign() {
+  const btn = document.getElementById('launch-btn');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = 'Activating your campaign…';
+  btn.classList.add('loading');
+
+  const res = await apiPost('/api/portal/launch-campaign', {});
+
+  if (res && res.success) {
+    const launchScreen = document.getElementById('launch-screen');
+    if (launchScreen) {
+      launchScreen.classList.add('fading-out');
+      setTimeout(() => {
+        launchScreen.style.display = 'none';
+        launchScreen.innerHTML = '';
+        launchScreen.classList.remove('fading-out');
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.classList.remove('launch-active');
+        populateOwnerOverview(ownerPortalData);
+        navigate('overview');
+      }, 350);
+    }
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'Launch My Campaign';
+    btn.classList.remove('loading');
+    toast('Launch failed — please try again', 'error');
   }
 }
 
