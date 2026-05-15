@@ -546,15 +546,20 @@ body {
   border: 1px solid var(--border);
   border-left: 3px solid transparent;
   border-radius: 10px;
-  padding: 16px;
-  margin-bottom: 10px;
+  padding: 16px 18px;
+  margin-bottom: 8px;
   display: flex;
-  gap: 16px;
-  transition: border-color 0.15s;
+  gap: 14px;
+  transition: border-color 0.15s, background 0.15s;
   cursor: pointer;
 }
-.asset-card:hover { border-color: var(--border-active); }
-.asset-card.selected { border-left-color: var(--violet); padding-left: 13px; }
+.asset-card:hover { border-color: var(--border-active); background: var(--bg-card-hover); }
+.asset-card.selected {
+  border-left-color: var(--violet);
+  padding-left: 15px;
+  background: rgba(139,92,246,0.07);
+  border-color: rgba(139,92,246,0.3);
+}
 .asset-card.approved { opacity: 0.5; pointer-events: none; transform: translateX(20px); transition: all 0.3s; }
 .asset-meta { min-width: 0; flex: 1; }
 .asset-badge {
@@ -585,12 +590,32 @@ body {
   margin-left: 6px;
 }
 .asset-list-preview {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.5;
-  white-space: nowrap;
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
+}
+.asset-card-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.asset-card-platform {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.asset-card-age {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 .asset-preview {
   flex: 1;
@@ -657,15 +682,18 @@ body {
 .queue-panel-close {
   background: none;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-muted);
+  border-radius: 8px;
+  color: var(--text-secondary);
   cursor: pointer;
-  font-size: 14px;
-  padding: 4px 8px;
-  transition: border-color 0.15s, color 0.15s;
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  padding: 7px 14px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
   flex-shrink: 0;
+  letter-spacing: 0.3px;
 }
-.queue-panel-close:hover { border-color: var(--border-active); color: var(--text-primary); }
+.queue-panel-close:hover { border-color: var(--border-active); color: var(--text-primary); background: rgba(255,255,255,0.04); }
 .queue-panel-meta {
   display: flex;
   flex-wrap: wrap;
@@ -691,12 +719,73 @@ body {
 }
 .queue-panel-footer {
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 14px 16px 16px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+  background: var(--bg-card);
 }
-.queue-panel-footer .btn { flex: 1; justify-content: center; font-size: 12px; padding: 8px 4px; }
+.qp-main-actions {
+  display: flex;
+  gap: 8px;
+}
+.qp-action-btn {
+  flex: 1;
+  height: 48px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  font-family: var(--font-body);
+}
+.qp-action-btn:hover { opacity: 0.88; }
+.qp-action-btn:active { transform: scale(0.98); }
+.qp-action-btn.approve { background: var(--green); color: #fff; }
+.qp-action-btn.reject  { background: var(--red);   color: #fff; }
+.qp-revise-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  padding: 2px 0;
+  text-align: center;
+  transition: color 0.15s;
+  width: 100%;
+}
+.qp-revise-link:hover { color: var(--text-secondary); }
+@media (max-width: 768px) {
+  .queue-panel {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    z-index: 400;
+    margin-left: 0;
+    transform: translateY(60px);
+    transition: opacity 280ms ease, transform 280ms ease;
+  }
+  .queue-panel.open {
+    max-width: none;
+    margin-left: 0;
+    transform: translateY(0);
+  }
+  .queue-panel-inner {
+    height: 100%;
+    max-height: 100%;
+    border-radius: 12px 12px 0 0;
+    min-width: 0;
+    border-bottom: none;
+  }
+}
 .qp-section {
   margin-bottom: 16px;
 }

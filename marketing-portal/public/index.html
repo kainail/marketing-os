@@ -117,14 +117,7 @@
 
   <!-- Section: Queue -->
   <div id="section-queue" class="section">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <div class="section-title" style="margin-bottom:0">APPROVAL QUEUE</div>
-      <div class="flex gap-8">
-        <button class="btn" onclick="selectAllAssets()">☑ Select All</button>
-        <button class="btn green" onclick="approveSelected()">✓ Approve Selected</button>
-        <button class="btn red" onclick="rejectSelected()">✗ Reject Selected</button>
-      </div>
-    </div>
+    <div class="section-title" style="margin-bottom:16px">APPROVAL QUEUE</div>
     <div class="filter-bar">
       <button class="filter-chip active" onclick="filterQueue('all',this)">All</button>
       <button class="filter-chip" onclick="filterQueue('content',this)">Content</button>
@@ -141,14 +134,16 @@
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0">
               <span id="qp-badge" class="asset-badge"></span>
             </div>
-            <button class="queue-panel-close" onclick="closeQueuePanel()">✕</button>
+            <button class="queue-panel-close" onclick="closeQueuePanel()">✕ Close</button>
           </div>
           <div id="qp-meta" class="queue-panel-meta"></div>
           <div id="qp-body" class="queue-panel-body"></div>
           <div class="queue-panel-footer">
-            <button id="qp-approve-btn" class="btn green">✓ Approve</button>
-            <button id="qp-revise-btn" class="btn yellow">↻ Revise</button>
-            <button id="qp-reject-btn" class="btn red">✗ Reject</button>
+            <div class="qp-main-actions">
+              <button id="qp-approve-btn" class="qp-action-btn approve">✓ Approve</button>
+              <button id="qp-reject-btn" class="qp-action-btn reject">✗ Reject</button>
+            </div>
+            <button id="qp-revise-btn" class="qp-revise-link">↻ Send to AHRI for revision</button>
           </div>
         </div>
       </div>
@@ -983,23 +978,24 @@ function renderQueue(assets) {
     return;
   }
 
-  document.getElementById('queue-list').innerHTML = filtered.map(a => `
+  document.getElementById('queue-list').innerHTML = filtered.map(a => {
+    const firstLine = escHtml((a.preview || a.asset_id || '').split('\n')[0].trim());
+    const ageLabel = a.days_in_queue === 0 ? 'today' : `${a.days_in_queue}d in queue`;
+    return `
     <div class="asset-card${state.activeQueueFilename === a.filename ? ' selected' : ''}" id="asset-${a.filename}" onclick="openQueuePanel('${a.filename}')">
-      <div style="display:flex;align-items:center;flex-shrink:0" onclick="event.stopPropagation()">
-        <input type="checkbox" style="width:16px;height:16px;cursor:pointer;margin-right:10px" onchange="toggleAssetSelect('${a.filename}',this.checked)">
-      </div>
       <div class="asset-meta">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
           <span class="asset-badge ${skillBadgeClass(a.skill)}">${escHtml(a.skill)}</span>
           ${a.has_budget_flag ? '<span class="badge-budget">$ BUDGET</span>' : ''}
         </div>
-        <div class="asset-list-preview">${escHtml((a.preview || a.asset_id || '').slice(0, 80))}</div>
-        <div class="text-muted" style="font-size:11px;margin-top:4px">
-          ${[a.platform, a.days_in_queue === 0 ? 'today' : a.days_in_queue + 'd in queue'].filter(Boolean).join(' · ')}
+        <div class="asset-list-preview">${firstLine}</div>
+        <div class="asset-card-footer">
+          ${a.platform ? `<span class="asset-card-platform">${escHtml(a.platform)}</span>` : ''}
+          <span class="asset-card-age">${ageLabel}</span>
         </div>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function filterQueue(filter, btn) {
