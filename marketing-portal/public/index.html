@@ -3305,6 +3305,14 @@ function parseJwt(token) {
   }
 })();
 
+// Removes owner-coming-soon lock from sections available once a campaign is active.
+function unlockActiveOwnerNav() {
+  ['calendar', 'performance', 'journey'].forEach(s => {
+    const el = document.querySelector(`.nav-item[data-section="${s}"]`);
+    if (el) el.classList.remove('owner-coming-soon');
+  });
+}
+
 // ── Location Switcher ────────────────────────────────────────────────────────
 function populateOwnerLocationSwitcher(user) {
   const label = document.getElementById('loc-switcher-label');
@@ -3479,6 +3487,7 @@ async function loadOwnerPortalData() {
       const data = ownerPortalData || buildFallbackPortalData();
       if (!ownerPortalData) ownerPortalData = data;
       showResultsDashboard(data, _campaignData);
+      if (_campaignStatus === 'active') unlockActiveOwnerNav();
 
     } else if (ownerPortalData) {
       console.log('[loadOwnerPortalData] branch → populateOwnerOverview() (status:', _campaignStatus, ')');
@@ -3576,6 +3585,7 @@ async function handleLaunchCampaign() {
         const sidebar = document.getElementById('sidebar');
         if (sidebar) sidebar.classList.remove('launch-active');
         showResultsDashboard(ownerPortalData, _campaignData);
+        unlockActiveOwnerNav();
       }, 350);
     }
   } else {
