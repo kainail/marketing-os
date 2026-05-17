@@ -5713,6 +5713,25 @@ app.get('/api/admin/debug/user-by-session/:sessionId', requireAdmin, async (req,
   res.json({ user: safe, jwtPayload });
 });
 
+// POST /api/admin/migrations/backfill-campaign-status — run migration on demand (admin only)
+app.post('/api/admin/migrations/backfill-campaign-status', requireAdmin, async (req, res) => {
+  try {
+    await backfillCampaignStatus();
+    const users = await getUsers();
+    const summary = users
+      .filter(u => u.role === 'owner' && Array.isArray(u.locations))
+      .map(u => ({
+        email: u.email,
+        locations: u.locations
+          .filter(l => typeof l === 'object')
+          .map(l => ({ gymId: l.gymId, campaign_status: l.campaign_status })),
+      }));
+    res.json({ success: true, summary });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/admin/users — list onboarding-created gym owners (admin only)
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
   const users = await getUsers().catch(() => []);
@@ -6700,10 +6719,50 @@ app.get('*', (req, res) => {
 
 migrateUsersToMultiLocation().catch(e => console.error('[Migration] Startup migration failed:', e.message));
 
+/**
+ * Startup migration: backfill campaign_status: 'ready_to_launch' on any owner location
+ * that is missing the field entirely. Covers accounts created before the campaign_status
+ * system was introduced. Idempotent — only writes if at least one record was changed.
+ */
+async function backfillCampaignStatus() {
+  console.log('[migration] backfillCampaignStatus: starting scan...');
+  let users;
+  try {
+    users = await getUsers();
+  } catch (err) {
+    console.error('[migration] backfillCampaignStatus: could not load users —', err.message);
+    return;
+  }
+
+  let changed = 0;
+  for (const user of users) {
+    if (user.role !== 'owner') continue;
+    if (!Array.isArray(user.locations)) continue;
+    for (const loc of user.locations) {
+      if (typeof loc !== 'object' || loc === null) continue;
+      if (loc.campaign_status == null) {
+        loc.campaign_status = 'ready_to_launch';
+        changed++;
+        console.log(`[migration] backfillCampaignStatus: set ready_to_launch on gymId=${loc.gymId} (${user.email})`);
+      }
+    }
+  }
+
+  if (changed > 0) {
+    await saveUsers(users);
+    console.log(`[migration] backfillCampaignStatus: done — ${changed} location(s) updated and persisted to R2`);
+  } else {
+    console.log('[migration] backfillCampaignStatus: no missing campaign_status fields found — nothing to do');
+  }
+}
+
 app.listen(PORT, () => {
   console.log(`AHRI Marketing Command Center running on port ${PORT}`);
   console.log(`  Gym: ${locationConfig.getLocation('bloomington').gymName || 'GymSuite AI'}`);
   console.log(`  Reading from: ${ROOT}`);
+
+  // Run startup migrations — fire-and-forget, errors are logged but do not crash the server
+  backfillCampaignStatus().catch(err => console.error('[migration] backfillCampaignStatus uncaught:', err.message));
 
   // DEBUG: dump all registered routes — remove after confirming /onboard is present
   try {
