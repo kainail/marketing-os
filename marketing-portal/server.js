@@ -5688,6 +5688,31 @@ app.post('/api/onboard/analyze-photos', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/admin/debug/user-by-session/:sessionId — dump raw user record for debugging (admin only, temporary)
+app.get('/api/admin/debug/user-by-session/:sessionId', requireAdmin, async (req, res) => {
+  const { sessionId } = req.params;
+  const users = await getUsers().catch(() => []);
+  const match = users.find(u =>
+    u.sessionId === sessionId ||
+    u.gymId === sessionId ||
+    (Array.isArray(u.locations) && u.locations.some(l =>
+      typeof l === 'object' ? (l.sessionId === sessionId || l.gymId === sessionId) : l === sessionId
+    ))
+  );
+  if (!match) return res.status(404).json({ error: 'No user found for that sessionId', sessionId });
+  const { passwordHash, resetToken, resetTokenExpiry, ...safe } = match;
+  const jwtPayload = {
+    userId: safe.id,
+    email: safe.email,
+    role: safe.role,
+    locations: safe.locations,
+    activeGymId: safe.activeGymId ?? null,
+    sessionId: safe.sessionId ?? null,
+    status: safe.status ?? null,
+  };
+  res.json({ user: safe, jwtPayload });
+});
+
 // GET /api/admin/users — list onboarding-created gym owners (admin only)
 app.get('/api/admin/users', requireAdmin, async (req, res) => {
   const users = await getUsers().catch(() => []);

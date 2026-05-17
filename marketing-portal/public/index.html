@@ -3452,19 +3452,21 @@ async function loadOwnerPortalData() {
       api('/api/portal/campaign-status'),
     ]);
 
-    console.log('[loadOwnerPortalData] session-data:', sessionData ? 'OK' : 'NULL (non-2xx or network error)');
-    console.log('[loadOwnerPortalData] campaign-status:', campaignData ? JSON.stringify(campaignData) : 'NULL');
+    console.log('sessionData:', sessionData);
+    console.log('campaignData:', campaignData);
 
     // Campaign status is read independently — session-data failure does not gate this branch
     _campaignData = campaignData;
     _campaignStatus = campaignData?.campaign_status || 'not_started';
-    console.log('[loadOwnerPortalData] _campaignStatus set to:', _campaignStatus);
+    console.log('_campaignStatus set to:', _campaignStatus);
 
     if (sessionData) {
       ownerPortalData = sessionData;
     } else {
-      console.warn('[loadOwnerPortalData] session-data failed — using JWT fallback for gym name. Hooks and offer will be empty if not fetched separately.');
+      console.warn('[loadOwnerPortalData] session-data failed — using JWT fallback for gym name');
     }
+
+    console.log('branch check — status is:', _campaignStatus);
 
     if (_campaignStatus === 'ready_to_launch') {
       console.log('[loadOwnerPortalData] branch → showLaunchCard()');
@@ -3492,6 +3494,7 @@ async function loadOwnerPortalData() {
 }
 
 function showLaunchCard(data) {
+  console.log('showLaunchCard() fired');
   const gym = data?.session?.gymName || 'Your Gym';
 
   const hook = data?.hooks?.[0];
