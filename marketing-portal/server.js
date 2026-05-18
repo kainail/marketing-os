@@ -60,6 +60,7 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL
   || (process.env.RAILWAY_PUBLIC_DOMAIN
     ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
     : null);
+const LANDING_SERVER_URL = process.env.LANDING_SERVER_URL || null;
 
 const locationConfig = require('./config/locations.js');
 const MANUS_API_KEY = locationConfig.getLocation('bloomington').keys?.manusApiKey || '';
@@ -152,6 +153,9 @@ const ATTRIBUTION_REPORT = path.join(ATTRIBUTION_DIR, 'attribution-report.json')
 
 if (!process.env.WEBHOOK_URL && !process.env.PORTAL_WEBHOOK_URL && !process.env.RAILWAY_PUBLIC_DOMAIN) {
   console.warn('[cron] ⚠ WEBHOOK_URL not set — Manus callbacks may not reach portal. Add WEBHOOK_URL=https://marketing-os-production-2b85.up.railway.app to Railway env vars.');
+}
+if (!LANDING_SERVER_URL) {
+  console.warn('[provision] ⚠ LANDING_SERVER_URL not set — landing page will not be auto-provisioned on session complete. Add LANDING_SERVER_URL=https://go.ahrimarketing.com to Railway env vars.');
 }
 
 // --- Helpers ---
@@ -4672,6 +4676,9 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
     console.log(`[onboarding] session ${sessionId} complete — ${hooks.length} hooks, ${posts.length} posts`);
     res.json({ success: true, hooks, posts, accountCreated });
 
+    // Landing page provision — fire and forget, never blocks session complete
+    setImmediate(() => provisionLandingPage(session, sessionId));
+
     // Google Drive creative pipeline — non-blocking, runs after response is sent
     setImmediate(async () => {
       try {
@@ -5479,6 +5486,46 @@ function gymKeyFromLocation(user, loc) {
   const last = (user.lastName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const city = (typeof loc === 'object' ? loc.city || '' : '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
   return `${last}_${city}`;
+}
+
+// Provisions a gym's landing page on the landing server after session complete.
+// Fires async — never blocks the session complete response.
+async function provisionLandingPage(session, sessionId) {
+  if (!LANDING_SERVER_URL) {
+    console.warn(`[provision] LANDING_SERVER_URL not set — skipping landing page provision for session ${sessionId}`);
+    return;
+  }
+
+  // Derive locationId in lastname_city format (mirrors gymKeyFromLocation)
+  const nameParts = (session.ownerName || '').trim().split(/\s+/);
+  const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : (nameParts[0] || '');
+  const locationId = gymKeyFromLocation({ lastName }, { city: session.city || '' });
+
+  const payload = {
+    locationId,
+    gymName: session.gymName || '',
+    city: session.city || '',
+    state: session.state || '',
+    ownerEmail: session.ownerEmail || '',
+    kbPath: `onboarding/sessions/${sessionId}/`,
+    sessionId,
+  };
+
+  try {
+    const res = await fetch(`${LANDING_SERVER_URL}/api/gyms/provision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      console.log(`[provision] landing page provisioned — gymId: ${locationId}, session: ${sessionId}`);
+    } else {
+      const text = await res.text().catch(() => '');
+      console.error(`[provision] landing page provision failed — gymId: ${locationId}, HTTP ${res.status}: ${text.slice(0, 200)}`);
+    }
+  } catch (err) {
+    console.error(`[provision] landing page provision error — gymId: ${locationId}:`, err.message);
+  }
 }
 
 // Checks Meta credentials for a gym — R2 first, env var fallback.

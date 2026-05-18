@@ -18,3 +18,10 @@ The following directories are **copies** of their repo-root equivalents and must
 **When AHRI generates new assets locally:** copy them to both the repo-root location and the corresponding `marketing-portal/` location, then commit both. Future: automate this sync.
 
 Asset directories under `marketing-portal/distribution/`, `intelligence-db/`, and `performance/` are copies of the repo root directories. When AHRI generates new assets locally, copy them to both locations and commit. Future: automate this sync.
+
+## Required Railway env vars
+
+| Variable | Description |
+|---|---|
+| `LANDING_SERVER_URL` | Landing server base URL — triggers `/api/gyms/provision` on session complete. Set to `https://go.ahrimarketing.com`. If absent, provision is skipped with a warning. |
+| `WEBHOOK_URL` | Portal's own public URL — used for Manus callback routing. |
