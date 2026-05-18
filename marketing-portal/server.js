@@ -5481,10 +5481,19 @@ function gymKeyFromLocation(user, loc) {
   return `${last}_${city}`;
 }
 
-// Checks presence of all four Meta credentials for a gymKey in Railway env vars.
-// Returns { allPresent, missing: string[] }
-function checkMetaCredentials(gymKey) {
-  const upper = gymKey.toUpperCase();
+// Checks Meta credentials for a gym — R2 first, env var fallback.
+// Returns { allPresent, missing: string[], source: 'r2'|'env'|'none' }
+async function checkMetaCredentials(gymId, gymKey) {
+  try {
+    const r2Creds = await r2GetShared(`gyms/${gymId}/meta-credentials.json`);
+    if (r2Creds && r2Creds.adAccountId && r2Creds.pageId && r2Creds.accessToken && r2Creds.pixelId) {
+      console.log(`[credentials] R2 credentials found for gymId=${gymId}`);
+      return { allPresent: true, missing: [], source: 'r2' };
+    }
+  } catch {}
+  // Fall back to env vars
+  const upper = (gymKey || '').toUpperCase();
+  if (!upper) return { allPresent: false, missing: ['all credentials'], source: 'none' };
   const names = [
     `META_AD_ACCOUNT_ID_${upper}`,
     `META_PAGE_ID_${upper}`,
@@ -5492,7 +5501,7 @@ function checkMetaCredentials(gymKey) {
     `META_PIXEL_ID_${upper}`,
   ];
   const missing = names.filter(n => !process.env[n]);
-  return { allPresent: missing.length === 0, missing };
+  return { allPresent: missing.length === 0, missing, source: 'env' };
 }
 
 // GET /api/portal/campaign-status — returns campaign_status for the authenticated owner's activeGymId
@@ -5539,7 +5548,7 @@ app.post('/api/portal/launch-campaign', requireAuth, async (req, res) => {
 
   // Check Meta credentials before writing — never block the launch
   const gymKey = gymKeyFromLocation(user, loc || { city: '' });
-  const metaCheck = checkMetaCredentials(gymKey);
+  const metaCheck = await checkMetaCredentials(activeGymId, gymKey);
   const meta_setup_pending = !metaCheck.allPresent;
 
   if (meta_setup_pending) {
@@ -5730,6 +5739,63 @@ app.post('/api/admin/migrations/backfill-campaign-status', requireAdmin, async (
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// POST /api/admin/gyms/:gymId/meta-credentials — save Meta credentials to R2 (admin only)
+app.post('/api/admin/gyms/:gymId/meta-credentials', requireAdmin, async (req, res) => {
+  const { gymId } = req.params;
+  const { adAccountId, pageId, accessToken, pixelId } = req.body || {};
+  if (!adAccountId || !pageId || !accessToken || !pixelId) {
+    return res.status(400).json({ error: 'adAccountId, pageId, accessToken, pixelId are all required' });
+  }
+  const tokenEnteredAt = new Date().toISOString();
+  const tokenExpiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
+  const creds = { gymId, adAccountId, pageId, accessToken, pixelId, tokenEnteredAt, tokenExpiresAt, meta_setup_pending: false };
+  await r2PutShared(`gyms/${gymId}/meta-credentials.json`, creds);
+  // Clear meta_setup_pending on the matching user location
+  try {
+    const users = await getUsers();
+    let changed = false;
+    for (const user of users) {
+      if (!Array.isArray(user.locations)) continue;
+      for (const loc of user.locations) {
+        if (typeof loc === 'object' && (loc.gymId === gymId || loc.sessionId === gymId)) {
+          loc.meta_setup_pending = false;
+          changed = true;
+        }
+      }
+    }
+    if (changed) await saveUsers(users);
+  } catch (err) {
+    console.error('[meta-credentials] failed to clear meta_setup_pending:', err.message);
+  }
+  console.log(`[meta-credentials] saved for gymId=${gymId} — expires ${tokenExpiresAt}`);
+  res.json({ success: true, tokenExpiresAt });
+});
+
+// GET /api/admin/gyms/:gymId/meta-credentials — read Meta credentials from R2 (admin only)
+app.get('/api/admin/gyms/:gymId/meta-credentials', requireAdmin, async (req, res) => {
+  const { gymId } = req.params;
+  const creds = await r2GetShared(`gyms/${gymId}/meta-credentials.json`).catch(() => null);
+  if (!creds) return res.json({ exists: false });
+  const daysUntilExpiry = creds.tokenExpiresAt
+    ? Math.ceil((new Date(creds.tokenExpiresAt).getTime() - Date.now()) / 86400000)
+    : null;
+  const maskedToken = creds.accessToken
+    ? '••••••••' + creds.accessToken.slice(-6)
+    : '';
+  res.json({
+    exists: true,
+    gymId: creds.gymId,
+    adAccountId: creds.adAccountId,
+    pageId: creds.pageId,
+    accessToken: maskedToken,
+    pixelId: creds.pixelId,
+    tokenEnteredAt: creds.tokenEnteredAt,
+    tokenExpiresAt: creds.tokenExpiresAt,
+    daysUntilExpiry,
+    meta_setup_pending: creds.meta_setup_pending,
+  });
 });
 
 // GET /api/admin/users — list onboarding-created gym owners (admin only)
@@ -7159,4 +7225,38 @@ cron.schedule('0 8 * * 1', async () => {
   }
 
   console.log(`[weekly-report] Run complete — sent=${sent} skipped=${skipped} failed=${failed}`);
+
+  // Token expiry check — warn Kai for gyms expiring within 7 days
+  console.log('[weekly-report] Checking Meta token expiry...');
+  try {
+    const allUsers = await getUsers().catch(() => []);
+    for (const u of allUsers) {
+      if (u.role !== 'owner' || !Array.isArray(u.locations)) continue;
+      for (const loc of u.locations) {
+        if (typeof loc !== 'object' || !loc.gymId) continue;
+        const creds = await r2GetShared(`gyms/${loc.gymId}/meta-credentials.json`).catch(() => null);
+        if (!creds || !creds.tokenExpiresAt) continue;
+        const daysLeft = Math.ceil((new Date(creds.tokenExpiresAt).getTime() - Date.now()) / 86400000);
+        if (daysLeft > 7) continue;
+        const gymName = loc.gymName || loc.gymId;
+        const expDate = new Date(creds.tokenExpiresAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        const resendKey = process.env.RESEND_API_KEY;
+        if (!resendKey) { console.warn('[weekly-report] RESEND_API_KEY not set — skipping token expiry email'); continue; }
+        try {
+          const resend = new Resend(resendKey);
+          await resend.emails.send({
+            from: 'AHRI <notifications@ahrimarketing.com>',
+            to: ['kaialexandernail@gmail.com'],
+            subject: `Meta token expiring soon — ${gymName}`,
+            html: `<p>The Meta access token for <strong>${gymName}</strong> expires on <strong>${expDate}</strong> (${daysLeft} day${daysLeft !== 1 ? 's' : ''} away).</p><p>Log in to the OPS dashboard to update it before it expires.</p>`,
+          });
+          console.log(`[weekly-report] token expiry warning sent for gymId=${loc.gymId} (${daysLeft} days left)`);
+        } catch (mailErr) {
+          console.error(`[weekly-report] token expiry email failed for gymId=${loc.gymId}:`, mailErr.message);
+        }
+      }
+    }
+  } catch (expiryErr) {
+    console.error('[weekly-report] token expiry check failed:', expiryErr.message);
+  }
 }, { timezone: 'America/Chicago' });

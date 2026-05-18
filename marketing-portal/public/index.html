@@ -596,6 +596,7 @@ const state = {
 let ownerPortalData = null;
 let _campaignData = null;
 let _campaignStatus = null;
+let _metaPendingPoll = null;
 
 // ════════════════════════════════════════════
 // INIT
@@ -3703,6 +3704,21 @@ function showResultsDashboard(data, campData) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector('[data-section="overview"]')?.classList.add('active');
   state.currentSection = 'overview';
+
+  // Poll campaign-status every 60s while meta_setup_pending is true; remove notice when cleared
+  if (_metaPendingPoll) { clearInterval(_metaPendingPoll); _metaPendingPoll = null; }
+  if (metaPending) {
+    _metaPendingPoll = setInterval(async () => {
+      const fresh = await api('/api/portal/campaign-status');
+      if (!fresh) return;
+      _campaignData = fresh;
+      if (!fresh.meta_setup_pending) {
+        clearInterval(_metaPendingPoll);
+        _metaPendingPoll = null;
+        showResultsDashboard(ownerPortalData || buildFallbackPortalData(), _campaignData);
+      }
+    }, 60000);
+  }
 }
 
 async function handlePauseCampaign() {
@@ -4115,6 +4131,8 @@ function toggleLocationExpand(userId, user) {
   if (!isOpen) {
     const container = document.getElementById('loc-subtable-' + userId);
     if (container) container.innerHTML = renderLocationSubtable(user);
+    const locs = Array.isArray(user.locations) ? user.locations.filter(l => typeof l === 'object' && l.gymId) : [];
+    locs.forEach(loc => loadMetaCredsForGym(loc.gymId, loc.gymName || ''));
   }
 }
 
@@ -4157,7 +4175,12 @@ function renderLocationSubtable(u) {
     <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,0.06)">
       <button onclick="adminAddLocation('${esc(u.id)}')" style="font-size:12px;background:none;border:1px solid rgba(167,139,250,0.35);border-radius:6px;padding:4px 12px;color:#a78bfa;cursor:pointer;font-family:inherit;font-weight:600">Add Location +</button>
     </div>
-  </div>`;
+  </div>
+  ${locs.filter(loc => loc.gymId).map(loc => `
+  <div style="margin-top:10px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:14px 16px" id="meta-cred-section-${esc(loc.gymId)}">
+    <div style="font-size:10px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:rgba(232,234,240,0.28);margin-bottom:10px">META CREDENTIALS — ${esc(loc.gymName || loc.gymId)}</div>
+    <div id="meta-cred-panel-${esc(loc.gymId)}" style="font-size:12px;color:rgba(232,234,240,0.3)">Loading…</div>
+  </div>`).join('')}`;
 }
 
 async function removeLocation(userId, gymId, gymName) {
@@ -4169,6 +4192,100 @@ async function removeLocation(userId, gymId, gymName) {
   } else {
     toast('Failed to remove location', 'error');
   }
+}
+
+async function loadMetaCredsForGym(gymId, gymName) {
+  const panel = document.getElementById('meta-cred-panel-' + gymId);
+  if (!panel) return;
+  const creds = await api('/api/admin/gyms/' + gymId + '/meta-credentials');
+  panel.innerHTML = renderMetaCredPanel(gymId, gymName, creds);
+}
+
+function renderMetaCredPanel(gymId, gymName, creds) {
+  const inp = 'box-sizing:border-box;width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:7px 10px;color:#e8eaf0;font-family:inherit;font-size:12px;outline:none';
+  const lbl = 'font-size:10px;color:rgba(232,234,240,0.4);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px';
+
+  const exists = creds && creds.exists;
+  const daysLeft = exists ? creds.daysUntilExpiry : null;
+  const expiring = daysLeft !== null && daysLeft <= 7;
+
+  let badge = '';
+  if (!exists) {
+    badge = '<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);font-size:11px;font-weight:600;color:#f59e0b">Credentials needed</span>';
+  } else if (expiring) {
+    badge = `<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);font-size:11px;font-weight:600;color:#ef4444">Token expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} — update now</span>`;
+  } else {
+    badge = '<span style="display:inline-block;padding:2px 10px;border-radius:20px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);font-size:11px;font-weight:600;color:#10b981">Credentials active</span>';
+  }
+
+  const isEditMode = !exists || expiring;
+  const fields = [
+    { key: 'adAccountId', label: 'Ad Account ID', val: exists ? creds.adAccountId : '' },
+    { key: 'pageId',      label: 'Page ID',        val: exists ? creds.pageId : '' },
+    { key: 'accessToken', label: 'Access Token',   val: exists ? creds.accessToken : '' },
+    { key: 'pixelId',     label: 'Pixel ID',       val: exists ? creds.pixelId : '' },
+  ];
+
+  const formHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px" id="mcf-grid-${esc(gymId)}">${
+    fields.map(f => `<div>
+      <label style="${lbl}">${f.label}</label>
+      <input id="mcf-${f.key}-${esc(gymId)}" type="text" value="${esc(isEditMode ? '' : f.val)}"
+        placeholder="${esc(isEditMode ? '' : f.val)}"
+        ${!isEditMode ? 'readonly' : ''}
+        style="${inp}${!isEditMode ? ';opacity:0.6;cursor:default' : ''}">
+    </div>`).join('')
+  }</div>`;
+
+  const expiryLine = exists && creds.tokenExpiresAt
+    ? `<div style="font-size:11px;color:rgba(232,234,240,0.35);margin-top:8px">Token valid until ${new Date(creds.tokenExpiresAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>`
+    : '';
+
+  const saveBtn = `<div id="mcf-save-area-${esc(gymId)}" style="${isEditMode ? '' : 'display:none'}"><button onclick="saveMetaCreds('${esc(gymId)}')" style="margin-top:12px;background:#7c3aed;border:none;border-radius:6px;padding:7px 18px;color:#fff;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">Save Credentials</button></div>`;
+
+  const editBtn = exists && !isEditMode
+    ? `<button id="mcf-edit-btn-${esc(gymId)}" onclick="editMetaCreds('${esc(gymId)}')" style="margin-left:10px;font-size:11px;background:none;border:1px solid rgba(255,255,255,0.15);border-radius:5px;padding:2px 8px;color:rgba(232,234,240,0.4);cursor:pointer;font-family:inherit">Edit</button>`
+    : '';
+
+  return `<div style="display:flex;align-items:center;gap:4px">${badge}${editBtn}</div>${formHtml}${expiryLine}${saveBtn}`;
+}
+
+async function saveMetaCreds(gymId) {
+  const get = id => document.getElementById(id)?.value.trim() || '';
+  const adAccountId = get(`mcf-adAccountId-${gymId}`);
+  const pageId      = get(`mcf-pageId-${gymId}`);
+  const accessToken = get(`mcf-accessToken-${gymId}`);
+  const pixelId     = get(`mcf-pixelId-${gymId}`);
+  if (!adAccountId || !pageId || !accessToken || !pixelId) {
+    toast('All four credential fields are required', 'error'); return;
+  }
+  const saveArea = document.getElementById('mcf-save-area-' + gymId);
+  if (saveArea) saveArea.innerHTML = '<span style="font-size:12px;color:rgba(232,234,240,0.4)">Saving…</span>';
+  const res = await apiPost('/api/admin/gyms/' + gymId + '/meta-credentials', { adAccountId, pageId, accessToken, pixelId });
+  if (res && res.success) {
+    const section = document.getElementById('meta-cred-section-' + gymId);
+    const gymName = section?.querySelector('[style*="META CREDENTIALS"]')?.textContent?.replace('META CREDENTIALS — ','').trim() || '';
+    await loadMetaCredsForGym(gymId, gymName);
+    toast('Credentials saved — token valid until ' + new Date(res.tokenExpiresAt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}), 'success');
+  } else {
+    if (saveArea) saveArea.innerHTML = `<button onclick="saveMetaCreds('${gymId}')" style="margin-top:12px;background:#7c3aed;border:none;border-radius:6px;padding:7px 18px;color:#fff;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">Save Credentials</button>`;
+    toast('Failed to save credentials', 'error');
+  }
+}
+
+function editMetaCreds(gymId) {
+  ['adAccountId','pageId','accessToken','pixelId'].forEach(k => {
+    const el = document.getElementById(`mcf-${k}-${gymId}`);
+    if (!el) return;
+    el.value = '';
+    el.placeholder = '';
+    el.removeAttribute('readonly');
+    el.style.opacity = '1';
+    el.style.cursor = '';
+  });
+  const saveArea = document.getElementById('mcf-save-area-' + gymId);
+  if (saveArea) { saveArea.style.display = ''; }
+  const editBtn = document.getElementById('mcf-edit-btn-' + gymId);
+  if (editBtn) editBtn.style.display = 'none';
 }
 
 function adminAddLocation(userId) {
