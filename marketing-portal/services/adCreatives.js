@@ -18,7 +18,7 @@
 
 const { r2GetShared, r2PutShared } = require('../lib/r2');
 
-const HIGGSFIELD_API_BASE = process.env.HIGGSFIELD_API_BASE || 'https://api.higgsfield.ai';
+const HIGGSFIELD_API_BASE = process.env.HIGGSFIELD_API_BASE || 'https://api.higgsfield.ai/v1';
 const HIGGSFIELD_API_KEY = process.env.HIGGSFIELD_API_KEY || '';
 
 if (!HIGGSFIELD_API_KEY) {
@@ -194,7 +194,8 @@ function authHeaders() {
 function ensureProbed() {
   if (_probePromise) return _probePromise;
   _probePromise = (async () => {
-    const url = `${HIGGSFIELD_API_BASE}/v1/models`;
+    const url = `${HIGGSFIELD_API_BASE}/models`;
+    console.log('[higgsfield] GET', url, 'key prefix:', process.env.HIGGSFIELD_API_KEY?.slice(0, 8));
     try {
       const r = await fetch(url, { headers: authHeaders() });
       const text = (await r.text().catch(() => '')).substring(0, 300);
@@ -212,11 +213,12 @@ function ensureProbed() {
 
 /** Create a generation job. Returns the job_id string. */
 async function createJob(model, prompt) {
-  const url = `${HIGGSFIELD_API_BASE}/v1/generate`;
+  const url = `${HIGGSFIELD_API_BASE}/generate`;
   const body = JSON.stringify({
     job_set_type: model,
     params: { prompt, aspect_ratio: '9:16' },
   });
+  console.log('[higgsfield] POST', url, 'key prefix:', process.env.HIGGSFIELD_API_KEY?.slice(0, 8));
   const r = await fetch(url, { method: 'POST', headers: authHeaders(), body });
   const text = await r.text().catch(() => '');
   if (!r.ok) {
@@ -229,12 +231,13 @@ async function createJob(model, prompt) {
   return jobId;
 }
 
-/** Poll GET /v1/jobs/<id> every 5s until complete, then return the output URL. */
+/** Poll GET /jobs/<id> every 5s until complete, then return the output URL. */
 async function pollJob(jobId) {
-  const url = `${HIGGSFIELD_API_BASE}/v1/jobs/${jobId}`;
+  const url = `${HIGGSFIELD_API_BASE}/jobs/${jobId}`;
   const deadline = Date.now() + JOB_TIMEOUT_MS;
   let loggedShape = false;
   while (Date.now() < deadline) {
+    console.log('[higgsfield] GET', url, 'key prefix:', process.env.HIGGSFIELD_API_KEY?.slice(0, 8));
     const r = await fetch(url, { headers: authHeaders() });
     const text = await r.text().catch(() => '');
     if (!r.ok) {
