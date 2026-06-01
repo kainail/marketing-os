@@ -178,6 +178,36 @@
     .cr-offer-continue.cr-visible { opacity: 1; }
     .cr-cta-row { width: 100%; max-width: 560px; padding-top: 8px; opacity: 0; transition: opacity 0.5s; }
     .cr-cta-row.cr-visible { opacity: 1; }
+
+    /* ─── Ad creative picker (skeleton + Facebook-style preview) ─── */
+    .cr-creatives-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; width: 100%; }
+    @media (max-width: 720px) { .cr-creatives-grid { grid-template-columns: 1fr; } }
+    .cr-ad-card { background: #1c1f2a; border: 2px solid rgba(255,255,255,0.07); border-radius: 12px; overflow: hidden; cursor: pointer; transition: border-color 0.2s, opacity 0.2s, transform 0.2s; display: flex; flex-direction: column; }
+    .cr-ad-card:hover { border-color: rgba(255,255,255,0.18); }
+    .cr-ad-card.selected { border-color: #22c55e; box-shadow: 0 0 0 1px rgba(34,197,94,0.45); }
+    .cr-ad-card.dimmed { opacity: 0.6; pointer-events: none; }
+    .cr-ad-card.loading { cursor: default; }
+    .cr-ad-card.loading:hover { border-color: rgba(255,255,255,0.07); }
+    .cr-fb-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .cr-fb-logo { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #7c3aed, #4338ca); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .cr-fb-name-col { display: flex; flex-direction: column; min-width: 0; }
+    .cr-fb-name { font-size: 12px; font-weight: 600; color: rgba(232,234,240,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cr-fb-sponsored { font-size: 10px; color: rgba(232,234,240,0.4); }
+    .cr-ad-image { width: 100%; aspect-ratio: 9 / 16; background: rgba(255,255,255,0.04); object-fit: cover; display: block; }
+    .cr-ad-image.skeleton { position: relative; overflow: hidden; }
+    .cr-ad-image.skeleton::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent); animation: cr-shimmer 1.4s ease-in-out infinite; }
+    @keyframes cr-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+    .cr-ad-body { padding: 12px 13px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .cr-ad-hook { font-size: 13px; font-weight: 700; line-height: 1.35; color: rgba(232,234,240,0.92); }
+    .cr-ad-hook.skeleton-line { background: rgba(255,255,255,0.05); border-radius: 4px; height: 14px; animation: cr-pulse 1.5s ease-in-out infinite; }
+    .cr-ad-offer { font-size: 12px; line-height: 1.45; color: rgba(232,234,240,0.6); }
+    .cr-ad-offer.skeleton-line { background: rgba(255,255,255,0.05); border-radius: 4px; height: 12px; width: 75%; animation: cr-pulse 1.5s ease-in-out infinite; }
+    @keyframes cr-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.85; } }
+    .cr-ad-cta { margin-top: 4px; background: rgba(99,102,241,0.18); border: 1px solid rgba(99,102,241,0.4); color: #c7d2fe; border-radius: 8px; padding: 9px 12px; font-size: 12px; font-weight: 600; text-align: center; letter-spacing: 0.2px; }
+    .cr-ad-status { font-size: 10px; color: rgba(232,234,240,0.4); padding: 6px 13px 12px; text-align: center; letter-spacing: 0.4px; text-transform: uppercase; }
+    .cr-ad-status.error { color: #fca5a5; }
+    .cr-creatives-launch { margin-top: 18px; display: flex; justify-content: center; opacity: 0; transition: opacity 0.4s; }
+    .cr-creatives-launch.cr-visible { opacity: 1; }
     .cr-credentials-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 24px 28px; margin-bottom: 20px; }
     .cr-cred-title { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(232,234,240,0.32); margin-bottom: 20px; }
     .cr-cred-row { margin-bottom: 16px; }
@@ -553,6 +583,14 @@
             </div>
             <div class="cr-offer-continue hidden" id="cr-offer-continue">
               <button class="iv-submit" id="cr-offer-continue-btn">Use this offer →</button>
+            </div>
+          </div>
+
+          <div class="cr-section hidden" id="cr-creatives">
+            <div class="cr-section-label">Your Ads</div>
+            <div class="cr-creatives-grid" id="cr-creatives-grid"></div>
+            <div class="cr-creatives-launch hidden" id="cr-creatives-launch">
+              <button class="iv-submit" id="cr-creatives-launch-btn">Launch This Ad →</button>
             </div>
           </div>
 
@@ -2935,6 +2973,18 @@
       if (navVersion !== revNav) return;
       await crWait(600);
 
+      // Ad creative picker — loading skeletons, poll, then real cards.
+      // Owner picks one → writes confirmed-creative.json, then we fall through to the CTA.
+      const picked = await runAdCreativePicker(revNav);
+      if (navVersion !== revNav) return;
+      if (picked) {
+        fetch(`/api/onboarding/sessions/${sessionId}/confirmed-creative`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: picked.type, url: picked.url }),
+        }).catch(() => {});
+      }
+
       // CTA — fetch credentials and show portal login details
       try {
         const credRes = await fetch(`/api/onboarding/sessions/${sessionId}/credentials`);
@@ -2946,6 +2996,190 @@
       } catch (_) { /* credentials display is best-effort */ }
       crReveal('cr-cta');
       await speak("Your dashboard is ready. Here are your login details — save these now.", speakEl);
+    }
+
+    // ─── Ad creative picker ───────────────────────────────────────────────
+    const CREATIVE_KEYS = ['lifestyle', 'results', 'community'];
+    const CREATIVE_LABELS = { lifestyle: 'Lifestyle', results: 'Results', community: 'Community' };
+
+    function ctaTextFromOffer(offerSummary, offerDuration, offerPrice, offerIncluded) {
+      const blob = [offerSummary, offerDuration, offerPrice, offerIncluded].filter(Boolean).join(' ').toLowerCase();
+      if (/\bfree\s+trial\b|trial/.test(blob)) return 'Claim My Free Trial';
+      if (/challenge/.test(blob))               return 'Join the Challenge';
+      if (/first\s+month/.test(blob))           return 'Get My First Month';
+      return 'Claim My Free Pass';
+    }
+
+    async function fetchAdCreatives() {
+      try {
+        const r = await fetch(`/api/onboarding/sessions/${sessionId}/ad-creatives`);
+        if (r.status === 404) return null;
+        if (!r.ok) return null;
+        return await r.json();
+      } catch { return null; }
+    }
+
+    async function runAdCreativePicker(revNav) {
+      const sectionEl = document.getElementById('cr-creatives');
+      const gridEl = document.getElementById('cr-creatives-grid');
+      const launchRow = document.getElementById('cr-creatives-launch');
+      const launchBtn = document.getElementById('cr-creatives-launch-btn');
+      const speakEl = document.getElementById('complete-speak-el');
+
+      // Pull the data the picker needs (gym name, winning hook, offer summary, CTA copy)
+      const gymName = (session && session.gymName) || 'Your Gym';
+      let hookText = '';
+      let offerSummaryLine = '';
+      let offerDuration = '';
+      let offerPrice = '';
+      let offerIncluded = '';
+      try {
+        const hooksRes = await fetch(`/api/onboarding/sessions/${sessionId}/confirmed-hooks`);
+        if (hooksRes.ok) {
+          const h = await hooksRes.json();
+          const selected = Array.isArray(h?.selected) ? h.selected : [];
+          const last = selected[selected.length - 1];
+          if (last) hookText = last.hook || last.text || '';
+        }
+      } catch {}
+      try {
+        const offerRes = await fetch(`/api/onboarding/sessions/${sessionId}/confirmed-offer`);
+        if (offerRes.ok) {
+          const o = await offerRes.json();
+          offerDuration = o?.duration || '';
+          offerPrice = o?.price || '';
+          offerIncluded = o?.included || '';
+          offerSummaryLine = [offerPrice, offerDuration].filter(Boolean).join(' · ');
+          if (offerIncluded) offerSummaryLine = offerSummaryLine ? `${offerSummaryLine} — ${offerIncluded}` : offerIncluded;
+        }
+      } catch {}
+      const ctaText = ctaTextFromOffer(offerSummaryLine, offerDuration, offerPrice, offerIncluded);
+
+      // Build the 3 skeleton cards
+      gridEl.innerHTML = '';
+      const cardEls = {};
+      for (const key of CREATIVE_KEYS) {
+        const card = document.createElement('div');
+        card.className = 'cr-ad-card loading';
+        card.dataset.key = key;
+        card.innerHTML = `
+          <div class="cr-fb-head">
+            <div class="cr-fb-logo">${esc((gymName[0] || 'G').toUpperCase())}</div>
+            <div class="cr-fb-name-col">
+              <div class="cr-fb-name">${esc(gymName)}</div>
+              <div class="cr-fb-sponsored">Sponsored</div>
+            </div>
+          </div>
+          <div class="cr-ad-image skeleton"></div>
+          <div class="cr-ad-body">
+            <div class="cr-ad-hook skeleton-line"></div>
+            <div class="cr-ad-offer skeleton-line"></div>
+            <div class="cr-ad-cta">${esc(ctaText)}</div>
+          </div>
+          <div class="cr-ad-status">Generating ${esc(CREATIVE_LABELS[key])}…</div>
+        `;
+        gridEl.appendChild(card);
+        cardEls[key] = card;
+      }
+
+      // Reveal the section + AHRI line
+      sectionEl.classList.remove('hidden');
+      requestAnimationFrame(() => requestAnimationFrame(() => sectionEl.classList.add('cr-visible')));
+      await speak('Give me just a moment — I am building your ads now using everything you have told me.', speakEl);
+      if (navVersion !== revNav) return null;
+
+      // Poll every 5s and fill cards in as they complete
+      const completed = new Set();
+      const failed = new Set();
+      let pollData = null;
+      while (completed.size + failed.size < CREATIVE_KEYS.length) {
+        if (navVersion !== revNav) return null;
+        const data = await fetchAdCreatives();
+        if (data) {
+          pollData = data;
+          for (const key of CREATIVE_KEYS) {
+            const slot = data[key];
+            if (!slot || completed.has(key) || failed.has(key)) continue;
+            if (slot.status === 'complete' && slot.url) {
+              fillCardWithCreative(cardEls[key], slot.url, hookText, offerSummaryLine, ctaText);
+              completed.add(key);
+            } else if (slot.status === 'failed') {
+              markCardFailed(cardEls[key], slot.error || 'generation failed');
+              failed.add(key);
+            }
+          }
+        }
+        if (completed.size + failed.size >= CREATIVE_KEYS.length) break;
+        await sleep(5000);
+      }
+
+      if (navVersion !== revNav) return null;
+      if (completed.size === 0) {
+        // No usable creatives — skip the picker entirely so session complete is not blocked.
+        return null;
+      }
+
+      // Wire up selection + launch button
+      const selected = await new Promise(resolve => {
+        let chosenKey = null;
+        function pick(key) {
+          if (!completed.has(key)) return;
+          chosenKey = key;
+          for (const k of CREATIVE_KEYS) {
+            const c = cardEls[k];
+            if (!c) continue;
+            c.classList.toggle('selected', k === key);
+            c.classList.toggle('dimmed', k !== key && completed.has(k));
+          }
+          launchRow.classList.remove('hidden');
+          requestAnimationFrame(() => requestAnimationFrame(() => launchRow.classList.add('cr-visible')));
+        }
+        for (const key of CREATIVE_KEYS) {
+          const c = cardEls[key];
+          if (!c) continue;
+          c.onclick = () => pick(key);
+        }
+        launchBtn.onclick = () => {
+          if (!chosenKey) return;
+          const url = pollData && pollData[chosenKey] ? pollData[chosenKey].url : null;
+          if (!url) return;
+          resolve({ type: chosenKey, url });
+        };
+        crWaitResolve = () => resolve(null);
+      });
+
+      // Hide the launch button and dim picker as we move on
+      launchRow.classList.add('hidden');
+      launchRow.classList.remove('cr-visible');
+      return selected;
+    }
+
+    function fillCardWithCreative(card, url, hookText, offerSummaryLine, ctaText) {
+      if (!card) return;
+      card.classList.remove('loading');
+      const safeHook = hookText || 'Real members. Real results.';
+      const safeOffer = offerSummaryLine || 'Limited spots — start this week.';
+      card.querySelector('.cr-ad-image').outerHTML = `<img class="cr-ad-image" src="${esc(url)}" alt="Ad creative">`;
+      const hookEl = card.querySelector('.cr-ad-hook');
+      hookEl.classList.remove('skeleton-line');
+      hookEl.textContent = safeHook;
+      const offerEl = card.querySelector('.cr-ad-offer');
+      offerEl.classList.remove('skeleton-line');
+      offerEl.textContent = safeOffer;
+      card.querySelector('.cr-ad-cta').textContent = ctaText;
+      const status = card.querySelector('.cr-ad-status');
+      if (status) status.remove();
+    }
+
+    function markCardFailed(card, message) {
+      if (!card) return;
+      card.classList.remove('loading');
+      card.classList.add('dimmed');
+      const status = card.querySelector('.cr-ad-status');
+      if (status) {
+        status.classList.add('error');
+        status.textContent = 'Failed — ' + (message || 'try again');
+      }
     }
 
     function crFillOfferFields(containerId, iter) {

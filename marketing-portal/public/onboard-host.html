@@ -183,6 +183,7 @@
         <hr class="controls-divider"/>
         <button class="control-btn btn-skip-act" id="skip-act-btn" onclick="skipActHost()">→ Skip act</button>
         <button class="control-btn btn-prev" id="prev-q-btn" onclick="prevQuestionHost()">← Previous question</button>
+        <button class="control-btn btn-hooks" id="regen-creatives-btn" onclick="regenerateCreatives()">↻ Regenerate Creatives</button>
         <button class="control-btn btn-reset" id="reset-btn" onclick="resetInterview()">↺ Reset interview</button>
       </div>
 
@@ -576,6 +577,31 @@
       }
       btn.disabled = false;
       btn.textContent = '→ Skip act';
+    }
+
+    async function regenerateCreatives() {
+      const gymName = session?.gymName || 'this session';
+      if (!confirm(`Regenerate ad creatives for ${gymName}?\n\nThis clears the current 3 images and fires 3 new Higgsfield jobs in parallel. The owner's picker will repopulate as each finishes.`)) return;
+      const btn = document.getElementById('regen-creatives-btn');
+      btn.disabled = true;
+      btn.textContent = 'Regenerating...';
+      addLog('Regenerating ad creatives...', 'warn');
+      try {
+        const res = await fetch(`/api/admin/sessions/${sessionId}/regenerate-creatives`, {
+          method: 'POST',
+          headers: authHeaders(),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          addLog('Creative regeneration queued — Higgsfield jobs running', 'ok');
+        } else {
+          addLog('Regenerate failed: ' + (data.error || 'unknown'), 'error');
+        }
+      } catch (err) {
+        addLog('Regenerate error: ' + err.message, 'error');
+      }
+      btn.disabled = false;
+      btn.textContent = '↻ Regenerate Creatives';
     }
 
     async function resetInterview() {

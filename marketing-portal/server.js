@@ -12,6 +12,7 @@ const { getUsers, saveUsers, invalidate: invalidateUserCache } = require('./lib/
 const { Resend } = require('resend');
 const { createGymFolderStructure, listDriveFolder, scoreAndSelectPhotos, getDriveClient, SHARED_DRIVE_ID } = require('./services/googleDrive');
 const { generateOnboardingCreative, generateContentSchedule } = require('./services/creativeGenerator');
+const { generateAdCreatives } = require('./services/adCreatives');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -4439,6 +4440,70 @@ app.post('/api/onboarding/sessions/:sessionId/confirm-offer', async (req, res) =
   }
 });
 
+// GET /api/onboarding/sessions/:sessionId/confirmed-hooks — read confirmed-hooks.json (public, sessionId-scoped)
+app.get('/api/onboarding/sessions/:sessionId/confirmed-hooks', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const data = await r2GetShared(`onboarding/sessions/${sessionId}/confirmed-hooks.json`);
+  if (!data) return res.status(404).json({ error: 'Not written yet' });
+  res.json(data);
+});
+
+// GET /api/onboarding/sessions/:sessionId/confirmed-offer — read confirmed-offer.json (public, sessionId-scoped)
+app.get('/api/onboarding/sessions/:sessionId/confirmed-offer', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const data = await r2GetShared(`onboarding/sessions/${sessionId}/confirmed-offer.json`);
+  if (!data) return res.status(404).json({ error: 'Not written yet' });
+  res.json(data);
+});
+
+// GET /api/onboarding/sessions/:sessionId/ad-creatives — current state of the 3 ad creatives.
+// Owner UI polls this every 5s during the picker loading screen. Public on
+// purpose: the owner has no JWT yet at this point in onboarding; the
+// sessionId in the URL is the access token, matching /complete and
+// /confirm-offer above.
+app.get('/api/onboarding/sessions/:sessionId/ad-creatives', async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  const data = await r2GetShared(`onboarding/sessions/${sessionId}/ad-creatives.json`);
+  if (!data) return res.status(404).json({ error: 'Not generated yet' });
+  res.json(data);
+});
+
+// POST /api/onboarding/sessions/:sessionId/confirmed-creative — owner picked one of the 3 ads.
+// Writes confirmed-creative.json. Additive to session complete — never blocks it.
+app.post('/api/onboarding/sessions/:sessionId/confirmed-creative', async (req, res) => {
+  const { sessionId } = req.params;
+  const { type, url } = req.body || {};
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  if (!type || !url) return res.status(400).json({ error: 'type and url required' });
+  try {
+    await r2PutShared(`onboarding/sessions/${sessionId}/confirmed-creative.json`, {
+      type, url, selectedAt: new Date().toISOString(),
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[onboarding] confirmed-creative failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/sessions/:sessionId/regenerate-creatives — host panel button.
+// Clears ad-creatives.json and re-fires generateAdCreatives. Admin-only.
+app.post('/api/admin/sessions/:sessionId/regenerate-creatives', requireAuth, requireAdmin, async (req, res) => {
+  const { sessionId } = req.params;
+  if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
+  try {
+    await r2DeleteShared(`onboarding/sessions/${sessionId}/ad-creatives.json`);
+    setImmediate(() => { generateAdCreatives(sessionId); });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[admin] regenerate-creatives failed:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/onboarding/sessions/:sessionId/kb-preview/:fileKey — first 10 lines of a written KB file
 app.get('/api/onboarding/sessions/:sessionId/kb-preview/:fileKey', async (req, res) => {
   const { sessionId, fileKey } = req.params;
@@ -4637,6 +4702,12 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
     const hooks = await generateFinalHooks(session, brainState, avatar, objections, compliance, confirmedHooksData, client);
+
+    // Fire ad creative generation in the background. It will wait for
+    // confirmed-offer.json (written when the owner picks an offer iteration
+    // during the reveal) before kicking off the higgsfield jobs.
+    setImmediate(() => { generateAdCreatives(sessionId); });
+
     const posts = await generateContentPosts(session, brainState, avatar, hooks, client);
 
     await Promise.all([
