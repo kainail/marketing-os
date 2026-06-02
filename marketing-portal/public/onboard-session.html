@@ -3120,15 +3120,23 @@
         let chosenKey = null;
         function pick(key) {
           if (!completed.has(key)) return;
-          chosenKey = key;
+          // Toggle: clicking the already-selected tile clears the selection.
+          const next = chosenKey === key ? null : key;
+          chosenKey = next;
           for (const k of CREATIVE_KEYS) {
             const c = cardEls[k];
             if (!c) continue;
-            c.classList.toggle('selected', k === key);
-            c.classList.toggle('dimmed', k !== key && completed.has(k));
+            c.classList.toggle('selected', next !== null && k === next);
+            // Dim other completed cards only while something is selected.
+            c.classList.toggle('dimmed', next !== null && k !== next && completed.has(k));
           }
-          launchRow.classList.remove('hidden');
-          requestAnimationFrame(() => requestAnimationFrame(() => launchRow.classList.add('cr-visible')));
+          if (next === null) {
+            launchRow.classList.remove('cr-visible');
+            launchRow.classList.add('hidden');
+          } else {
+            launchRow.classList.remove('hidden');
+            requestAnimationFrame(() => requestAnimationFrame(() => launchRow.classList.add('cr-visible')));
+          }
         }
         for (const key of CREATIVE_KEYS) {
           const c = cardEls[key];
