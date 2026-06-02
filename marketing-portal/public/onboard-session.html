@@ -3000,7 +3000,7 @@
 
     // ─── Ad creative picker ───────────────────────────────────────────────
     const CREATIVE_KEYS = ['lifestyle', 'results', 'community'];
-    const CREATIVE_LABELS = { lifestyle: 'Lifestyle', results: 'Results', community: 'Community' };
+    const CREATIVE_LABELS = { lifestyle: 'Lifestyle', results: 'Offer', community: 'Community' };
 
     function ctaTextFromOffer(offerSummary, offerDuration, offerPrice, offerIncluded) {
       const blob = [offerSummary, offerDuration, offerPrice, offerIncluded].filter(Boolean).join(' ').toLowerCase();
@@ -3104,7 +3104,7 @@
               fillCardWithCreative(cardEls[key], slot.url, hookText, offerSummaryLine, ctaText);
               completed.add(key);
             } else if (slot.status === 'failed') {
-              markCardFailed(cardEls[key], slot.error || 'generation failed');
+              markCardFailed(cardEls[key]);
               failed.add(key);
             }
           }
@@ -3171,14 +3171,22 @@
       if (status) status.remove();
     }
 
-    function markCardFailed(card, message) {
+    // Failed creatives must never expose raw error text to the owner —
+    // show a clean dark placeholder with a small amber notice.
+    function markCardFailed(card) {
       if (!card) return;
       card.classList.remove('loading');
       card.classList.add('dimmed');
+      const img = card.querySelector('.cr-ad-image');
+      if (img) {
+        img.classList.remove('skeleton');
+        img.style.background = '#0a0a0a';
+      }
       const status = card.querySelector('.cr-ad-status');
       if (status) {
-        status.classList.add('error');
-        status.textContent = 'Failed — ' + (message || 'try again');
+        status.classList.remove('error');
+        status.style.color = '#fbbf24';
+        status.textContent = 'Creative unavailable';
       }
     }
 

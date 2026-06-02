@@ -4703,9 +4703,8 @@ app.post('/api/onboarding/sessions/:sessionId/complete', async (req, res) => {
     const client = new Anthropic({ apiKey });
     const hooks = await generateFinalHooks(session, brainState, avatar, objections, compliance, confirmedHooksData, client);
 
-    // Fire ad creative generation in the background. It will wait for
-    // confirmed-offer.json (written when the owner picks an offer iteration
-    // during the reveal) before kicking off the higgsfield jobs.
+    // Fire ad creative generation in the background — delegates to the kie.ai
+    // pipeline in services/creativeGenerator.js which reads session KB from R2.
     setImmediate(() => { generateAdCreatives(sessionId); });
 
     const posts = await generateContentPosts(session, brainState, avatar, hooks, client);

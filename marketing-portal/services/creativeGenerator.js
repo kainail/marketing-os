@@ -18,6 +18,14 @@ const KIE_MODEL = 'nano-banana-pro';
 const KIE_CREATE_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const KIE_QUERY_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo';
 
+// Maps a 0-indexed image position within the 5-image set (or any multiple) to its
+// awareness tier. Kept in sync with buildImagePrompt's internal tier assignment so
+// callers can map returned URLs back to ad slots without re-parsing prompts.
+function tierFromPosition(pos) {
+  const p = pos % 5;
+  return p <= 1 ? 'cold' : p <= 3 ? 'warm' : 'offer';
+}
+
 // Pain/emotion hooks → object or environment (context over action)
 // Social proof hooks → interrupted action (real people in motion)
 const HOOK_IMAGE_CATEGORY = {
@@ -314,10 +322,14 @@ Respond with JSON only: {"score": 7, "passes": true, "reason": "one sentence"}`,
 }
 
 /**
- * Generate 5 images, run both quality gates, upload passing images to the Generated folder.
+ * Generate 5 images, run both quality gates, optionally upload passing images to a Drive folder.
  * Minimum 2 must pass — if fewer pass on first attempt, regenerates once with adjusted prompt.
  *
- * Returns array of { fileId, webViewLink, score, reason } for uploaded images.
+ * If `generatedFolderId` is provided: uploads to that Drive folder and returns
+ *   [{ fileId, webViewLink, url, tier, position, score, reason }].
+ * If `generatedFolderId` is null/undefined: skips the Drive upload step and returns
+ *   [{ url, tier, position, score, reason }] — useful for callers (e.g. ad-creatives.js)
+ *   that just need the kie.ai URLs.
  */
 async function generateOnboardingCreative(sessionId, generatedFolderId) {
   console.log(`[Creative] ── generateOnboardingCreative START session=${sessionId} generatedFolderId=${generatedFolderId}`);
@@ -373,6 +385,8 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
 
       for (let i = 0; i < generations.length; i++) {
         const gen = generations[i];
+        const position = i + (attempt * 5);
+        const tier = tierFromPosition(position);
         if (gen.status === 'rejected') {
           console.warn(`[Creative] image ${i + 1} FAILED:`, gen.reason?.message);
           continue;
@@ -384,13 +398,20 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
           console.warn(`[Creative] image ${i + 1}: kieGenerateImage resolved with no URL`);
           continue;
         }
-        console.log(`[Creative] image ${i + 1} URL received: ${imageUrl.substring(0, 80)}...`);
+        console.log(`[Creative] image ${i + 1} (tier=${tier}) URL received: ${imageUrl.substring(0, 80)}...`);
 
         // Authenticity gate
         console.log(`[Creative] image ${i + 1}: running authenticityGate...`);
         const gate = await authenticityGate(imageUrl, client);
         console.log(`[Creative] image ${i + 1}: score=${gate.score} passes=${gate.passes} reason="${gate.reason}"`);
         if (!gate.passes) continue;
+
+        // Caller didn't ask for Drive upload — return the kie URL + metadata directly.
+        if (!generatedFolderId) {
+          console.log(`[Creative] image ${i + 1}: no Drive folder — returning URL only`);
+          results.push({ url: imageUrl, tier, position, score: gate.score, reason: gate.reason });
+          continue;
+        }
 
         // Download
         console.log(`[Creative] image ${i + 1}: downloading from kie.ai URL...`);
@@ -415,7 +436,7 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
         const uploaded = await uploadFileToDrive(generatedFolderId, fileName, buffer, 'image/jpeg');
         if (uploaded) {
           console.log(`[Creative] image ${i + 1}: Drive upload OK — fileId=${uploaded.id}`);
-          results.push({ fileId: uploaded.id, webViewLink: uploaded.webViewLink, score: gate.score, reason: gate.reason });
+          results.push({ fileId: uploaded.id, webViewLink: uploaded.webViewLink, url: imageUrl, tier, position, score: gate.score, reason: gate.reason });
         } else {
           console.warn(`[Creative] image ${i + 1}: Drive upload returned null — see Drive logs above`);
         }
@@ -537,4 +558,4 @@ RULES:
   }
 }
 
-module.exports = { generateOnboardingCreative, generateContentSchedule };
+module.exports = { generateOnboardingCreative, generateContentSchedule, tierFromPosition };
