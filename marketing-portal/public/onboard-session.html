@@ -2869,6 +2869,10 @@
         { label: 'Guarantee',           value: offerGuarantee },
         { label: 'Core differentiator', value: offerDiff },
       ];
+      // Fade in each row visually but don't read the field aloud — the spoken
+      // readback used to land in complete-speak-el at the top of the screen,
+      // pushing long offer copy (e.g. the full guarantee wording) above the
+      // Your Member card. The rows in cr-offer-readback below still tell the story.
       for (const field of offerFieldsDisplay) {
         if (!field.value || field.value === '[not captured]') continue;
         if (navVersion !== revNav) return;
@@ -2877,7 +2881,7 @@
         row.innerHTML = `<div style="font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:rgba(232,234,240,0.32);margin-bottom:3px;">${esc(field.label)}</div><div style="font-size:14px;color:rgba(232,234,240,0.82);line-height:1.45;">${esc(field.value)}</div>`;
         offerReadbackEl.appendChild(row);
         requestAnimationFrame(() => requestAnimationFrame(() => { row.style.opacity = '1'; }));
-        await speak(`${field.label}: ${field.value}`, speakEl);
+        await crWait(900);
         if (navVersion !== revNav) return;
       }
 
