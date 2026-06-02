@@ -180,32 +180,73 @@
     .cr-cta-row.cr-visible { opacity: 1; }
 
     /* ─── Ad creative picker (skeleton + Facebook-style preview) ─── */
-    .cr-creatives-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; width: 100%; }
-    @media (max-width: 720px) { .cr-creatives-grid { grid-template-columns: 1fr; } }
-    .cr-ad-card { background: #1c1f2a; border: 2px solid rgba(255,255,255,0.07); border-radius: 12px; overflow: hidden; cursor: pointer; transition: border-color 0.2s, opacity 0.2s, transform 0.2s; display: flex; flex-direction: column; }
+    /* Ad-picker section override — wider than .cr-section's 500px so 3 cards at ≥320px each fit on desktop */
+    #cr-creatives { max-width: 1100px; }
+    .cr-creatives-grid {
+      display: flex;
+      gap: 14px;
+      width: 100%;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255,255,255,0.12) transparent;
+      padding-bottom: 6px;
+    }
+    .cr-creatives-grid::-webkit-scrollbar { height: 6px; }
+    .cr-creatives-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+    .cr-creatives-grid::-webkit-scrollbar-track { background: transparent; }
+    .cr-ad-card {
+      flex: 0 0 340px;
+      scroll-snap-align: start;
+      background: #1c1e21;
+      border: 2px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.2s, opacity 0.2s, box-shadow 0.2s;
+    }
+    @media (max-width: 720px) {
+      .cr-ad-card { flex: 0 0 88vw; max-width: 380px; }
+    }
     .cr-ad-card:hover { border-color: rgba(255,255,255,0.18); }
     .cr-ad-card.selected { border-color: #22c55e; box-shadow: 0 0 0 1px rgba(34,197,94,0.45); }
-    .cr-ad-card.dimmed { opacity: 0.6; pointer-events: none; }
+    .cr-ad-card.dimmed { opacity: 0.55; pointer-events: none; }
     .cr-ad-card.loading { cursor: default; }
     .cr-ad-card.loading:hover { border-color: rgba(255,255,255,0.07); }
-    .cr-fb-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-    .cr-fb-logo { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #7c3aed, #4338ca); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0; }
-    .cr-fb-name-col { display: flex; flex-direction: column; min-width: 0; }
-    .cr-fb-name { font-size: 12px; font-weight: 600; color: rgba(232,234,240,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .cr-fb-sponsored { font-size: 10px; color: rgba(232,234,240,0.4); }
-    .cr-ad-image { width: 100%; aspect-ratio: 9 / 16; background: rgba(255,255,255,0.04); object-fit: cover; display: block; }
-    .cr-ad-image.skeleton { position: relative; overflow: hidden; }
-    .cr-ad-image.skeleton::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent); animation: cr-shimmer 1.4s ease-in-out infinite; }
+    /* Header row — avatar + gym name/sponsored stack + 3-dot menu */
+    .cr-fb-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 8px; }
+    .cr-fb-logo { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #7c3aed, #4338ca); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .cr-fb-name-col { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+    .cr-fb-name { font-size: 14px; font-weight: 700; color: #e4e6eb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+    .cr-fb-meta { display: flex; align-items: center; gap: 4px; font-size: 12px; color: rgba(228,230,235,0.55); margin-top: 1px; }
+    .cr-fb-globe { display: inline-flex; line-height: 1; }
+    .cr-fb-menu { font-size: 18px; color: rgba(228,230,235,0.55); line-height: 1; padding: 4px 2px; flex-shrink: 0; letter-spacing: 1px; }
+    /* Sponsored pill below header */
+    .cr-fb-sponsored-pill { margin: 0 14px 10px; align-self: flex-start; padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,0.06); font-size: 10px; font-weight: 600; color: rgba(228,230,235,0.75); letter-spacing: 0.4px; text-transform: uppercase; }
+    /* Image area — 1080×1350 (4:5) */
+    .cr-ad-image-wrap { position: relative; width: 100%; aspect-ratio: 4 / 5; background: #101113; overflow: hidden; }
+    .cr-ad-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cr-ad-image-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: rgba(228,230,235,0.32); }
+    .cr-ad-image-placeholder svg { width: 38px; height: 38px; }
+    .cr-ad-image-dim { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.5px; color: rgba(228,230,235,0.4); }
+    .cr-ad-image-wrap.skeleton::before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent); animation: cr-shimmer 1.6s ease-in-out infinite; z-index: 1; }
     @keyframes cr-shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-    .cr-ad-body { padding: 12px 13px 14px; display: flex; flex-direction: column; gap: 8px; }
-    .cr-ad-hook { font-size: 13px; font-weight: 700; line-height: 1.35; color: rgba(232,234,240,0.92); }
-    .cr-ad-hook.skeleton-line { background: rgba(255,255,255,0.05); border-radius: 4px; height: 14px; animation: cr-pulse 1.5s ease-in-out infinite; }
-    .cr-ad-offer { font-size: 12px; line-height: 1.45; color: rgba(232,234,240,0.6); }
-    .cr-ad-offer.skeleton-line { background: rgba(255,255,255,0.05); border-radius: 4px; height: 12px; width: 75%; animation: cr-pulse 1.5s ease-in-out infinite; }
     @keyframes cr-pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.85; } }
-    .cr-ad-cta { margin-top: 4px; background: rgba(99,102,241,0.18); border: 1px solid rgba(99,102,241,0.4); color: #c7d2fe; border-radius: 8px; padding: 9px 12px; font-size: 12px; font-weight: 600; text-align: center; letter-spacing: 0.2px; }
-    .cr-ad-status { font-size: 10px; color: rgba(232,234,240,0.4); padding: 6px 13px 12px; text-align: center; letter-spacing: 0.4px; text-transform: uppercase; }
-    .cr-ad-status.error { color: #fca5a5; }
+    /* Link preview block (domain + headline + description + CTA) */
+    .cr-ad-link { background: #1c1e21; padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .cr-ad-domain { font-size: 11px; color: rgba(228,230,235,0.45); letter-spacing: 0.8px; text-transform: uppercase; }
+    .cr-ad-hook { font-size: 17px; font-weight: 700; line-height: 1.3; color: #e4e6eb; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .cr-ad-hook.skeleton-line { background: rgba(255,255,255,0.05); border-radius: 4px; height: 18px; animation: cr-pulse 1.5s ease-in-out infinite; display: block; }
+    .cr-ad-offer { font-size: 14px; line-height: 1.4; color: rgba(228,230,235,0.65); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .cr-ad-offer.skeleton-line { background: rgba(255,255,255,0.05); border-radius: 4px; height: 14px; width: 75%; animation: cr-pulse 1.5s ease-in-out infinite; display: block; }
+    .cr-ad-seemore { font-size: 13px; font-weight: 600; color: rgba(228,230,235,0.55); margin-top: -2px; cursor: pointer; }
+    .cr-ad-seemore.hidden { display: none; }
+    .cr-ad-cta { margin-top: 6px; background: #7c3aed; border: none; color: #ffffff; border-radius: 8px; padding: 11px 14px; font-size: 14px; font-weight: 700; text-align: center; letter-spacing: 0.2px; width: 100%; }
+    .cr-ad-status { font-size: 10px; color: rgba(228,230,235,0.4); padding: 8px 14px 12px; text-align: center; letter-spacing: 0.4px; text-transform: uppercase; }
+    .cr-ad-status.error { color: #fbbf24; }
     .cr-creatives-launch { margin-top: 18px; display: flex; justify-content: center; opacity: 0; transition: opacity 0.4s; }
     .cr-creatives-launch.cr-visible { opacity: 1; }
     .cr-credentials-box { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 24px 28px; margin-bottom: 20px; }
@@ -3051,7 +3092,11 @@
       } catch {}
       const ctaText = ctaTextFromOffer(offerSummaryLine, offerDuration, offerPrice, offerIncluded);
 
-      // Build the 3 skeleton cards
+      // Build the 3 skeleton cards — Facebook-feed ad layout (avatar+name header,
+      // sponsored pill, 4:5 image area with dim placeholder, domain row, headline,
+      // description, full-width purple CTA).
+      const domainText = 'AHRIMARKETING.COM';
+      const imageIconSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
       gridEl.innerHTML = '';
       const cardEls = {};
       for (const key of CREATIVE_KEYS) {
@@ -3063,13 +3108,22 @@
             <div class="cr-fb-logo">${esc((gymName[0] || 'G').toUpperCase())}</div>
             <div class="cr-fb-name-col">
               <div class="cr-fb-name">${esc(gymName)}</div>
-              <div class="cr-fb-sponsored">Sponsored</div>
+              <div class="cr-fb-meta"><span class="cr-fb-globe">🌐</span> Sponsored</div>
+            </div>
+            <div class="cr-fb-menu" aria-hidden="true">⋯</div>
+          </div>
+          <div class="cr-fb-sponsored-pill">Sponsored</div>
+          <div class="cr-ad-image-wrap skeleton">
+            <div class="cr-ad-image-placeholder">
+              ${imageIconSvg}
+              <div class="cr-ad-image-dim">1080 × 1350</div>
             </div>
           </div>
-          <div class="cr-ad-image skeleton"></div>
-          <div class="cr-ad-body">
+          <div class="cr-ad-link">
+            <div class="cr-ad-domain">${esc(domainText)}</div>
             <div class="cr-ad-hook skeleton-line"></div>
             <div class="cr-ad-offer skeleton-line"></div>
+            <div class="cr-ad-seemore hidden">…See more</div>
             <div class="cr-ad-cta">${esc(ctaText)}</div>
           </div>
           <div class="cr-ad-status">Generating ${esc(CREATIVE_LABELS[key])}…</div>
@@ -3163,7 +3217,12 @@
       card.classList.remove('loading');
       const safeHook = hookText || 'Real members. Real results.';
       const safeOffer = offerSummaryLine || 'Limited spots — start this week.';
-      card.querySelector('.cr-ad-image').outerHTML = `<img class="cr-ad-image" src="${esc(url)}" alt="Ad creative">`;
+      // Swap the 4:5 placeholder for the real image (keeps the wrap so aspect-ratio is preserved).
+      const wrap = card.querySelector('.cr-ad-image-wrap');
+      if (wrap) {
+        wrap.classList.remove('skeleton');
+        wrap.innerHTML = `<img class="cr-ad-image" src="${esc(url)}" alt="Ad creative">`;
+      }
       const hookEl = card.querySelector('.cr-ad-hook');
       hookEl.classList.remove('skeleton-line');
       hookEl.textContent = safeHook;
@@ -3171,25 +3230,32 @@
       offerEl.classList.remove('skeleton-line');
       offerEl.textContent = safeOffer;
       card.querySelector('.cr-ad-cta').textContent = ctaText;
+      // Reveal "See more" only when the description actually overflows the 2-line clamp.
+      const seeMoreEl = card.querySelector('.cr-ad-seemore');
+      if (seeMoreEl) {
+        requestAnimationFrame(() => {
+          if (offerEl.scrollHeight > offerEl.clientHeight + 1) {
+            seeMoreEl.classList.remove('hidden');
+          } else {
+            seeMoreEl.classList.add('hidden');
+          }
+        });
+      }
       const status = card.querySelector('.cr-ad-status');
       if (status) status.remove();
     }
 
     // Failed creatives must never expose raw error text to the owner —
-    // show a clean dark placeholder with a small amber notice.
+    // image area stays as a dark placeholder; amber notice replaces the status row.
     function markCardFailed(card) {
       if (!card) return;
       card.classList.remove('loading');
       card.classList.add('dimmed');
-      const img = card.querySelector('.cr-ad-image');
-      if (img) {
-        img.classList.remove('skeleton');
-        img.style.background = '#0a0a0a';
-      }
+      const wrap = card.querySelector('.cr-ad-image-wrap');
+      if (wrap) wrap.classList.remove('skeleton');
       const status = card.querySelector('.cr-ad-status');
       if (status) {
-        status.classList.remove('error');
-        status.style.color = '#fbbf24';
+        status.classList.add('error');
         status.textContent = 'Creative unavailable';
       }
     }
