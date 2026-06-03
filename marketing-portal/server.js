@@ -651,6 +651,94 @@ app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, 'publ
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/admin/users', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-users.html')));
 
+// Public privacy policy — no auth required
+app.get('/privacy', (req, res) => {
+  const lastUpdated = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Privacy Policy — GymSuite AI / AHRI</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e8eaf0; line-height: 1.65; -webkit-font-smoothing: antialiased; padding: 48px 24px 96px; }
+  .container { max-width: 740px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+  .updated { font-size: 13px; color: rgba(232,234,240,0.45); margin-bottom: 36px; }
+  h2 { font-size: 18px; font-weight: 600; margin: 32px 0 12px; color: #e8eaf0; }
+  p { font-size: 15px; color: rgba(232,234,240,0.85); margin-bottom: 14px; }
+  ul { margin: 8px 0 16px 22px; }
+  li { font-size: 15px; color: rgba(232,234,240,0.85); margin-bottom: 6px; }
+  a { color: #a78bfa; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); font-size: 13px; color: rgba(232,234,240,0.45); }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Privacy Policy</h1>
+  <div class="updated">Last updated: ${lastUpdated}</div>
+
+  <p>GymSuite AI operates AHRI, an acquisition-intelligence platform that helps gym owners create and manage marketing campaigns. This policy explains what data we collect from gym owners, how we use it, and the choices you have.</p>
+
+  <h2>1. Who this policy applies to</h2>
+  <p>This policy applies to gym owners and authorized staff who sign up for and use the AHRI platform. Our customers are gym businesses; we do not directly handle marketing data from their individual members through this product.</p>
+
+  <h2>2. Information we collect</h2>
+  <p>During onboarding and ongoing use, we collect the information needed to run your marketing on your behalf:</p>
+  <ul>
+    <li>Contact information — name, email address, gym name, gym address, phone number</li>
+    <li>Business information you share during the onboarding interview — your offers, ideal members, market positioning, objections you hear, and similar context</li>
+    <li>Advertising platform credentials you provide so we can manage campaigns on your behalf — for example Meta (Facebook) Ad Account ID, Page ID, Pixel ID, and access tokens</li>
+    <li>Performance data returned by those platforms about campaigns we create or manage for you</li>
+    <li>Account activity within the platform — sign-in times, features used, content you generate or approve</li>
+  </ul>
+
+  <h2>3. How we use your information</h2>
+  <p>We use the information above to operate the service you signed up for:</p>
+  <ul>
+    <li>Creating, launching, pausing, and reporting on Meta advertising campaigns on your behalf</li>
+    <li>Generating ad copy, hooks, offers, and other marketing assets tailored to your gym</li>
+    <li>Authenticating your account, maintaining your session, and securing your data</li>
+    <li>Communicating with you about your account, campaigns, expiring credentials, and product updates</li>
+    <li>Improving the product and diagnosing technical issues</li>
+  </ul>
+
+  <h2>4. How we share your information</h2>
+  <p><strong>We do not sell your data to third parties.</strong> We share data only with service providers that are required to operate the platform:</p>
+  <ul>
+    <li>Meta Platforms, Inc. — to create and manage the advertising campaigns you authorize</li>
+    <li>Cloud infrastructure providers (e.g. Cloudflare R2, Railway) that store and run the application</li>
+    <li>AI model providers (e.g. Anthropic, OpenAI) used to generate marketing content from the context you provide</li>
+    <li>Communications providers (e.g. Resend) used to send transactional emails</li>
+    <li>Law enforcement or regulators when we are legally required to do so</li>
+  </ul>
+
+  <h2>5. Cookies and analytics</h2>
+  <p>We use cookies and similar local storage to keep you signed in, remember your active gym location, and run core application functionality. We also collect basic analytics about how the product is used so we can improve it. You can clear cookies and local storage through your browser at any time; signing in again will restore your session.</p>
+
+  <h2>6. Data retention</h2>
+  <p>We retain your account data for as long as your account is active. Campaign records, onboarding session data, and generated marketing assets are kept so you can revisit and reuse them. You can request deletion of your account and associated data by contacting us at the address below.</p>
+
+  <h2>7. Security</h2>
+  <p>We protect credentials and sensitive data with industry-standard encryption in transit and at rest. Advertising platform access tokens are scoped to the specific gym they were issued for and are stored in a per-gym secure store, not shared across customers.</p>
+
+  <h2>8. Your choices</h2>
+  <p>You can update your account information, rotate advertising platform credentials, pause campaigns, or request account deletion at any time through the platform or by contacting us.</p>
+
+  <h2>9. Changes to this policy</h2>
+  <p>If we make material changes to this policy, we will update the "Last updated" date above and, where appropriate, notify you through the platform or by email.</p>
+
+  <h2>10. Contact</h2>
+  <p>Questions about this policy or your data? Email <a href="mailto:kaialexandernail@gmail.com">kaialexandernail@gmail.com</a>.</p>
+
+  <div class="footer">&copy; ${new Date().getFullYear()} GymSuite AI. All rights reserved.</div>
+</div>
+</body>
+</html>`);
+});
+
 // ── Blanket API auth — public exceptions listed explicitly ─────────────────
 const AHRI_PUBLIC_API = [
   '/api/auth/validate',
