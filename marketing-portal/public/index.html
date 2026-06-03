@@ -3941,6 +3941,7 @@ function showResultsDashboard(data, campData) {
   const isActive = status === 'active';
   const dayNum = calcDaysActive(launchedAt);
   const metaPending = campData?.meta_setup_pending === true;
+  const hasMetaCampaign = !!campData?.meta_campaign_id;
   const hooks = Array.isArray(data.hooks) ? data.hooks : [];
   const firstHook = hooks[0];
   const firstHookText = firstHook ? (typeof firstHook === 'object' ? firstHook.hook : firstHook) : '—';
@@ -3971,6 +3972,11 @@ function showResultsDashboard(data, campData) {
             : `<button class="btn green results-resume-btn" onclick="handleResumeCampaign()">▶ Resume Campaign</button>`
           }
         </div>
+        ${hasMetaCampaign ? '' : `
+        <div style="margin-top:12px">
+          <button id="launch-ads-btn" class="btn" onclick="handleLaunchAds()" style="background:#7c3aed;color:#fff;border:none">Launch Ads</button>
+          <div id="launch-ads-error" style="display:none;margin-top:8px;color:#f87171;font-size:13px"></div>
+        </div>`}
       </div>
     </div>
 
@@ -4078,6 +4084,38 @@ async function handleResumeCampaign() {
   } else {
     if (btn) { btn.disabled = false; btn.textContent = '▶ Resume Campaign'; }
     toast('Resume failed — please try again', 'error');
+  }
+}
+
+async function handleLaunchAds() {
+  const btn = document.getElementById('launch-ads-btn');
+  const errorEl = document.getElementById('launch-ads-error');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = 'Launching…';
+  if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+  try {
+    const res = await fetch('/api/portal/launch-ads', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('gymsuite_token') || ''), 'Content-Type': 'application/json' },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.success) {
+      btn.textContent = 'Ads Live ✓';
+      btn.disabled = true;
+      btn.style.opacity = '0.7';
+      btn.style.cursor = 'default';
+      _campaignData = { ..._campaignData, meta_campaign_id: data.campaignId };
+    } else {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Launch Ads';
+    if (errorEl) {
+      errorEl.textContent = err.message || 'Failed to launch ads';
+      errorEl.style.display = 'block';
+    }
   }
 }
 

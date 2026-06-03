@@ -1505,6 +1505,7 @@
       probeCount: 0,
       answers: {},
       completedSections: new Set(),
+      askedTopics: new Set(),     // topics asked at least once — gates dedupe (e.g. 'first-30-days')
       submitting: false,
       section1Path: null,         // 'A' = has existing offer, 'B' = building with AHRI
       sectionIntroSpoken: false,  // true after offer-end acknowledgment speaks the section 2 intro
@@ -1537,7 +1538,41 @@
     }
 
     // ─── Build dynamic question text ─────────────────────────────────────────
+    // Canonical question IDs allowed to ask about the first 30 days member
+    // experience. Any other rendered question whose text contains this topic
+    // is treated as a duplicate and rewritten by stripping the first-30-days
+    // clause before showing it to the owner.
+    const FIRST_30_DAYS_QUESTION_IDS = new Set(['q5']);
+    const FIRST_30_DAYS_RE = /\b(?:first|next)\s+(?:30|thirty)\s+days?\b|\bfirst\s+month\b/i;
+
     function buildQuestionText(q) {
+      let text = buildQuestionTextRaw(q);
+      // Hard deduplication: the first-30-days topic is owned exclusively by
+      // the canonical question(s). Any non-canonical question whose text
+      // contains the topic — from a static string, a stale prompt, or an
+      // LLM leak — gets the offending clause scrubbed before render.
+      if (typeof text === 'string' && FIRST_30_DAYS_RE.test(text)) {
+        if (FIRST_30_DAYS_QUESTION_IDS.has(q.id)) {
+          if (!interviewState.askedTopics) interviewState.askedTopics = new Set();
+          interviewState.askedTopics.add('first-30-days');
+        } else {
+          console.warn(`[buildQuestionText] stripping first-30-days clause leaked into ${q.id}: "${text}"`);
+          text = stripFirst30DaysClause(text);
+        }
+      }
+      return text;
+    }
+
+    function stripFirst30DaysClause(text) {
+      // Remove any sentence (terminated by . ! ?) that contains the topic.
+      // If only one sentence remains and it was the topic, fall back to a
+      // safe no-op so we never hand back an empty question.
+      const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+      const kept = sentences.filter(s => !FIRST_30_DAYS_RE.test(s)).map(s => s.trim()).filter(Boolean);
+      return kept.length > 0 ? kept.join(' ') : text.replace(FIRST_30_DAYS_RE, '').replace(/\s{2,}/g, ' ').trim();
+    }
+
+    function buildQuestionTextRaw(q) {
       if (q.text) return q.text;
       const city = session?.city || 'your city';
       if (q.id === 'q5' || q.id === 'q7') {

@@ -1798,10 +1798,11 @@ app.get('/api/debug/paths', async (req, res) => {
 // GET /api/meta/test-campaign — minimal campaign creation test, no ad sets or ads
 app.get('/api/meta/test-campaign', async (req, res) => {
   const locationId = req.query.location || 'bloomington';
-  const locMeta = getLocationMeta(locationId);
+  const locMeta = await getEffectiveMetaCreds(locationId);
   if (!locMeta?.accessToken || !locMeta?.adAccountId) {
     return res.json({ error: 'credentials missing' });
   }
+  console.log(`[Meta] test-campaign for gymId=${locationId} — source: ${locMeta.source}`);
 
   try {
     const result = await metaApiCall(
@@ -1847,11 +1848,12 @@ app.post('/api/meta/create-campaign', async (req, res) => {
   } = req.body;
 
   const campaignLoc = locationConfig.getLocation(location_id) || locationConfig.getLocation('bloomington');
-  const locMeta = getLocationMeta(campaignLoc.id);
+  const locMeta = await getEffectiveMetaCreds(location_id);
 
   if (!locMeta?.accessToken || !locMeta?.adAccountId || !locMeta?.pageId) {
     return res.status(503).json({ success: false, error: 'Meta API credentials not configured for this location' });
   }
+  console.log(`[Meta] create-campaign for gymId=${location_id} — source: ${locMeta.source}`);
 
   const results = { campaign: null, ad_set_cold: null, ad_set_warm: null, ad_cold: null, ad_warm: null, errors: [] };
 
@@ -2030,7 +2032,8 @@ app.post('/api/meta/create-campaign', async (req, res) => {
 // GET /api/meta/campaign-status — status of active campaign from intelligence-db + live Meta API
 app.get('/api/meta/campaign-status', async (req, res) => {
   const locationId = req.query.location || 'bloomington';
-  const locMeta = getLocationMeta(locationId);
+  const locMeta = await getEffectiveMetaCreds(locationId);
+  if (locMeta) console.log(`[Meta] campaign-status for gymId=${locationId} — source: ${locMeta.source}`);
   const localData = await r2Get(locationId, 'intelligence-db/paid/active-campaign.json');
 
   if (!localData || !localData.campaign_id) {
@@ -2108,13 +2111,14 @@ app.get('/api/rules', async (req, res) => {
 // ── Attribution System ───────────────────────────────────────────────────────
 
 async function fireCAPIEvent({ eventName, fbclid, email, phone, leadType, campaign, content, value, currency, clickedAt, locationId = 'bloomington' }) {
-  const locMeta = getLocationMeta(locationId);
+  const locMeta = await getEffectiveMetaCreds(locationId);
   const accessToken = locMeta?.accessToken || META_ACCESS_TOKEN;
   const pixelId = locMeta?.pixelId || META_PIXEL_ID;
   if (!accessToken || !pixelId) {
     console.warn('[CAPI] Credentials not set — skipping');
     return;
   }
+  console.log(`[CAPI] ${eventName} for gymId=${locationId} — source: ${locMeta?.source || 'globals'}`);
   const capiEndpoint = `${META_API_BASE}/${pixelId}/events`;
   const hashValue = (val) => val
     ? crypto.createHash('sha256').update(val.toLowerCase().trim()).digest('hex')
@@ -2967,10 +2971,10 @@ const Q_PURPOSE = {
   qb6: 'the one thing about their gym that big box gyms cannot replicate',
   // Sections 2-8
   q4:  'a vivid picture of a specific real member and their life before joining',
-  q5:  'a specific triggering moment or situation when the ideal member decides to act',
-  q6:  'specific concrete day-to-day life changes 60 days after joining',
-  q7:  'a specific description of their differentiator and what the first 30 days look like',
-  q8:  'what specifically would be irreplaceable if the gym closed',
+  q5:  'a specific description of their differentiator and what a new member experiences in their first 30 days that they could not get anywhere else',
+  q6:  'the most common objection in the prospect\'s own words plus the response that consistently changes their mind',
+  q7:  'specific local events, school calendar items, or local news the ideal member is currently thinking about',
+  q8:  'which of their Google reviews best represents what they want new members to read first',
   q9:  'exact words a prospect uses for their most common objection',
   q10: 'the specific response that changes their mind',
   q11: 'exact words for the second most common objection',
@@ -2983,6 +2987,16 @@ const Q_PURPOSE = {
   q18: 'specific local events or community context right now',
   q19: 'which review type best represents the brand',
 };
+
+// Canonical set of question IDs allowed to ask the owner about their members'
+// first 30 days experience. Any probe/suggestion/acknowledgment generated for
+// a non-canonical question that re-surfaces this topic is treated as a leak
+// and filtered out at the boundary.
+const FIRST_30_DAYS_QUESTION_IDS = new Set(['q5']);
+const FIRST_30_DAYS_RE = /\b(?:first|next)\s+(?:30|thirty)\s+days?\b|\bfirst\s+month\b/i;
+function looksLikeFirst30DaysAsk(text) {
+  return typeof text === 'string' && FIRST_30_DAYS_RE.test(text);
+}
 
 // POST /api/onboarding/sessions/:sessionId/answer — evaluate answer quality
 app.post('/api/onboarding/sessions/:sessionId/answer', async (req, res) => {
@@ -3106,7 +3120,12 @@ Respond JSON only: {"sufficient": boolean, "probeQuestion": "one follow-up quest
     if (result.sufficient) {
       return res.json({ sufficient: true, acknowledgment: ackText, probeQuestion: null, cleanedTranscript: cleaned });
     }
-    return res.json({ sufficient: false, probeQuestion: result.probeQuestion || null });
+    let probeQuestion = result.probeQuestion || null;
+    if (probeQuestion && !FIRST_30_DAYS_QUESTION_IDS.has(questionId) && looksLikeFirst30DaysAsk(probeQuestion)) {
+      console.warn(`[onboarding] dropped first-30-days probe leaked from questionId=${questionId}: "${probeQuestion}"`);
+      probeQuestion = null;
+    }
+    return res.json({ sufficient: false, probeQuestion });
   } catch {
     return res.json({ sufficient: true });
   }
@@ -3161,9 +3180,9 @@ async function generateAnswerSuggestions(questionId, session, research) {
 
     const contextMap = {
       q4: `Generate 3 vivid gym member avatar profiles for ${gymName} in ${city}. Market gap: ${gaps}. Reviews hint: ${reviewSnippets}. Each: one sentence describing a real person type — age, life situation, why they need a gym.`,
-      q5: `Generate 3 specific trigger moments when someone finally decides to join a gym like ${gymName}. Based on market gap: ${gaps}. Each: a specific real-life situation in one sentence.`,
-      q6: `Generate 3 descriptions of concrete day-to-day life changes 60 days after joining ${gymName}. Not fitness metrics — actual life changes. Based on reviews: ${reviewSnippets}.`,
-      q7: `Generate 3 differentiator descriptions for ${gymName} in ${city}. Market gap to fill: ${gaps}. Competitors doing: ${competitors}. Each: a one-sentence unique positioning statement.`,
+      q5: `Generate 3 differentiator descriptions for ${gymName} in ${city} framed as what a new member experiences in their first 30 days that they cannot get from competitors. Market gap to fill: ${gaps}. Competitors doing: ${competitors}. Each: a one-sentence first-person owner statement covering a specific concrete first-30-days experience.`,
+      q6: `Generate 3 common objection + response pairs for ${gymName}. Objection in prospect's exact words, then the one-line response that changes their mind. Based on reviews: ${reviewSnippets}.`,
+      q7: `Generate 3 specific local events, school-calendar items, or local-news topics in ${city} that the ideal member is currently thinking about. Each: a one-sentence concrete reference an owner would actually name. Do not mention differentiators or the first 30 days — that is a different question.`,
     };
 
     const baseContext = `Generate 3 specific example answers for a gym owner being asked about: ${Q_PURPOSE[questionId] || 'their gym'}. Gym: ${gymName} in ${city}. Make each realistic and specific.`;
@@ -3176,7 +3195,15 @@ async function generateAnswerSuggestions(questionId, session, research) {
     });
     const raw = msg.content[0].text.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'');
     const data = JSON.parse(raw);
-    return (data.options || []).slice(0, 3);
+    let options = (data.options || []).slice(0, 3);
+    if (!FIRST_30_DAYS_QUESTION_IDS.has(questionId)) {
+      const before = options.length;
+      options = options.filter(o => !looksLikeFirst30DaysAsk(o?.text) && !looksLikeFirst30DaysAsk(o?.subtext));
+      if (options.length !== before) {
+        console.warn(`[onboarding] filtered ${before - options.length} first-30-days suggestion(s) leaked from questionId=${questionId}`);
+      }
+    }
+    return options;
   } catch (err) {
     console.error('[onboarding] generateAnswerSuggestions failed:', err.message);
     return [];
@@ -3300,6 +3327,30 @@ Output only the 1-2 sentence response. No quotes. No preamble.`;
       }
     } catch (e) {
       console.error('[generateAcknowledgment] usedRefs persist failed:', e.message);
+    }
+  }
+
+  // First-30-days leak guard: if the acknowledgment for a non-canonical
+  // question re-surfaces the first-30-days topic, ask Haiku to rewrite once
+  // without that phrasing. If the rewrite still leaks, drop the ack.
+  if (!FIRST_30_DAYS_QUESTION_IDS.has(questionId) && looksLikeFirst30DaysAsk(ack)) {
+    console.warn(`[generateAcknowledgment] first-30-days topic leaked for questionId=${questionId} — attempting rewrite`);
+    try {
+      const rewrite = await client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 250,
+        messages: [{ role: 'user', content: `Rewrite this acknowledgment so it does NOT mention "first 30 days", "first thirty days", "next 30 days", or "first month" anywhere. Keep the meaning and tone identical otherwise. Output only the rewritten text, no quotes, no preamble:\n\n${ack}` }],
+      });
+      const rewritten = rewrite.content[0].text.trim().replace(/^["']|["']$/g, '');
+      if (rewritten && !looksLikeFirst30DaysAsk(rewritten)) {
+        ack = rewritten;
+      } else {
+        console.warn(`[generateAcknowledgment] rewrite still leaked — dropping ack for questionId=${questionId}`);
+        return '';
+      }
+    } catch (e) {
+      console.error('[generateAcknowledgment] leak-rewrite failed:', e.message);
+      return '';
     }
   }
 
@@ -5621,6 +5672,33 @@ async function checkMetaCredentials(gymId, gymKey) {
   return { allPresent: missing.length === 0, missing, source: 'env' };
 }
 
+// Resolves the effective Meta credentials for a gym at call time.
+// Prefers per-gym R2 (gyms/<gymId>/meta-credentials.json), falls back to
+// getLocationMeta() (config/locations.js + env vars). Returns null if neither
+// path yields a complete credential set. Normalizes adAccountId to act_<id>.
+async function getEffectiveMetaCreds(gymId) {
+  if (gymId) {
+    try {
+      const r2Creds = await r2GetShared(`gyms/${gymId}/meta-credentials.json`);
+      if (r2Creds && r2Creds.adAccountId && r2Creds.pageId && r2Creds.accessToken && r2Creds.pixelId) {
+        const raw = r2Creds.adAccountId;
+        return {
+          accessToken: r2Creds.accessToken,
+          adAccountId: raw.startsWith('act_') ? raw : `act_${raw}`,
+          pageId: r2Creds.pageId,
+          pixelId: r2Creds.pixelId,
+          source: 'r2',
+        };
+      }
+    } catch {}
+  }
+  const envMeta = getLocationMeta(gymId);
+  if (envMeta && envMeta.accessToken && envMeta.adAccountId && envMeta.pageId && envMeta.pixelId) {
+    return { ...envMeta, source: 'env' };
+  }
+  return null;
+}
+
 // GET /api/portal/campaign-status — returns campaign_status for the authenticated owner's activeGymId
 app.get('/api/portal/campaign-status', requireAuth, async (req, res) => {
   const { activeGymId } = req.user;
@@ -5637,7 +5715,178 @@ app.get('/api/portal/campaign-status', requireAuth, async (req, res) => {
   const launched_at = (typeof loc === 'object' ? loc?.launched_at : null) || null;
   const meta_setup_pending = (typeof loc === 'object' ? loc?.meta_setup_pending : false) || false;
 
-  res.json({ campaign_status, launched_at, meta_setup_pending, gymId: activeGymId });
+  const meta_campaign_id = (typeof loc === 'object' ? loc?.meta_campaign_id : null) || null;
+  res.json({ campaign_status, launched_at, meta_setup_pending, meta_campaign_id, gymId: activeGymId });
+});
+
+// Creates the full Meta campaign (campaign → 2 ad sets → 2 creatives → 2 ads)
+// and persists the result to intelligence-db/paid/active-campaign.json in R2.
+// Throws on any Meta API failure. Used by POST /api/portal/launch-ads — the
+// step sequence mirrors POST /api/meta/create-campaign with defaults baked in
+// so the owner can launch in one click.
+async function runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name, cold_daily_budget = 1500, warm_daily_budget = 1000, destination_url, image_url, cold_primary_text, warm_primary_text, cold_headline, warm_headline }) {
+  const today = new Date().toISOString().split('T')[0];
+  const finalName = campaign_name || `${campaignLoc.gymName || campaignLoc.name} — AHRI Launch — ${today}`;
+
+  console.log(`[launch-ads] creating campaign "${finalName}" on ${locMeta.adAccountId}`);
+  const campaign = await metaApiCall(`${locMeta.adAccountId}/campaigns`, 'POST', {
+    name: finalName,
+    objective: 'OUTCOME_TRAFFIC',
+    status: 'PAUSED',
+    special_ad_categories: [],
+    is_adset_budget_sharing_enabled: false,
+  }, 3, locMeta.accessToken);
+
+  const targeting = {
+    geo_locations: {
+      cities: [{ key: campaignLoc.meta.geoKey, name: campaignLoc.city, region: campaignLoc.meta.geoRegion, country: campaignLoc.meta.geoCountry, radius: 15, distance_unit: 'mile' }]
+    },
+    age_min: 30,
+    age_max: 55,
+    publisher_platforms: ['facebook'],
+    facebook_positions: ['feed'],
+    targeting_automation: { advantage_audience: 0 },
+  };
+  const promotedObject = { page_id: locMeta.pageId };
+  const startTime = new Date(Date.now() + 3600000).toISOString();
+
+  const coldAdSet = await metaApiCall(`${locMeta.adAccountId}/adsets`, 'POST', {
+    name: `Cold — Lifestyle Member — ${campaignLoc.name} — Hook A`,
+    campaign_id: campaign.id,
+    daily_budget: cold_daily_budget,
+    billing_event: 'IMPRESSIONS',
+    optimization_goal: 'LINK_CLICKS',
+    bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+    promoted_object: JSON.stringify(promotedObject),
+    targeting: JSON.stringify(targeting),
+    status: 'PAUSED',
+    start_time: startTime,
+  }, 3, locMeta.accessToken);
+
+  const warmAdSet = await metaApiCall(`${locMeta.adAccountId}/adsets`, 'POST', {
+    name: `Warm — Page Engagement — ${campaignLoc.name} — Hook E`,
+    campaign_id: campaign.id,
+    daily_budget: warm_daily_budget,
+    billing_event: 'IMPRESSIONS',
+    optimization_goal: 'LINK_CLICKS',
+    bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
+    promoted_object: JSON.stringify(promotedObject),
+    targeting: JSON.stringify(targeting),
+    status: 'PAUSED',
+    start_time: startTime,
+  }, 3, locMeta.accessToken);
+
+  const baseUrl = process.env.BASE_URL || 'https://marketing-os-production-2b85.up.railway.app';
+  const coldLink = destination_url || `${baseUrl}/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-parent-child&utm_term=cold-lifestyle&redirect=landing`;
+  const coldLinkData = {
+    message: cold_primary_text || `The moment you realized you couldn't keep up with your own kids.\n\nThat feeling isn't about fitness. It's about who you want to be.\n\nAt ${campaignLoc.gymName}, your first 30 days are fully coached for $1.\n\nPrivate orientation. Weekly check-ins. A coach who texts you in week two — because that's when people stop. We know.\n\nShow up 12 times. If it's not worth it, full refund. You keep everything.\n\nThe form is below.`,
+    link: coldLink,
+    name: cold_headline || '30 Days Fully Coached. $1 to Start.',
+    call_to_action: { type: 'LEARN_MORE', value: { link: coldLink } },
+  };
+  if (image_url) coldLinkData.picture = image_url;
+  const coldCreative = await metaApiCall(`${locMeta.adAccountId}/adcreatives`, 'POST', {
+    name: 'Hook A — Parent Child — Cold',
+    object_story_spec: JSON.stringify({ page_id: locMeta.pageId, link_data: coldLinkData }),
+  }, 3, locMeta.accessToken);
+  const coldAd = await metaApiCall(`${locMeta.adAccountId}/ads`, 'POST', {
+    name: 'Hook A — Parent Child — Cold',
+    adset_id: coldAdSet.id,
+    creative: JSON.stringify({ creative_id: coldCreative.id }),
+    status: 'PAUSED',
+  }, 3, locMeta.accessToken);
+
+  const warmLink = destination_url || `${baseUrl}/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-offer-direct&utm_term=warm-retarget&redirect=landing`;
+  const warmCreative = await metaApiCall(`${locMeta.adAccountId}/adcreatives`, 'POST', {
+    name: 'Hook E — Offer Direct — Warm',
+    object_story_spec: JSON.stringify({
+      page_id: locMeta.pageId,
+      link_data: {
+        message: warm_primary_text || `First 30 days, fully coached. One dollar to start.\n\nPrivate orientation. Done-for-you plan. Weekly coach check-ins. Direct text access.\n\nWe built this for people who've tried gyms before and stopped. The difference isn't motivation — it's having someone who notices when you go quiet.\n\nShow up 12 times or full refund. You keep the workout plan either way.\n\nClaim your spot below.`,
+        link: warmLink,
+        name: warm_headline || "Built for People Who've Quit Before.",
+        call_to_action: { type: 'LEARN_MORE', value: { link: warmLink } },
+      },
+    }),
+  }, 3, locMeta.accessToken);
+  const warmAd = await metaApiCall(`${locMeta.adAccountId}/ads`, 'POST', {
+    name: 'Hook E — Offer Direct — Warm',
+    adset_id: warmAdSet.id,
+    creative: JSON.stringify({ creative_id: warmCreative.id }),
+    status: 'PAUSED',
+  }, 3, locMeta.accessToken);
+
+  const campaignResult = {
+    last_updated: new Date().toISOString(),
+    campaign_id: campaign.id,
+    campaign_name: finalName,
+    status: 'PAUSED',
+    ad_account: locMeta.adAccountId,
+    location_id: campaignLoc.id,
+    ad_sets: {
+      cold: { id: coldAdSet.id, name: 'Cold — Lifestyle Member', daily_budget: cold_daily_budget / 100, hook: 'parent_child_moment' },
+      warm: { id: warmAdSet.id, name: 'Warm — Page Engagement', daily_budget: warm_daily_budget / 100, hook: 'direct_offer' },
+    },
+    ads: { cold: { id: coldAd.id }, warm: { id: warmAd.id } },
+    destination_url,
+    created_at: new Date().toISOString(),
+    notes: 'Created via Meta Marketing API. Status PAUSED — activate in Ads Manager when ready to spend.',
+  };
+  await r2Put(campaignLoc.id || 'bloomington', 'intelligence-db/paid/active-campaign.json', campaignResult);
+
+  return {
+    campaign_id: campaign.id,
+    campaign_name: finalName,
+    ad_set_cold_id: coldAdSet.id,
+    ad_set_warm_id: warmAdSet.id,
+    ad_cold_id: coldAd.id,
+    ad_warm_id: warmAd.id,
+    ads_manager_url: `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${(locMeta.adAccountId || '').replace('act_', '')}`,
+  };
+}
+
+// POST /api/portal/launch-ads — one-click owner Meta campaign creation.
+// Idempotent: if loc.meta_campaign_id is already set, returns 409 with the
+// existing campaignId so the button can render as already-launched.
+app.post('/api/portal/launch-ads', requireAuth, async (req, res) => {
+  const { activeGymId, userId } = req.user;
+  if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+
+  const userIdx = users.findIndex(u => u.id === userId);
+  if (userIdx < 0) return res.status(404).json({ error: 'User not found' });
+  const user = users[userIdx];
+
+  const locIdx = (user.locations || []).findIndex(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  const loc = locIdx >= 0 && typeof user.locations[locIdx] === 'object' ? user.locations[locIdx] : null;
+  if (!loc) return res.status(404).json({ error: 'Location not found on this account' });
+
+  if (loc.meta_campaign_id) {
+    return res.status(409).json({ error: 'Meta campaign already created for this location', campaignId: loc.meta_campaign_id });
+  }
+
+  const locMeta = await getEffectiveMetaCreds(activeGymId);
+  if (!locMeta || !locMeta.accessToken || !locMeta.adAccountId || !locMeta.pageId || !locMeta.pixelId) {
+    return res.status(400).json({ error: 'Meta credentials not configured' });
+  }
+
+  const campaignLoc = locationConfig.getLocation(activeGymId) || locationConfig.getLocation('bloomington');
+  const gymName = loc.gymName || campaignLoc?.gymName || 'Your Gym';
+  const today = new Date().toISOString().split('T')[0];
+  const campaign_name = `${gymName} — AHRI Launch — ${today}`;
+
+  try {
+    const result = await runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name });
+    loc.meta_campaign_id = result.campaign_id;
+    await saveUsers(users);
+    console.log(`[launch-ads] success — gymId=${activeGymId} campaignId=${result.campaign_id}`);
+    res.json({ success: true, campaignId: result.campaign_id });
+  } catch (err) {
+    console.error(`[launch-ads] failed for gymId=${activeGymId}:`, err.message);
+    res.status(500).json({ error: err.message || 'Campaign creation failed' });
+  }
 });
 
 // POST /api/portal/launch-campaign — flip campaign_status from ready_to_launch → active
@@ -6714,8 +6963,10 @@ app.get('/api/google-ads/rsa-log', requireAuth, (req, res) => {
 // POST /api/meta/campaign/:campaignId/pause
 app.post('/api/meta/campaign/:campaignId/pause', requireAuth, async (req, res) => {
   const { location = 'bloomington' } = req.body;
-  const token = process.env[`META_ACCESS_TOKEN_${location.toUpperCase()}`];
+  const locMeta = await getEffectiveMetaCreds(location);
+  const token = locMeta?.accessToken;
   if (!token) return res.json({ success: false, reason: 'no_meta_token' });
+  console.log(`[Meta] pause campaign for gymId=${location} — source: ${locMeta.source}`);
   try {
     await metaApiCall(req.params.campaignId, 'POST', { status: 'PAUSED' }, 3, token);
     console.log(`[Kill] Campaign ${req.params.campaignId} paused for ${location}`);
@@ -6728,8 +6979,10 @@ app.post('/api/meta/campaign/:campaignId/pause', requireAuth, async (req, res) =
 // POST /api/meta/campaign/:campaignId/activate
 app.post('/api/meta/campaign/:campaignId/activate', requireAuth, async (req, res) => {
   const { location = 'bloomington' } = req.body;
-  const token = process.env[`META_ACCESS_TOKEN_${location.toUpperCase()}`];
+  const locMeta = await getEffectiveMetaCreds(location);
+  const token = locMeta?.accessToken;
   if (!token) return res.json({ success: false, reason: 'no_meta_token' });
+  console.log(`[Meta] activate campaign for gymId=${location} — source: ${locMeta.source}`);
   try {
     await metaApiCall(req.params.campaignId, 'POST', { status: 'ACTIVE' }, 3, token);
     console.log(`[Kill] Campaign ${req.params.campaignId} activated for ${location}`);
@@ -6743,8 +6996,10 @@ app.post('/api/meta/campaign/:campaignId/activate', requireAuth, async (req, res
 app.post('/api/meta/spend-limit', requireAuth, async (req, res) => {
   const { location = 'bloomington', daily_budget_cents, campaign_id } = req.body;
   if (typeof daily_budget_cents !== 'number') return res.json({ success: false, reason: 'daily_budget_cents must be a number' });
-  const token = process.env[`META_ACCESS_TOKEN_${location.toUpperCase()}`];
+  const locMeta = await getEffectiveMetaCreds(location);
+  const token = locMeta?.accessToken;
   if (!token) return res.json({ success: false, reason: 'no_meta_token' });
+  console.log(`[Meta] spend-limit for gymId=${location} — source: ${locMeta.source}`);
   try {
     await metaApiCall(campaign_id, 'POST', { daily_budget: daily_budget_cents }, 3, token);
     const updated_at = new Date().toISOString();
@@ -6813,7 +7068,9 @@ app.post('/api/kill-switch', requireAuth, async (req, res) => {
     const includesGoogle = channel === 'google' || channel === 'all';
 
     if (includesMeta) {
-      const token    = process.env[`META_ACCESS_TOKEN_${location.toUpperCase()}`];
+      const locMeta  = await getEffectiveMetaCreds(location);
+      const token    = locMeta?.accessToken;
+      if (locMeta) console.log(`[Meta] kill-switch for gymId=${location} — source: ${locMeta.source}`);
       const metaPerf = safeReadJSON(path.join(INTEL, location, 'paid', 'meta-performance.json'));
       const campaigns = Array.isArray(metaPerf?.campaigns) ? metaPerf.campaigns : [];
       for (const campaign of campaigns) {
