@@ -5812,9 +5812,27 @@ app.get('/api/portal/campaign-status', requireAuth, async (req, res) => {
 // Throws on any Meta API failure. Used by POST /api/portal/launch-ads — the
 // step sequence mirrors POST /api/meta/create-campaign with defaults baked in
 // so the owner can launch in one click.
-async function runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name, cold_daily_budget = 1500, warm_daily_budget = 1000, destination_url, image_url, cold_primary_text, warm_primary_text, cold_headline, warm_headline }) {
+async function runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name, sessionId, cold_daily_budget = 1500, warm_daily_budget = 1000, destination_url, image_url, cold_primary_text, warm_primary_text, cold_headline, warm_headline }) {
   const today = new Date().toISOString().split('T')[0];
   const finalName = campaign_name || `${campaignLoc.gymName || campaignLoc.name} — AHRI Launch — ${today}`;
+
+  // Resolve cold ad image: owner-confirmed creative from R2 wins; fall back to passed-in image_url.
+  let coldImageUrl = image_url;
+  if (sessionId) {
+    try {
+      const confirmed = await r2GetShared(`onboarding/sessions/${sessionId}/confirmed-creative.json`);
+      if (confirmed && confirmed.url) {
+        coldImageUrl = confirmed.url;
+        console.log(`[launch-ads] using confirmed-creative image (type=${confirmed.type || 'unknown'}) for sessionId=${sessionId}`);
+      } else {
+        console.warn(`[launch-ads] confirmed-creative.json missing or has no url for sessionId=${sessionId} — using fallback image`);
+      }
+    } catch (err) {
+      console.warn(`[launch-ads] failed to read confirmed-creative.json for sessionId=${sessionId}: ${err.message} — using fallback image`);
+    }
+  } else {
+    console.warn(`[launch-ads] no sessionId provided — using fallback image_url`);
+  }
 
   console.log(`[launch-ads] creating campaign "${finalName}" on ${locMeta.adAccountId}`);
   const campaign = await metaApiCall(`${locMeta.adAccountId}/campaigns`, 'POST', {
@@ -5864,15 +5882,14 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name, co
     start_time: startTime,
   }, 3, locMeta.accessToken);
 
-  const baseUrl = process.env.BASE_URL || 'https://marketing-os-production-2b85.up.railway.app';
-  const coldLink = destination_url || `${baseUrl}/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-parent-child&utm_term=cold-lifestyle&redirect=landing`;
+  const destinationUrl = 'https://go.ahrimarketing.com/testimonials';
   const coldLinkData = {
     message: cold_primary_text || `The moment you realized you couldn't keep up with your own kids.\n\nThat feeling isn't about fitness. It's about who you want to be.\n\nAt ${campaignLoc.gymName}, your first 30 days are fully coached for $1.\n\nPrivate orientation. Weekly check-ins. A coach who texts you in week two — because that's when people stop. We know.\n\nShow up 12 times. If it's not worth it, full refund. You keep everything.\n\nThe form is below.`,
-    link: coldLink,
+    link: destinationUrl,
     name: cold_headline || '30 Days Fully Coached. $1 to Start.',
-    call_to_action: { type: 'LEARN_MORE', value: { link: coldLink } },
+    call_to_action: { type: 'LEARN_MORE', value: { link: destinationUrl } },
   };
-  if (image_url) coldLinkData.picture = image_url;
+  if (coldImageUrl) coldLinkData.picture = coldImageUrl;
   const coldCreative = await metaApiCall(`${locMeta.adAccountId}/adcreatives`, 'POST', {
     name: 'Hook A — Parent Child — Cold',
     object_story_spec: JSON.stringify({ page_id: locMeta.pageId, link_data: coldLinkData }),
@@ -5884,16 +5901,15 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name, co
     status: 'PAUSED',
   }, 3, locMeta.accessToken);
 
-  const warmLink = destination_url || `${baseUrl}/go?utm_source=facebook&utm_medium=paid_social&utm_campaign=30-day-kickstart&utm_content=hook-offer-direct&utm_term=warm-retarget&redirect=landing`;
   const warmCreative = await metaApiCall(`${locMeta.adAccountId}/adcreatives`, 'POST', {
     name: 'Hook E — Offer Direct — Warm',
     object_story_spec: JSON.stringify({
       page_id: locMeta.pageId,
       link_data: {
         message: warm_primary_text || `First 30 days, fully coached. One dollar to start.\n\nPrivate orientation. Done-for-you plan. Weekly coach check-ins. Direct text access.\n\nWe built this for people who've tried gyms before and stopped. The difference isn't motivation — it's having someone who notices when you go quiet.\n\nShow up 12 times or full refund. You keep the workout plan either way.\n\nClaim your spot below.`,
-        link: warmLink,
+        link: destinationUrl,
         name: warm_headline || "Built for People Who've Quit Before.",
-        call_to_action: { type: 'LEARN_MORE', value: { link: warmLink } },
+        call_to_action: { type: 'LEARN_MORE', value: { link: destinationUrl } },
       },
     }),
   }, 3, locMeta.accessToken);
@@ -5916,7 +5932,7 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name, co
       warm: { id: warmAdSet.id, name: 'Warm — Page Engagement', daily_budget: warm_daily_budget / 100, hook: 'direct_offer' },
     },
     ads: { cold: { id: coldAd.id }, warm: { id: warmAd.id } },
-    destination_url,
+    destination_url: destinationUrl,
     created_at: new Date().toISOString(),
     notes: 'Created via Meta Marketing API. Status PAUSED — activate in Ads Manager when ready to spend.',
   };
@@ -5966,7 +5982,7 @@ app.post('/api/portal/launch-ads', requireAuth, async (req, res) => {
   const campaign_name = `${gymName} — AHRI Launch — ${today}`;
 
   try {
-    const result = await runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name });
+    const result = await runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name, sessionId: loc.sessionId || activeGymId });
     loc.meta_campaign_id = result.campaign_id;
     await saveUsers(users);
     console.log(`[launch-ads] success — gymId=${activeGymId} campaignId=${result.campaign_id}`);
