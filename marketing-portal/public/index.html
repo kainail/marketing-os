@@ -4389,6 +4389,7 @@ function renderAccountRow(u) {
       <button onclick="toggleLocationExpand('${u.id}',${JSON.stringify(u).replace(/"/g,'&quot;')})" id="loc-expand-btn-${u.id}" style="font-size:14px;background:none;border:none;color:rgba(232,234,240,0.4);cursor:pointer;padding:0 6px 0 0;font-family:inherit;transition:transform 0.15s" title="Show locations">⌄</button>
       ${provisionBtn}
       <a href="/dashboard" target="_blank" onclick="viewOwnerPortal(event,'${u.sessionId || ''}')" style="font-size:12px;color:#6366f1;text-decoration:none;margin-right:12px">View portal</a>
+      <button onclick="impersonateOwner('${u.id}')" style="font-size:12px;background:none;border:1px solid rgba(99,102,241,0.3);border-radius:6px;padding:3px 8px;color:rgba(99,102,241,0.75);cursor:pointer;font-family:inherit;margin-right:6px">Go to Dashboard</button>
       <button onclick="promptDeleteAccount('${u.id}','${(u.name||'').replace(/'/g,"\\'")}','${u.email}')" style="font-size:12px;background:none;border:1px solid rgba(244,63,94,0.3);border-radius:6px;padding:3px 8px;color:rgba(244,63,94,0.6);cursor:pointer;font-family:inherit">Delete</button>
     </td>
   </tr>
@@ -4474,6 +4475,12 @@ function viewOwnerPortal(e, sessionId) {
   e.preventDefault();
   // Just open the dashboard — in a real flow, we'd impersonate or provide a direct link
   window.open('/dashboard', '_blank');
+}
+
+async function impersonateOwner(userId) {
+  const res = await apiPost('/api/admin/users/' + userId + '/impersonate', {});
+  if (!res || !res.token) { alert('Could not generate impersonation token'); return; }
+  window.open('/auth/impersonate?token=' + encodeURIComponent(res.token), '_blank');
 }
 
 function promptDeleteAccount(userId, name, email) {

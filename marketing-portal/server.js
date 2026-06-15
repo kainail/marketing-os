@@ -651,6 +651,21 @@ app.get('/reset-password', (req, res) => res.sendFile(path.join(__dirname, 'publ
 app.get('/dashboard', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get('/admin/users', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin-users.html')));
 
+// Admin impersonation landing — sets gymsuite_token in localStorage and redirects to /dashboard.
+// The token is signed server-side by POST /api/admin/users/:userId/impersonate; this page just
+// hands it to the browser. Sanitizes the query param down to JWT charset before injection.
+app.get('/auth/impersonate', (req, res) => {
+  const raw = String(req.query.token || '');
+  const token = raw.replace(/[^A-Za-z0-9._-]/g, '');
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"/><title>Signing in…</title>
+<style>body{background:#0a0a0a;color:#e8eaf0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;font-size:14px}</style>
+</head><body>Signing in…<script>
+try { localStorage.setItem('gymsuite_token', ${JSON.stringify(token)}); } catch (_) {}
+window.location.replace('/dashboard');
+</script></body></html>`);
+});
+
 // Public privacy policy — no auth required
 app.get('/privacy', (req, res) => {
   const lastUpdated = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -6304,6 +6319,35 @@ app.patch('/api/admin/users/:userId/access', requireAdmin, async (req, res) => {
   // eslint-disable-next-line no-unused-vars
   const { passwordHash, resetToken, resetTokenExpiry, ...safeUser } = user;
   res.json({ success: true, user: safeUser });
+});
+
+// POST /api/admin/users/:userId/impersonate — issues a 1-hour JWT as the target user.
+// Payload mirrors generateToken() so all role/location/permission checks downstream just work.
+app.post('/api/admin/users/:userId/impersonate', requireAdmin, async (req, res) => {
+  const { userId } = req.params;
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+
+  const user = users.find(u => u.id === userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const jwt = require('jsonwebtoken');
+  const token = jwt.sign(
+    {
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      locations: user.locations,
+      activeGymId: user.activeGymId ?? null,
+      permissions: user.permissions,
+      sessionId: user.sessionId ?? null,
+      status: user.status ?? null,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+  console.log(`[impersonate] admin=${req.user.email} → user=${user.email} (1h token)`);
+  res.json({ token });
 });
 
 /** Send activation email when Kai grants full access. */
