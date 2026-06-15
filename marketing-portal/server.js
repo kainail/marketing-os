@@ -5720,10 +5720,8 @@ async function provisionLandingPage(session, sessionId) {
     return;
   }
 
-  // Derive locationId in lastname_city format (mirrors gymKeyFromLocation)
-  const nameParts = (session.ownerName || '').trim().split(/\s+/);
-  const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : (nameParts[0] || '');
-  const locationId = gymKeyFromLocation({ lastName }, { city: session.city || '' });
+  // Use sessionId as locationId so Meta ad URLs (?location=<sessionId>) hit this entry on the landing server.
+  const locationId = sessionId;
 
   const payload = {
     locationId,
