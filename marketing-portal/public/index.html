@@ -4363,7 +4363,6 @@ function renderAccountRow(u) {
 
   const inp = 'box-sizing:border-box;width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:7px 10px;color:#e8eaf0;font-family:inherit;font-size:12px;outline:none';
   const lbl = 'font-size:10px;color:rgba(232,234,240,0.4);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px';
-  const tryFreeDefault = isAF ? 'https://www.anytimefitness.com/try-us-free' : '';
 
   const _locs = Array.isArray(u.locations) ? u.locations : [];
   const _clubCount = _locs.filter(l => typeof l === 'object').length;
@@ -4411,7 +4410,7 @@ function renderAccountRow(u) {
         <div style="display:grid;grid-template-columns:1fr 1fr 120px auto;gap:10px;align-items:flex-end">
           <div>
             <label style="${lbl}">Try Free URL</label>
-            <input id="prov-tf-${u.id}" type="url" value="${esc(tryFreeDefault)}" placeholder="https://..." style="${inp}">
+            <input id="prov-tf-${u.id}" type="url" value="" placeholder="${isAF ? 'Auto-fills from Club ID' : 'https://...'}" style="${inp}" ${isAF ? 'data-af="1"' : ''}>
           </div>
           <div>
             <label style="${lbl}">Join URL</label>
@@ -4696,9 +4695,15 @@ async function toggleProvisionForm(userId, sessionId, gymName, city, email) {
 
 function provClubIdChangedRow(input, userId, isAF) {
   if (!isAF) return;
+  const clubId = input.value.trim();
   const ju = document.getElementById('prov-ju-' + userId);
-  if (!ju || !ju.dataset.af) return;
-  ju.value = input.value.trim() ? 'https://join.anytimefitness.com/' + input.value.trim() + '/plansinfo' : '';
+  if (ju && ju.dataset.af) {
+    ju.value = clubId ? 'https://join.anytimefitness.com/' + clubId + '/plansinfo' : '';
+  }
+  const tf = document.getElementById('prov-tf-' + userId);
+  if (tf && tf.dataset.af) {
+    tf.value = clubId ? 'https://www.anytimefitness.com/try-us-free?location_id=' + clubId : '';
+  }
 }
 
 async function provisionPageRow(userId, sessionId) {
