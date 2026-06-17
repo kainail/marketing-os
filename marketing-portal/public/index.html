@@ -55,6 +55,9 @@
   <div class="nav-item" onclick="navigate('calendar')" data-section="calendar">
     <span class="nav-icon">📅</span> Content Calendar
   </div>
+  <div class="nav-item owner-only" onclick="navigate('ad-studio')" data-section="ad-studio" style="display:none">
+    <span class="nav-icon">🎯</span> Ad Studio
+  </div>
   <div class="nav-item owner-only" onclick="navigate('creative')" data-section="creative" style="display:none">
     <span class="nav-icon">📷</span> Creative
   </div>
@@ -463,6 +466,11 @@
   </div>
 
   <!-- Section: Creative (owner only) -->
+  <!-- Section: Ad Studio (owner) — Creative Builder, read-only, no launch -->
+  <div id="section-ad-studio" class="section">
+    <!-- populated by loadAdStudio() — see Ad Studio block in main script -->
+  </div>
+
   <div id="section-creative" class="section">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
       <div class="section-title" style="margin-bottom:0">CREATIVE</div>
@@ -699,6 +707,7 @@ function navigate(section) {
     case 'archive': loadArchive(); break;
     case 'account-access': loadAccountAccess(); break;
     case 'creative': loadCreative(); break;
+    case 'ad-studio': loadAdStudio(); break;
     case 'google-ads': loadGoogleAds(); break;
   }
 }
@@ -3667,8 +3676,9 @@ function parseJwt(token) {
     const reviewQueueBtn = document.getElementById('action-review-queue');
     if (reviewQueueBtn) reviewQueueBtn.style.display = 'none';
 
-    // Grey out sections with no function yet for a newly launched owner
-    ['calendar', 'performance', 'google-ads', 'decision', 'journey', 'landing', 'nurture', 'manus', 'archive'].forEach(s => {
+    // Grey out sections with no function yet for a newly launched owner.
+    // ad-studio is gated until campaign_status === 'active' (unlocked by unlockActiveOwnerNav).
+    ['calendar', 'performance', 'google-ads', 'decision', 'journey', 'landing', 'nurture', 'manus', 'archive', 'ad-studio'].forEach(s => {
       const navItem = document.querySelector(`.nav-item[data-section="${s}"]`);
       if (navItem) navItem.classList.add('owner-coming-soon');
     });
@@ -3689,7 +3699,7 @@ function parseJwt(token) {
 
 // Removes owner-coming-soon lock from sections available once a campaign is active.
 function unlockActiveOwnerNav() {
-  ['calendar', 'performance', 'journey', 'decision', 'landing', 'manus', 'archive', 'google-ads'].forEach(s => {
+  ['calendar', 'performance', 'journey', 'decision', 'landing', 'manus', 'archive', 'google-ads', 'ad-studio'].forEach(s => {
     const el = document.querySelector(`.nav-item[data-section="${s}"]`);
     if (el) el.classList.remove('owner-coming-soon');
   });
@@ -4197,6 +4207,423 @@ function populateOwnerOverview(data) {
       </div>`;
   }
 
+}
+
+// ── Ad Studio (owner) — read-only Creative Builder ──────────────────────────
+// Reads /api/portal/ad-assets, lets the owner select temperature/hook/image,
+// edit body copy, and preview a Facebook-style ad. NO launch this session —
+// any "Launch" action is a disabled stub. State held locally; no writes.
+const adStudio = {
+  data: null,         // raw /api/portal/ad-assets payload
+  temperature: null,  // 'cold' | 'warm' | 'offer'
+  hook: null,         // { hook, framework, level, temperature }
+  image: null,        // { type, temperature, url, status }
+  body: '',           // editable body copy
+  bodyDirty: false,   // user edited body — don't auto-reset on temp change
+};
+
+const TEMP_LABEL = { cold: 'Cold', warm: 'Warm', offer: 'Offer' };
+const TEMP_CTA   = { cold: 'Learn More', warm: 'Sign Up', offer: 'Get Offer' };
+
+async function loadAdStudio() {
+  const section = document.getElementById('section-ad-studio');
+  if (!section) return;
+
+  section.innerHTML = `
+    <div style="margin-bottom:24px"><div class="section-title">AD STUDIO</div></div>
+    <div class="text-muted" style="font-size:13px">Loading creative assets…</div>`;
+
+  const data = await api('/api/portal/ad-assets');
+  if (!data) {
+    section.innerHTML = `
+      <div style="margin-bottom:24px"><div class="section-title">AD STUDIO</div></div>
+      <div class="card" style="padding:24px">
+        <div class="text-muted" style="font-size:13px">Couldn't load creative assets. Try again in a moment.</div>
+      </div>`;
+    return;
+  }
+
+  adStudio.data = data;
+
+  // Default temperature: confirmed creative's temp if present, else cold.
+  adStudio.temperature = (data.creatives && data.creatives.ownerPick && data.creatives.ownerPick.temperature) || 'cold';
+  // Default body: composed from offer (or empty-state copy).
+  adStudio.body = composeDefaultBody(data);
+  adStudio.bodyDirty = false;
+  // Default hook + image: pick best matches for the default temperature.
+  selectDefaultsForTemperature();
+
+  renderAdStudio();
+}
+
+// Compose a sensible body pre-fill from the confirmed offer. Returns a
+// non-empty string even when the offer is missing — the UI flag drives the
+// "No offer generated yet." surface.
+function composeDefaultBody(data) {
+  const offer = data && data.offer;
+  if (!offer) return '';
+  const lines = [];
+  if (offer.title) lines.push(offer.title + '.');
+  const priceLine = [offer.price, offer.duration && `for ${offer.duration}`].filter(Boolean).join(' ');
+  if (priceLine) lines.push(priceLine + '.');
+  if (offer.included) lines.push('What\'s included: ' + offer.included);
+  if (offer.guarantee) lines.push('Our promise: ' + offer.guarantee);
+  if (offer.differentiator) lines.push('What makes us different: ' + offer.differentiator);
+  return lines.join('\n\n');
+}
+
+function hooksForTemperature(temp) {
+  if (!adStudio.data) return { pick: null, pool: [] };
+  const lib = adStudio.data.hooks && adStudio.data.hooks.library || [];
+  const gen = adStudio.data.hooks && adStudio.data.hooks.generated || [];
+  const picks = adStudio.data.hooks && adStudio.data.hooks.ownerPicks || [];
+
+  const tempLib = lib.filter(h => h.temperature === temp);
+  // Generated pool has no temperature tag — only include in fallback view.
+  const pick = picks.find(p => p.temperature === temp) || null;
+  return { pick, pool: tempLib, fallbackPool: lib.length === 0 ? gen.map(g => ({ hook: g.hook, framework: null, level: null, temperature: null })) : lib };
+}
+
+function tilesByTemperature(temp) {
+  const tiles = (adStudio.data && adStudio.data.creatives && adStudio.data.creatives.tiles) || [];
+  const featured = tiles.find(t => t.temperature === temp) || null;
+  const others = tiles.filter(t => t !== featured);
+  return { featured, others, all: tiles };
+}
+
+function selectDefaultsForTemperature() {
+  // Hook: owner pick at this temp → first library hook at this temp → first
+  // owner pick of any temp → first library hook overall → null.
+  const { pick, pool, fallbackPool } = hooksForTemperature(adStudio.temperature);
+  adStudio.hook = pick
+    || pool[0]
+    || (adStudio.data.hooks.ownerPicks && adStudio.data.hooks.ownerPicks[0])
+    || fallbackPool[0]
+    || null;
+
+  // Image: featured tile if complete → any complete tile → null.
+  const { featured, all } = tilesByTemperature(adStudio.temperature);
+  if (featured && featured.status === 'complete' && featured.url) {
+    adStudio.image = featured;
+  } else {
+    adStudio.image = all.find(t => t.status === 'complete' && t.url) || null;
+  }
+}
+
+function setTemperature(temp) {
+  if (adStudio.temperature === temp) return;
+  adStudio.temperature = temp;
+  selectDefaultsForTemperature();
+  renderAdStudio();
+}
+window.setAdStudioTemperature = setTemperature;
+
+function setHook(idx, source) {
+  const { pick, pool, fallbackPool } = hooksForTemperature(adStudio.temperature);
+  const list = source === 'pick' ? [pick]
+             : source === 'fallback' ? fallbackPool
+             : pool;
+  const next = list[idx];
+  if (!next) return;
+  adStudio.hook = next;
+  // Live update of preview only — hook list highlight refresh inline below.
+  document.querySelectorAll('#ad-studio-hooks .hook-card').forEach(el => el.classList.remove('selected'));
+  const sel = document.querySelector(`#ad-studio-hooks .hook-card[data-src="${source}"][data-idx="${idx}"]`);
+  if (sel) sel.classList.add('selected');
+  renderPreview();
+}
+window.setAdStudioHook = setHook;
+
+function setImage(type) {
+  const tiles = (adStudio.data && adStudio.data.creatives && adStudio.data.creatives.tiles) || [];
+  const next = tiles.find(t => t.type === type);
+  if (!next || next.status !== 'complete' || !next.url) return;
+  adStudio.image = next;
+  document.querySelectorAll('#ad-studio-images .image-tile').forEach(el => el.classList.remove('selected'));
+  const sel = document.querySelector(`#ad-studio-images .image-tile[data-type="${type}"]`);
+  if (sel) sel.classList.add('selected');
+  renderPreview();
+}
+window.setAdStudioImage = setImage;
+
+function onBodyInput(e) {
+  adStudio.body = e.target.value;
+  adStudio.bodyDirty = true;
+  renderPreview();
+}
+window.onAdStudioBodyInput = onBodyInput;
+
+// ── Renderers ─────────────────────────────────────────────────────────────
+function renderAdStudio() {
+  const section = document.getElementById('section-ad-studio');
+  if (!section || !adStudio.data) return;
+
+  const meta = adStudio.data.meta || {};
+  const gymName = meta.gymName || 'Your Gym';
+
+  const tempButtons = ['cold', 'warm', 'offer'].map(t => `
+    <button type="button" class="temp-seg ${t === adStudio.temperature ? 'active' : ''}"
+      onclick="setAdStudioTemperature('${t}')">${TEMP_LABEL[t]}</button>
+  `).join('');
+
+  section.innerHTML = `
+    <style>
+      .as-grid { display:grid; grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap:20px; align-items:start; }
+      @media(max-width:1100px){ .as-grid { grid-template-columns: 1fr; } }
+      .temp-seg-wrap { display:inline-flex; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:10px; padding:4px; gap:4px; }
+      .temp-seg { background:none; border:none; color:var(--text-secondary); font-family:inherit; font-size:13px; font-weight:600; padding:7px 18px; border-radius:7px; cursor:pointer; letter-spacing:.02em; }
+      .temp-seg:hover { color:var(--text-primary); }
+      .temp-seg.active { background:var(--purple); color:#fff; }
+      .as-card { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:18px; }
+      .as-card-label { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:12px; }
+      .hook-card { background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px; cursor:pointer; transition:border-color .15s, background .15s; }
+      .hook-card:hover { background:rgba(124,58,237,0.06); border-color:rgba(124,58,237,0.4); }
+      .hook-card.selected { background:rgba(124,58,237,0.12); border-color:var(--purple); }
+      .hook-card.owner-pick { border-color:rgba(245,158,11,0.5); background:rgba(245,158,11,0.06); }
+      .hook-card.owner-pick.selected { background:rgba(124,58,237,0.16); border-color:var(--purple); }
+      .hook-text { font-size:14px; color:var(--text-primary); line-height:1.5; margin-bottom:6px; }
+      .hook-meta { font-size:11px; color:var(--text-muted); display:flex; gap:10px; flex-wrap:wrap; }
+      .hook-meta-tag { background:rgba(255,255,255,0.05); padding:2px 7px; border-radius:4px; }
+      .image-row { display:grid; grid-template-columns:1fr; gap:10px; }
+      .image-featured { aspect-ratio: 4/5; background:#000; border-radius:10px; overflow:hidden; border:2px solid var(--purple); position:relative; }
+      .image-featured img { width:100%; height:100%; object-fit:cover; display:block; }
+      .image-others { display:flex; gap:8px; flex-wrap:wrap; }
+      .image-tile { width:80px; aspect-ratio:4/5; background:#000; border-radius:6px; overflow:hidden; cursor:pointer; border:2px solid transparent; position:relative; }
+      .image-tile img { width:100%; height:100%; object-fit:cover; display:block; }
+      .image-tile.selected { border-color:var(--purple); }
+      .image-tile.disabled { cursor:not-allowed; background:rgba(255,255,255,0.04); border-color:var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:9px; text-align:center; padding:4px; line-height:1.3; }
+      .image-empty { aspect-ratio: 4/5; background:rgba(255,255,255,0.03); border:1px dashed var(--border); border-radius:10px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:13px; text-align:center; padding:24px; }
+      .body-textarea { width:100%; min-height:200px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:12px 14px; color:var(--text-primary); font-family:inherit; font-size:13px; line-height:1.55; resize:vertical; outline:none; box-sizing:border-box; }
+      .body-textarea:focus { border-color:var(--purple); }
+      .fb-preview { background:#fff; color:#050505; border-radius:8px; overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,0.4); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; }
+      .fb-header { display:flex; align-items:center; gap:8px; padding:12px 14px 8px; }
+      .fb-avatar { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#7c3aed,#5b21b6); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0; }
+      .fb-meta { flex:1; min-width:0; }
+      .fb-gymname { font-weight:600; font-size:14px; color:#050505; }
+      .fb-sub { font-size:12px; color:#65676b; display:flex; align-items:center; gap:4px; }
+      .fb-body { font-size:14px; color:#050505; line-height:1.4; padding:0 14px 10px; white-space:pre-wrap; }
+      .fb-seemore { color:#65676b; cursor:pointer; }
+      .fb-image-wrap { width:100%; aspect-ratio:4/5; background:#e4e6eb; overflow:hidden; }
+      .fb-image-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
+      .fb-image-empty { width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#8a8d91; font-size:13px; }
+      .fb-cta-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 14px; background:#f0f2f5; border-bottom:1px solid #ced0d4; }
+      .fb-cta-title { font-size:12px; color:#65676b; font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+      .fb-cta-headline { font-size:15px; color:#050505; font-weight:700; line-height:1.25; }
+      .fb-cta-btn { background:#e4e6eb; color:#050505; border:none; border-radius:6px; padding:8px 14px; font-weight:600; font-size:13px; cursor:default; white-space:nowrap; flex-shrink:0; }
+      .fb-actions { display:flex; padding:6px 4px; border-top:1px solid #ced0d4; color:#65676b; font-size:13px; font-weight:600; }
+      .fb-action { flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:8px; cursor:default; }
+      .launch-stub { margin-top:24px; padding:16px 20px; background:rgba(255,255,255,0.02); border:1px dashed var(--border); border-radius:10px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+      .launch-stub-text { font-size:13px; color:var(--text-secondary); }
+      .launch-stub-btn { background:rgba(124,58,237,0.2); color:rgba(255,255,255,0.5); border:1px solid rgba(124,58,237,0.2); border-radius:8px; padding:10px 18px; font-family:inherit; font-size:13px; font-weight:600; cursor:not-allowed; }
+    </style>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:16px;flex-wrap:wrap">
+      <div>
+        <div class="section-title" style="margin-bottom:4px">AD STUDIO</div>
+        <div class="text-muted" style="font-size:12px">Build the ad you want to run. Select a temperature, pick a hook + image, edit the body. Preview live. Launching opens in the next release.</div>
+      </div>
+      <div class="temp-seg-wrap">${tempButtons}</div>
+    </div>
+
+    <div class="as-grid">
+      <div>
+        <div class="as-card" style="margin-bottom:16px">
+          <div class="as-card-label">Hook</div>
+          <div id="ad-studio-hooks"></div>
+        </div>
+        <div class="as-card">
+          <div class="as-card-label">Image</div>
+          <div id="ad-studio-images"></div>
+        </div>
+      </div>
+      <div>
+        <div class="as-card" style="margin-bottom:16px">
+          <div class="as-card-label">Body copy</div>
+          <textarea id="ad-studio-body" class="body-textarea" oninput="onAdStudioBodyInput(event)" placeholder="Write your ad body..."></textarea>
+          <div id="ad-studio-body-empty" style="display:none;margin-top:8px;font-size:12px;color:var(--gold)">No offer generated yet — write your own body copy above.</div>
+        </div>
+        <div class="as-card" style="padding:14px">
+          <div class="as-card-label">Live preview — Facebook feed</div>
+          <div id="ad-studio-preview"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="launch-stub">
+      <div class="launch-stub-text">When you're ready, launching this ad pushes it to Meta Ads Manager as PAUSED.</div>
+      <button type="button" class="launch-stub-btn" disabled title="Launching opens in the next release">Next: Launch (coming soon)</button>
+    </div>
+  `;
+
+  renderHooks();
+  renderImages();
+  renderBodyEditor(meta);
+  renderPreview();
+}
+
+function renderHooks() {
+  const wrap = document.getElementById('ad-studio-hooks');
+  if (!wrap) return;
+  const { pick, pool, fallbackPool } = hooksForTemperature(adStudio.temperature);
+
+  let html = '';
+  if (pick) {
+    html += renderHookCard(pick, 'pick', 0, true);
+  }
+  if (pool.length > 0) {
+    html += pool.map((h, i) => renderHookCard(h, 'pool', i, false)).join('');
+  } else if (!pick) {
+    html += `<div class="text-muted" style="font-size:12px;margin:8px 0 10px">No ${TEMP_LABEL[adStudio.temperature].toLowerCase()} hooks generated yet — showing the full pool below.</div>`;
+    html += fallbackPool.map((h, i) => renderHookCard(h, 'fallback', i, false)).join('');
+  }
+  if (!html) {
+    html = `<div class="text-muted" style="font-size:13px">No hooks available yet.</div>`;
+  }
+  wrap.innerHTML = html;
+  // Mark currently selected card.
+  if (adStudio.hook) {
+    const allCards = wrap.querySelectorAll('.hook-card');
+    allCards.forEach(el => {
+      if (el.dataset.hookText === adStudio.hook.hook) el.classList.add('selected');
+    });
+  }
+}
+
+function renderHookCard(h, source, idx, isOwnerPick) {
+  const tags = [];
+  if (h.framework) tags.push(`<span class="hook-meta-tag">${esc(h.framework)}</span>`);
+  if (h.level)     tags.push(`<span class="hook-meta-tag">${esc(h.level)}</span>`);
+  if (isOwnerPick) tags.unshift(`<span class="hook-meta-tag" style="background:rgba(245,158,11,0.15);color:var(--gold)">Your pick</span>`);
+  return `
+    <div class="hook-card ${isOwnerPick ? 'owner-pick' : ''}"
+         data-src="${source}" data-idx="${idx}" data-hook-text="${esc(h.hook)}"
+         onclick="setAdStudioHook(${idx}, '${source}')">
+      <div class="hook-text">${esc(h.hook)}</div>
+      ${tags.length ? `<div class="hook-meta">${tags.join('')}</div>` : ''}
+    </div>`;
+}
+
+function renderImages() {
+  const wrap = document.getElementById('ad-studio-images');
+  if (!wrap) return;
+  const tiles = (adStudio.data && adStudio.data.creatives && adStudio.data.creatives.tiles) || [];
+  if (tiles.length === 0) {
+    wrap.innerHTML = `<div class="image-empty">No creative images generated yet.</div>`;
+    return;
+  }
+
+  const { featured, others } = tilesByTemperature(adStudio.temperature);
+
+  // Featured slot — prefer the temp-matching tile, fall back to whatever
+  // is currently selected, else first complete tile, else empty state.
+  const featuredTile = featured || tiles.find(t => t.status === 'complete' && t.url);
+  const featuredHtml = featuredTile && featuredTile.status === 'complete' && featuredTile.url
+    ? `<div class="image-featured" onclick="setAdStudioImage('${featuredTile.type}')">
+         <img src="${esc(featuredTile.url)}" alt="${esc(TEMP_LABEL[featuredTile.temperature] || featuredTile.type)} creative">
+       </div>`
+    : `<div class="image-empty">No ${TEMP_LABEL[adStudio.temperature].toLowerCase()} creative available${featuredTile && featuredTile.status === 'failed' ? ' (generation failed)' : ''}.</div>`;
+
+  // Smaller chooser row — show ALL tiles (including featured) so the owner
+  // sees the full set. status !== 'complete' renders as a disabled placeholder.
+  const otherTiles = tiles.map(t => {
+    if (t.status === 'complete' && t.url) {
+      const isSel = adStudio.image && adStudio.image.type === t.type;
+      return `<div class="image-tile ${isSel ? 'selected' : ''}" data-type="${t.type}"
+               title="${esc(TEMP_LABEL[t.temperature] || t.type)}"
+               onclick="setAdStudioImage('${t.type}')">
+                <img src="${esc(t.url)}" alt="${esc(t.type)}">
+              </div>`;
+    }
+    const statusLabel = t.status === 'failed' ? 'Generation failed'
+                      : t.status === 'generating' ? 'Generating…'
+                      : t.status === 'disabled' ? 'Disabled'
+                      : 'Unavailable';
+    return `<div class="image-tile disabled" title="${esc(t.type)} — ${esc(statusLabel)}">
+              <div>${esc(TEMP_LABEL[t.temperature] || t.type)}<br>${esc(statusLabel)}</div>
+            </div>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    ${featuredHtml}
+    <div style="margin-top:12px">
+      <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Or choose another</div>
+      <div class="image-others">${otherTiles}</div>
+    </div>
+  `;
+
+  // Add a "regenerate" stub below failed tiles to telegraph the next-session feature.
+  const hasFailed = tiles.some(t => t.status === 'failed');
+  if (hasFailed) {
+    wrap.insertAdjacentHTML('beforeend', `
+      <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">
+        Some creatives didn't generate. <button type="button" disabled
+          style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 9px;color:var(--text-muted);cursor:not-allowed;font-family:inherit;font-size:11px"
+          title="Regenerating creatives opens in the next release">Regenerate (coming soon)</button>
+      </div>`);
+  }
+}
+
+function renderBodyEditor(meta) {
+  const ta = document.getElementById('ad-studio-body');
+  const empty = document.getElementById('ad-studio-body-empty');
+  if (!ta) return;
+  ta.value = adStudio.body || '';
+  if (empty) empty.style.display = (meta && meta.hasOffer === false) ? '' : 'none';
+}
+
+function initialsFor(name) {
+  if (!name) return 'AF';
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'AF';
+}
+
+function renderPreview() {
+  const wrap = document.getElementById('ad-studio-preview');
+  if (!wrap || !adStudio.data) return;
+
+  const meta = adStudio.data.meta || {};
+  const gymName = meta.gymName || 'Your Gym';
+  const initials = initialsFor(gymName);
+  const hookText = (adStudio.hook && adStudio.hook.hook) || '(Select a hook)';
+  const body = adStudio.body || '';
+  const ctaLabel = TEMP_CTA[adStudio.temperature] || 'Learn More';
+
+  // FB feed truncation kicks in around 125 chars. "See more" is decorative.
+  let bodyDisplay;
+  if (body.length > 125) {
+    bodyDisplay = esc(body.slice(0, 125)) + '… <span class="fb-seemore">See more</span>';
+  } else {
+    bodyDisplay = esc(body) || '<span style="color:#8a8d91">(Body copy will appear here)</span>';
+  }
+
+  const imageHtml = adStudio.image && adStudio.image.url
+    ? `<img src="${esc(adStudio.image.url)}" alt="ad creative">`
+    : `<div class="fb-image-empty">No creative selected</div>`;
+
+  wrap.innerHTML = `
+    <div class="fb-preview">
+      <div class="fb-header">
+        <div class="fb-avatar">${esc(initials)}</div>
+        <div class="fb-meta">
+          <div class="fb-gymname">${esc(gymName)}</div>
+          <div class="fb-sub"><span>Sponsored</span><span>·</span><span>🌐</span></div>
+        </div>
+      </div>
+      <div class="fb-body">${bodyDisplay}</div>
+      <div class="fb-image-wrap">${imageHtml}</div>
+      <div class="fb-cta-bar">
+        <div style="min-width:0">
+          <div class="fb-cta-title">go.ahrimarketing.com</div>
+          <div class="fb-cta-headline">${esc(hookText)}</div>
+        </div>
+        <button class="fb-cta-btn" disabled>${esc(ctaLabel)}</button>
+      </div>
+      <div class="fb-actions">
+        <div class="fb-action">👍 Like</div>
+        <div class="fb-action">💬 Comment</div>
+        <div class="fb-action">↗️ Share</div>
+      </div>
+    </div>
+  `;
 }
 
 // ── Creative (owner) ─────────────────────────────────────────────────────────
