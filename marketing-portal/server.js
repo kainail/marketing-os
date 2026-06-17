@@ -6076,6 +6076,155 @@ app.get('/api/portal/landing-intel', requireAuth, async (req, res) => {
   });
 });
 
+// ─── /api/portal/ad-assets helpers ────────────────────────────────────────────
+// Slot key → creative temperature, mirrors services/adCreatives.js:78-83 and
+// services/creativeGenerator.js:24-27 so Ad Builder and the campaign launcher
+// agree on what "cold/warm/offer" means.
+const CREATIVE_SLOT_TO_TEMPERATURE = { lifestyle: 'cold', community: 'warm', results: 'offer' };
+
+// Awareness level → temperature. Schwartz L1-2 = cold (problem/solution unaware),
+// L3 = warm (solution aware, in market), L4-5 = offer (product aware, decision).
+// Tolerates the L3-4 / L2-3 ranges that generateFinalHooks emits by picking the lower bound.
+function levelToTemperature(level) {
+  if (!level) return null;
+  const m = String(level).match(/L?(\d)/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  if (n <= 2) return 'cold';
+  if (n === 3) return 'warm';
+  return 'offer';
+}
+
+// Normalize an awareness-level string for comparison (e.g. "L2-3" → "l2-3").
+function normalizeLevel(level) {
+  return level ? String(level).trim().toLowerCase() : null;
+}
+
+// GET /api/portal/ad-assets — owner-scoped Ad Builder feed. Pure read+merge.
+// Reads five session files from R2 in parallel via Promise.allSettled so any
+// single missing file degrades to an empty section rather than failing the
+// response. Returns a normalized shape with explicit temperature axes derived
+// from the implicit slot keys and awareness levels.
+app.get('/api/portal/ad-assets', requireAuth, async (req, res) => {
+  const { activeGymId, userId } = req.user;
+  if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+
+  const user = users.find(u => u.id === userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  // Resolve the R2 key from the AUTHENTICATED owner's own location record.
+  // Never from a module-scope default — that would serve Bloomington's data to
+  // every owner. loc.sessionId is the canonical onboarding UUID; gymId is the
+  // documented alias (set to the same UUID for new owners).
+  const loc = (user.locations || []).find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  if (!loc || typeof loc !== 'object') return res.status(404).json({ error: 'Location not found on this account' });
+  const sessionKey = loc.sessionId || loc.gymId || activeGymId;
+  if (!sessionKey) return res.status(400).json({ error: 'No sessionId linked to this gym' });
+  const gymName = loc.gymName || '';
+  const base = `onboarding/sessions/${sessionKey}/`;
+
+  const [
+    confirmedHooksR,
+    hooksR,
+    confirmedOfferR,
+    adCreativesR,
+    confirmedCreativeR,
+  ] = await Promise.allSettled([
+    r2GetShared(`${base}confirmed-hooks.json`),
+    r2GetShared(`${base}hooks.json`),
+    r2GetShared(`${base}confirmed-offer.json`),
+    r2GetShared(`${base}ad-creatives.json`),
+    r2GetShared(`${base}confirmed-creative.json`),
+  ]);
+
+  const settled = (r) => r.status === 'fulfilled' ? r.value : null;
+  const confirmedHooks   = settled(confirmedHooksR);
+  const hooksFinal       = settled(hooksR);
+  const confirmedOffer   = settled(confirmedOfferR);
+  const adCreatives      = settled(adCreativesR);
+  const confirmedCreative = settled(confirmedCreativeR);
+
+  // ── Hooks library: hooks.json carries framework + awarenessLevel; derive temperature.
+  const library = Array.isArray(hooksFinal && hooksFinal.hooks)
+    ? hooksFinal.hooks.map(h => ({
+        hook:        h.hook || '',
+        framework:   h.framework || null,
+        level:       h.awarenessLevel || null,
+        temperature: levelToTemperature(h.awarenessLevel),
+      }))
+    : [];
+
+  // ── Owner picks: confirmedHooks.selected has no level — match by hook text to
+  // the level-tagged library to recover it. Disjoint sets are tolerated.
+  const libraryByHook = new Map(library.map(h => [h.hook.trim().toLowerCase(), h]));
+  const ownerPicks = Array.isArray(confirmedHooks && confirmedHooks.selected)
+    ? confirmedHooks.selected.map(p => {
+        const key = (p.hook || '').trim().toLowerCase();
+        const match = libraryByHook.get(key);
+        return {
+          hook:        p.hook || '',
+          phase:       p.phase || null,
+          confirmedAt: p.confirmed_at || null,
+          level:       match ? match.level : null,
+          temperature: match ? match.temperature : null,
+        };
+      })
+    : [];
+
+  // ── Generated pool: confirmedHooks.generated — every hook shown during the
+  // interview. No level tagging (interview-phase only).
+  const generated = Array.isArray(confirmedHooks && confirmedHooks.generated)
+    ? confirmedHooks.generated.map(g => ({ hook: g.hook || '', phase: g.phase || null }))
+    : [];
+
+  // ── Creatives: map slot keys to temperature; drop the 'video' slot (always
+  // disabled today) but pass status through for every other tile so the UI
+  // can grey/hide non-complete tiles instead of trying to render broken images.
+  const tiles = [];
+  if (adCreatives && typeof adCreatives === 'object') {
+    for (const slot of ['lifestyle', 'community', 'results']) {
+      const entry = adCreatives[slot];
+      if (!entry) continue;
+      tiles.push({
+        type:        slot,
+        temperature: CREATIVE_SLOT_TO_TEMPERATURE[slot] || null,
+        url:         entry.url || null,
+        status:      entry.status || 'unknown',
+      });
+    }
+  }
+
+  const ownerCreativePick = (confirmedCreative && confirmedCreative.url)
+    ? {
+        type:        confirmedCreative.type || null,
+        temperature: CREATIVE_SLOT_TO_TEMPERATURE[confirmedCreative.type] || null,
+        url:         confirmedCreative.url,
+        selectedAt:  confirmedCreative.selectedAt || null,
+      }
+    : null;
+
+  // ── Offer: pass-through. UI composes ad body copy from these fields
+  // (title, guarantee, price, differentiator) — there is no separate ad-copy
+  // file in the current pipeline (skill is dormant; see audit).
+  const offer = (confirmedOffer && typeof confirmedOffer === 'object') ? { ...confirmedOffer } : null;
+
+  res.json({
+    hooks: { library, ownerPicks, generated },
+    offer,
+    creatives: { tiles, ownerPick: ownerCreativePick },
+    meta: {
+      gymId:         sessionKey,
+      gymName:       gymName,
+      hasOffer:      !!offer,
+      hasCreative:   !!ownerCreativePick,
+      hasHookPick:   ownerPicks.length > 0,
+    },
+  });
+});
+
 // Creates the full Meta campaign (campaign → 2 ad sets → 2 creatives → 2 ads)
 // and persists the result to intelligence-db/paid/active-campaign.json in R2.
 // Throws on any Meta API failure. Used by POST /api/portal/launch-ads — the
