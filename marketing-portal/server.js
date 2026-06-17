@@ -5862,36 +5862,64 @@ async function fetchMetaInsightsForCampaign(campaignId, locMeta) {
   return { totals, daily };
 }
 
-// Reads attribution session files for a gym and aggregates last-N-day stats.
-// Visits = sessions with redirect_type === 'landing'. ctaClicks = sessions that
-// matched a GHL lead (the closest proxy in the current schema — bridge-page CTA
-// clicks themselves aren't persisted to R2 yet, only to dataLayer/GTM).
+// Reads the bridge-page event log for a gym and aggregates last-N-day stats.
+// Visitors = type:'view' entries, ctaClicks = type:'cta' entries.
+// Events are written by POST /api/attribution/bridge-{view,cta} (beacon endpoints).
 async function fetchAttributionStats(locationId, days) {
-  const keys = await r2List(locationId, 'attribution/sessions/');
-  const cutoff = new Date(Date.now() - days * 86400000);
-  const prefix = locationId + '/';
-  const sessionKeys = (keys || []).filter(k => !k.includes('fbclid_'));
-
-  const sessions = await Promise.all(sessionKeys.map(k => {
-    const rel = k.startsWith(prefix) ? k.slice(prefix.length) : k;
-    return r2Get(locationId, rel);
-  }));
+  const events = await r2Get(locationId, `attribution/bridge-events/${locationId}.json`);
+  const arr = Array.isArray(events) ? events : [];
+  const cutoff = Date.now() - days * 86400000;
 
   let visitors = 0, ctaClicks = 0;
   const perDay = {};
-  for (const s of sessions) {
-    if (!s || typeof s !== 'object') continue;
-    const at = s.clicked_at ? new Date(s.clicked_at) : null;
-    if (!at || isNaN(at.getTime()) || at < cutoff) continue;
-    const dayKey = at.toISOString().split('T')[0];
-    if (s.redirect_type === 'landing') {
+  for (const e of arr) {
+    if (!e || !e.timestamp) continue;
+    const t = Date.parse(e.timestamp);
+    if (isNaN(t) || t < cutoff) continue;
+    const dayKey = new Date(t).toISOString().split('T')[0];
+    if (e.type === 'view') {
       visitors++;
       perDay[dayKey] = (perDay[dayKey] || 0) + 1;
+    } else if (e.type === 'cta') {
+      ctaClicks++;
     }
-    if (s.status === 'matched' || s.matched_at) ctaClicks++;
   }
   return { visitors, ctaClicks, perDay };
 }
+
+// Append a bridge-page event to attribution/bridge-events/<locationId>.json.
+// Read-modify-write — fine for low traffic per gym; for high-volume locations
+// we'd switch to per-event files to remove the race. Beacon callers don't
+// await this so a partial failure never blocks a 204 response.
+async function appendBridgeEvent(locationId, type, body) {
+  const key = `attribution/bridge-events/${locationId}.json`;
+  const existing = await r2Get(locationId, key);
+  const arr = Array.isArray(existing) ? existing : [];
+  arr.push(Object.assign({ type }, body, { timestamp: new Date().toISOString() }));
+  await r2Put(locationId, key, arr);
+}
+
+// POST /api/attribution/bridge-view — bridge page beacon: a visitor loaded the page.
+// Public (no auth). Fire-and-forget: returns 204 immediately while the R2 write runs.
+app.post('/api/attribution/bridge-view', async (req, res) => {
+  const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  const locationId = String(body.locationId || '').trim();
+  if (!locationId) return res.status(400).json({ error: 'locationId required' });
+  appendBridgeEvent(locationId, 'view', body)
+    .catch(err => console.error(`[bridge-view] append failed gymId=${locationId}: ${err.message}`));
+  res.status(204).end();
+});
+
+// POST /api/attribution/bridge-cta — bridge page beacon: visitor clicked a CTA.
+// Public (no auth). Fire-and-forget.
+app.post('/api/attribution/bridge-cta', async (req, res) => {
+  const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  const locationId = String(body.locationId || '').trim();
+  if (!locationId) return res.status(400).json({ error: 'locationId required' });
+  appendBridgeEvent(locationId, 'cta', body)
+    .catch(err => console.error(`[bridge-cta] append failed gymId=${locationId}: ${err.message}`));
+  res.status(204).end();
+});
 
 // GET /api/portal/landing-intel — owner-scoped Landing Page Intelligence feed.
 // Sources: Meta Ads insights for ad metrics + R2 attribution sessions for visits.
