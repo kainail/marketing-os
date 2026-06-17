@@ -2529,56 +2529,107 @@ async function loadLanding() {
     <button class="btn" onclick="navigate('manus')">▶ Launch Clarity Analyzer Task</button>`;
 }
 
-function renderOwnerLanding() {
+async function renderOwnerLanding() {
   const section = document.getElementById('section-landing');
   if (!section) return;
 
-  const viewData = [14,18,16,20,22,19,23,25,21,24,27,23,28,26,29,31,28,33,30,32,35,31,36,34,38,35,40,37,41,44];
-  const labels = viewData.map((_, i) => {
-    const d = new Date(Date.now() - (viewData.length - 1 - i) * 86400000);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  });
+  if (state.sampleCharts.landingViews) {
+    state.sampleCharts.landingViews.destroy();
+    state.sampleCharts.landingViews = null;
+  }
+
+  // Loading state
+  section.innerHTML = `
+    <div style="margin-bottom:24px"><div class="section-title">LANDING PAGE INTELLIGENCE</div></div>
+    <div class="text-muted" style="font-size:13px">Loading…</div>`;
+
+  const data = await api('/api/portal/landing-intel');
+
+  if (!data) {
+    section.innerHTML = `
+      <div style="margin-bottom:24px"><div class="section-title">LANDING PAGE INTELLIGENCE</div></div>
+      <div class="text-muted" style="font-size:13px">Could not load landing intel. Try again in a moment.</div>`;
+    return;
+  }
+
+  if (data.noData) {
+    section.innerHTML = `
+      <div style="margin-bottom:24px"><div class="section-title">LANDING PAGE INTELLIGENCE</div></div>
+      <div class="card" style="text-align:center;padding:48px 24px">
+        <div style="font-size:15px;color:var(--text-secondary)">Campaign launching — check back in 24 hours.</div>
+        <div class="text-muted" style="font-size:12px;margin-top:6px">Metrics appear once Meta Ads has data.</div>
+      </div>`;
+    return;
+  }
+
+  const m = data.metrics || {};
+  const src = data.source || {};
+  const metaNotice = !src.meta ? `
+    <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:10px 16px;margin-bottom:16px;font-family:var(--font-mono);font-size:12px;color:var(--gold)">
+      ⚠ Ad metrics are loading — showing attribution data only.
+    </div>` : '';
+
+  const labels = (data.chart || []).map(d =>
+    new Date(d.date + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  );
+  const visitorsData = (data.chart || []).map(d => d.visitors);
+  const clicksData   = (data.chart || []).map(d => d.clicks);
 
   section.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
-      <div class="section-title" style="margin-bottom:0">LANDING PAGE INTELLIGENCE</div>
-      ${sampleDataBadge()}
+    <div style="margin-bottom:24px"><div class="section-title">LANDING PAGE INTELLIGENCE</div></div>
+    ${metaNotice}
+    <div class="metrics-row mb-16">
+      <div class="card"><div class="card-label">Visitors</div><div class="metric-value">${esc(String(m.visitors ?? 0))}</div><div class="text-muted" style="margin-top:4px">Last 30 days</div></div>
+      <div class="card"><div class="card-label">CTA Clicks</div><div class="metric-value">${esc(String(m.ctaClicks ?? 0))}</div><div class="text-muted" style="margin-top:4px">Try-free button</div></div>
+      <div class="card"><div class="card-label">Conversion Rate</div><div class="metric-value green">${esc(m.conversionRate || '0%')}</div><div class="text-muted" style="margin-top:4px">Visitor → CTA</div></div>
+      <div class="card"><div class="card-label">Ad Spend</div><div class="metric-value">${esc(m.adSpend || '$0.00')}</div><div class="text-muted" style="margin-top:4px">Last 30 days</div></div>
     </div>
     <div class="metrics-row mb-16">
-      <div class="card"><div class="card-label">Page Views</div><div class="metric-value">847</div><div class="text-muted" style="margin-top:4px">Last 30 days</div></div>
-      <div class="card"><div class="card-label">Unique Visitors</div><div class="metric-value">612</div><div class="text-muted" style="margin-top:4px">Last 30 days</div></div>
-      <div class="card"><div class="card-label">Avg Time on Page</div><div class="metric-value green">1m 43s</div><div class="text-muted" style="margin-top:4px">Good engagement</div></div>
-      <div class="card"><div class="card-label">Conversion Rate</div><div class="metric-value green">4.2%</div><div class="text-muted" style="margin-top:4px">Visitor → Lead</div></div>
+      <div class="card"><div class="card-label">Impressions</div><div class="metric-value">${esc(String(m.impressions ?? 0))}</div></div>
+      <div class="card"><div class="card-label">Reach</div><div class="metric-value">${esc(String(m.reach ?? 0))}</div></div>
+      <div class="card"><div class="card-label">CTR</div><div class="metric-value">${esc(m.ctr || '0%')}</div></div>
+      <div class="card"><div class="card-label">Cost Per Lead</div><div class="metric-value">${esc(m.costPerLead || '$0.00')}</div></div>
     </div>
     <div class="card">
-      <div class="section-title">PAGE VIEWS — LAST 30 DAYS</div>
+      <div class="section-title">VISITORS & AD CLICKS — LAST 30 DAYS</div>
       <canvas id="owner-landing-chart" height="140"></canvas>
     </div>`;
 
-  if (state.sampleCharts.landingViews) { state.sampleCharts.landingViews.destroy(); state.sampleCharts.landingViews = null; }
   const ctx = document.getElementById('owner-landing-chart');
   if (ctx) {
     state.sampleCharts.landingViews = new Chart(ctx, {
       type: 'line',
       data: {
         labels,
-        datasets: [{
-          label: 'Page Views',
-          data: viewData,
-          borderColor: '#8B5CF6',
-          backgroundColor: 'rgba(139,92,246,0.1)',
-          tension: 0.45,
-          fill: true,
-          pointRadius: 0,
-          borderWidth: 2,
-        }]
+        datasets: [
+          {
+            label: 'Visitors',
+            data: visitorsData,
+            borderColor: '#8B5CF6',
+            backgroundColor: 'rgba(139,92,246,0.1)',
+            tension: 0.45,
+            fill: true,
+            pointRadius: 0,
+            borderWidth: 2,
+          },
+          {
+            label: 'Ad Clicks',
+            data: clicksData,
+            borderColor: '#F59E0B',
+            backgroundColor: 'rgba(245,158,11,0.05)',
+            tension: 0.45,
+            fill: false,
+            pointRadius: 0,
+            borderWidth: 2,
+          },
+        ],
       },
       options: {
         responsive: true,
-        plugins: { legend: { display: false } },
+        plugins: { legend: { display: true, position: 'top', labels: { color: 'rgba(255,255,255,0.7)' } } },
         scales: {
           x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.4)', maxTicksLimit: 8 } },
-          y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.4)' }, beginAtZero: false, suggestedMin: 8 }
+          y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.4)' }, beginAtZero: true }
         }
       }
     });

@@ -5820,6 +5820,154 @@ app.get('/api/portal/campaign-status', requireAuth, async (req, res) => {
   res.json({ campaign_status, launched_at, meta_setup_pending, meta_campaign_id, gymId: activeGymId });
 });
 
+// ─── /api/portal/landing-intel helpers ───────────────────────────────────────
+// Pulls 30-day campaign insights from the Meta Graph API for a single campaign.
+// Returns { totals: {...}, daily: { 'YYYY-MM-DD': {...} } }. Throws on failure.
+async function fetchMetaInsightsForCampaign(campaignId, locMeta) {
+  if (!locMeta || !locMeta.accessToken) throw new Error('Meta credentials missing');
+
+  const [totalsResp, dailyResp] = await Promise.all([
+    metaApiCall(`${campaignId}/insights`, 'GET', {
+      date_preset: 'last_30d',
+      fields: 'impressions,clicks,spend,ctr,reach,frequency,cost_per_unique_click,actions',
+    }, 3, locMeta.accessToken),
+    metaApiCall(`${campaignId}/insights`, 'GET', {
+      date_preset: 'last_30d',
+      time_increment: 1,
+      fields: 'date_start,impressions,clicks,spend',
+    }, 3, locMeta.accessToken),
+  ]);
+
+  const totalsRow = (totalsResp && totalsResp.data && totalsResp.data[0]) || null;
+  const totals = totalsRow ? {
+    impressions: parseInt(totalsRow.impressions || 0, 10),
+    clicks:      parseInt(totalsRow.clicks      || 0, 10),
+    spend:       parseFloat(totalsRow.spend     || 0),
+    ctr:         parseFloat(totalsRow.ctr       || 0),
+    reach:       parseInt(totalsRow.reach       || 0, 10),
+    frequency:   parseFloat(totalsRow.frequency || 0),
+    leads:       (totalsRow.actions || [])
+      .filter(a => a.action_type === 'lead' || a.action_type === 'offsite_conversion.fb_pixel_lead')
+      .reduce((s, a) => s + parseInt(a.value || 0, 10), 0),
+  } : { impressions: 0, clicks: 0, spend: 0, ctr: 0, reach: 0, frequency: 0, leads: 0 };
+
+  const daily = {};
+  for (const row of (dailyResp && dailyResp.data) || []) {
+    daily[row.date_start] = {
+      impressions: parseInt(row.impressions || 0, 10),
+      clicks:      parseInt(row.clicks      || 0, 10),
+      spend:       parseFloat(row.spend     || 0),
+    };
+  }
+  return { totals, daily };
+}
+
+// Reads attribution session files for a gym and aggregates last-N-day stats.
+// Visits = sessions with redirect_type === 'landing'. ctaClicks = sessions that
+// matched a GHL lead (the closest proxy in the current schema — bridge-page CTA
+// clicks themselves aren't persisted to R2 yet, only to dataLayer/GTM).
+async function fetchAttributionStats(locationId, days) {
+  const keys = await r2List(locationId, 'attribution/sessions/');
+  const cutoff = new Date(Date.now() - days * 86400000);
+  const prefix = locationId + '/';
+  const sessionKeys = (keys || []).filter(k => !k.includes('fbclid_'));
+
+  const sessions = await Promise.all(sessionKeys.map(k => {
+    const rel = k.startsWith(prefix) ? k.slice(prefix.length) : k;
+    return r2Get(locationId, rel);
+  }));
+
+  let visitors = 0, ctaClicks = 0;
+  const perDay = {};
+  for (const s of sessions) {
+    if (!s || typeof s !== 'object') continue;
+    const at = s.clicked_at ? new Date(s.clicked_at) : null;
+    if (!at || isNaN(at.getTime()) || at < cutoff) continue;
+    const dayKey = at.toISOString().split('T')[0];
+    if (s.redirect_type === 'landing') {
+      visitors++;
+      perDay[dayKey] = (perDay[dayKey] || 0) + 1;
+    }
+    if (s.status === 'matched' || s.matched_at) ctaClicks++;
+  }
+  return { visitors, ctaClicks, perDay };
+}
+
+// GET /api/portal/landing-intel — owner-scoped Landing Page Intelligence feed.
+// Sources: Meta Ads insights for ad metrics + R2 attribution sessions for visits.
+// Returns { noData: true } when the owner has no live campaign yet so the
+// portal can render a "Campaign launching" empty state.
+app.get('/api/portal/landing-intel', requireAuth, async (req, res) => {
+  const { activeGymId, userId } = req.user;
+  if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+
+  const user = users.find(u => u.id === userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const locRecord = (user.locations || []).find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  const meta_campaign_id = (typeof locRecord === 'object' ? locRecord?.meta_campaign_id : null) || null;
+  if (!meta_campaign_id) return res.json({ noData: true });
+
+  const locMeta = await getEffectiveMetaCreds(activeGymId);
+
+  const [metaResult, attrResult] = await Promise.allSettled([
+    fetchMetaInsightsForCampaign(meta_campaign_id, locMeta),
+    fetchAttributionStats(activeGymId, 30),
+  ]);
+
+  const meta = metaResult.status === 'fulfilled' ? metaResult.value : null;
+  const attr = attrResult.status === 'fulfilled' ? attrResult.value : { visitors: 0, ctaClicks: 0, perDay: {} };
+
+  if (metaResult.status === 'rejected') {
+    console.error(`[landing-intel] meta fetch failed gymId=${activeGymId}: ${metaResult.reason && metaResult.reason.message}`);
+  }
+  if (attrResult.status === 'rejected') {
+    console.error(`[landing-intel] attribution fetch failed gymId=${activeGymId}: ${attrResult.reason && attrResult.reason.message}`);
+  }
+
+  const t = (meta && meta.totals) || { impressions: 0, clicks: 0, spend: 0, ctr: 0, reach: 0, leads: 0 };
+  const costPerLead = t.leads > 0 ? (t.spend / t.leads) : 0;
+  const conversionRate = attr.visitors > 0 ? ((attr.ctaClicks / attr.visitors) * 100) : 0;
+
+  // 30-day chart, oldest → newest, padded so every day exists even with no data.
+  const chart = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - i);
+    const key = d.toISOString().split('T')[0];
+    const daily = (meta && meta.daily[key]) || { clicks: 0, spend: 0 };
+    chart.push({
+      date:     key,
+      visitors: attr.perDay[key] || 0,
+      clicks:   daily.clicks    || 0,
+      spend:    daily.spend     || 0,
+    });
+  }
+
+  res.json({
+    metrics: {
+      visitors:       attr.visitors,
+      ctaClicks:      attr.ctaClicks,
+      conversionRate: conversionRate.toFixed(1) + '%',
+      adSpend:        '$' + t.spend.toFixed(2),
+      impressions:    t.impressions,
+      clicks:         t.clicks,
+      ctr:            t.ctr.toFixed(2) + '%',
+      reach:          t.reach,
+      leads:          t.leads,
+      costPerLead:    '$' + costPerLead.toFixed(2),
+    },
+    chart,
+    source: {
+      meta:        meta !== null,
+      attribution: attrResult.status === 'fulfilled',
+    },
+  });
+});
+
 // Creates the full Meta campaign (campaign → 2 ad sets → 2 creatives → 2 ads)
 // and persists the result to intelligence-db/paid/active-campaign.json in R2.
 // Throws on any Meta API failure. Used by POST /api/portal/launch-ads — the
