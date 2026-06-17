@@ -754,6 +754,29 @@ app.get('/privacy', (req, res) => {
 </html>`);
 });
 
+// POST /api/attribution/bridge-view — bridge page beacon: a visitor loaded the page.
+// Public (no auth). Defined here so it sits BEFORE the blanket auth middleware
+// below — keepalive beacons from the bridge page run unauthenticated.
+app.post('/api/attribution/bridge-view', async (req, res) => {
+  const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  const locationId = String(body.locationId || '').trim();
+  if (!locationId) return res.status(400).json({ error: 'locationId required' });
+  appendBridgeEvent(locationId, 'view', body)
+    .catch(err => console.error(`[bridge-view] append failed gymId=${locationId}: ${err.message}`));
+  res.status(204).end();
+});
+
+// POST /api/attribution/bridge-cta — bridge page beacon: visitor clicked a CTA.
+// Public (no auth). Same reason as bridge-view — must precede the auth middleware.
+app.post('/api/attribution/bridge-cta', async (req, res) => {
+  const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  const locationId = String(body.locationId || '').trim();
+  if (!locationId) return res.status(400).json({ error: 'locationId required' });
+  appendBridgeEvent(locationId, 'cta', body)
+    .catch(err => console.error(`[bridge-cta] append failed gymId=${locationId}: ${err.message}`));
+  res.status(204).end();
+});
+
 // ── Blanket API auth — public exceptions listed explicitly ─────────────────
 const AHRI_PUBLIC_API = [
   '/api/auth/validate',
@@ -5898,28 +5921,6 @@ async function appendBridgeEvent(locationId, type, body) {
   arr.push(Object.assign({ type }, body, { timestamp: new Date().toISOString() }));
   await r2Put(locationId, key, arr);
 }
-
-// POST /api/attribution/bridge-view — bridge page beacon: a visitor loaded the page.
-// Public (no auth). Fire-and-forget: returns 204 immediately while the R2 write runs.
-app.post('/api/attribution/bridge-view', async (req, res) => {
-  const body = (req.body && typeof req.body === 'object') ? req.body : {};
-  const locationId = String(body.locationId || '').trim();
-  if (!locationId) return res.status(400).json({ error: 'locationId required' });
-  appendBridgeEvent(locationId, 'view', body)
-    .catch(err => console.error(`[bridge-view] append failed gymId=${locationId}: ${err.message}`));
-  res.status(204).end();
-});
-
-// POST /api/attribution/bridge-cta — bridge page beacon: visitor clicked a CTA.
-// Public (no auth). Fire-and-forget.
-app.post('/api/attribution/bridge-cta', async (req, res) => {
-  const body = (req.body && typeof req.body === 'object') ? req.body : {};
-  const locationId = String(body.locationId || '').trim();
-  if (!locationId) return res.status(400).json({ error: 'locationId required' });
-  appendBridgeEvent(locationId, 'cta', body)
-    .catch(err => console.error(`[bridge-cta] append failed gymId=${locationId}: ${err.message}`));
-  res.status(204).end();
-});
 
 // GET /api/portal/landing-intel — owner-scoped Landing Page Intelligence feed.
 // Sources: Meta Ads insights for ad metrics + R2 attribution sessions for visits.
