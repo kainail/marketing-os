@@ -13,6 +13,7 @@ const { Resend } = require('resend');
 const { createGymFolderStructure, listDriveFolder, scoreAndSelectPhotos, getDriveClient, SHARED_DRIVE_ID } = require('./services/googleDrive');
 const { generateOnboardingCreative, generateContentSchedule } = require('./services/creativeGenerator');
 const { generateAdCreatives } = require('./services/adCreatives');
+const { resolveLatLng } = require('./lib/geoResolver');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -1979,7 +1980,19 @@ app.post('/api/meta/create-campaign', async (req, res) => {
   if (!locMeta?.accessToken || !locMeta?.adAccountId || !locMeta?.pageId) {
     return res.status(503).json({ success: false, error: 'Meta API credentials not configured for this location' });
   }
-  console.log(`[Meta] create-campaign for gymId=${location_id} — source: ${locMeta.source}`);
+
+  // Geo guard — must run BEFORE any Meta-side resource is created. Returning null
+  // here means we'd silently mis-target this gym's budget (the original bug); we
+  // fail loud with 400 instead. No resources are created on Meta.
+  const geo = await getEffectiveGeo(location_id);
+  if (!geo) {
+    return res.status(400).json({
+      success: false,
+      error: 'No geo configured for this gym — refusing to launch to avoid mis-targeting',
+      gymId: location_id,
+    });
+  }
+  console.log(`[Meta] create-campaign for gymId=${location_id} — credSource: ${locMeta.source}, geoSource: ${geo.geoSource}, center: ${geo.lat},${geo.lng}, radius: ${geo.radiusMiles}mi`);
 
   const results = { campaign: null, ad_set_cold: null, ad_set_warm: null, ad_cold: null, ad_warm: null, errors: [] };
 
@@ -2000,7 +2013,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     console.log('[Meta] Creating cold ad set...');
     const coldTargeting = {
       geo_locations: {
-        cities: [{ key: campaignLoc.meta.geoKey, name: campaignLoc.city, region: campaignLoc.meta.geoRegion, country: campaignLoc.meta.geoCountry, radius: 15, distance_unit: 'mile' }]
+        custom_locations: [{ latitude: geo.lat, longitude: geo.lng, radius: geo.radiusMiles, distance_unit: 'mile' }]
       },
       age_min: 30,
       age_max: 55,
@@ -2030,7 +2043,7 @@ app.post('/api/meta/create-campaign', async (req, res) => {
     console.log('[Meta] Creating warm ad set...');
     const warmTargeting = {
       geo_locations: {
-        cities: [{ key: campaignLoc.meta.geoKey, name: campaignLoc.city, region: campaignLoc.meta.geoRegion, country: campaignLoc.meta.geoCountry, radius: 15, distance_unit: 'mile' }]
+        custom_locations: [{ latitude: geo.lat, longitude: geo.lng, radius: geo.radiusMiles, distance_unit: 'mile' }]
       },
       age_min: 30,
       age_max: 55,
@@ -5746,6 +5759,32 @@ async function provisionLandingPage(session, sessionId) {
   // Use sessionId as locationId so Meta ad URLs (?location=<sessionId>) hit this entry on the landing server.
   const locationId = sessionId;
 
+  // Persist geo to R2 so getEffectiveGeo can serve it at campaign-create time.
+  // Best-effort: if the zip + city/state both fail to resolve, lat/lng stay null
+  // and getEffectiveGeo will return null — create-campaign will 400, which is the
+  // intended fail-loud behavior (no silent fallback to Bloomington for other gyms).
+  try {
+    const resolved = resolveLatLng({ zip: session.zip, city: session.city, state: session.state });
+    const geoDoc = {
+      city:        session.city  || null,
+      state:       session.state || null,
+      zip:         session.zip   || null,
+      lat:         resolved ? resolved.lat : null,
+      lng:         resolved ? resolved.lng : null,
+      radiusMiles: 15,
+      resolvedAt:  new Date().toISOString(),
+      resolver:    resolved ? resolved.resolver : 'unresolved',
+    };
+    await r2PutShared(`gyms/${locationId}/location.json`, geoDoc);
+    if (resolved) {
+      console.log(`[provision] geo persisted — gymId: ${locationId} via ${resolved.resolver} (${resolved.resolvedFrom}) → ${resolved.lat},${resolved.lng}`);
+    } else {
+      console.warn(`[provision] geo unresolved — gymId: ${locationId} (zip=${session.zip || '-'}, city=${session.city || '-'}, state=${session.state || '-'}). create-campaign will 400 until this is fixed.`);
+    }
+  } catch (geoErr) {
+    console.error(`[provision] geo write failed — gymId: ${locationId}: ${geoErr.message}`);
+  }
+
   const payload = {
     locationId,
     gymName: session.gymName || '',
@@ -5819,6 +5858,46 @@ async function getEffectiveMetaCreds(gymId) {
   const envMeta = getLocationMeta(gymId);
   if (envMeta && envMeta.accessToken && envMeta.adAccountId && envMeta.pageId && envMeta.pixelId) {
     return { ...envMeta, source: 'env' };
+  }
+  return null;
+}
+
+// Bloomington's gymId UUID — the ONLY id for which getEffectiveGeo falls back
+// to a hardcoded geo. Every other missing gym returns null so create-campaign
+// 400s instead of silently mis-targeting Indiana with the wrong gym's budget.
+const BLOOMINGTON_GYM_ID = '569ec09b-4bce-4907-8333-8d7cfe4d0232';
+const BLOOMINGTON_STATIC_GEO = Object.freeze({
+  city: 'Bloomington',
+  state: 'IN',
+  zip: '47401',
+  lat: 39.1653,
+  lng: -86.5264,
+  radiusMiles: 15,
+});
+
+// Resolves a gym's geo for Meta custom-location targeting. Mirrors the shape
+// and failure semantics of getEffectiveMetaCreds — r2GetShared first, return
+// null if incomplete. Hardcoded fallback is restricted to BLOOMINGTON_GYM_ID
+// to avoid the prior bug where every unknown gym silently targeted Indiana.
+async function getEffectiveGeo(gymId) {
+  if (gymId) {
+    try {
+      const r2Geo = await r2GetShared(`gyms/${gymId}/location.json`);
+      if (r2Geo && typeof r2Geo.lat === 'number' && typeof r2Geo.lng === 'number') {
+        return {
+          city:        r2Geo.city  || null,
+          state:       r2Geo.state || null,
+          zip:         r2Geo.zip   || null,
+          lat:         r2Geo.lat,
+          lng:         r2Geo.lng,
+          radiusMiles: typeof r2Geo.radiusMiles === 'number' ? r2Geo.radiusMiles : 15,
+          geoSource:   'r2',
+        };
+      }
+    } catch {}
+  }
+  if (gymId === BLOOMINGTON_GYM_ID) {
+    return { ...BLOOMINGTON_STATIC_GEO, geoSource: 'bloomington-fallback' };
   }
   return null;
 }
@@ -6002,7 +6081,13 @@ app.get('/api/portal/landing-intel', requireAuth, async (req, res) => {
 // Throws on any Meta API failure. Used by POST /api/portal/launch-ads — the
 // step sequence mirrors POST /api/meta/create-campaign with defaults baked in
 // so the owner can launch in one click.
-async function runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name, sessionId, cold_daily_budget = 1500, warm_daily_budget = 1000, destination_url, image_url, cold_primary_text, warm_primary_text, cold_headline, warm_headline }) {
+async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_name, sessionId, cold_daily_budget = 1500, warm_daily_budget = 1000, destination_url, image_url, cold_primary_text, warm_primary_text, cold_headline, warm_headline }) {
+  // The caller (/api/portal/launch-ads) is responsible for the upfront geo guard;
+  // assert defensively here so a future caller can't bypass it and silently
+  // mis-target a gym's budget.
+  if (!geo || typeof geo.lat !== 'number' || typeof geo.lng !== 'number') {
+    throw new Error('runMetaCampaignCreation: geo with lat/lng is required');
+  }
   const today = new Date().toISOString().split('T')[0];
   const finalName = campaign_name || `${campaignLoc.gymName || campaignLoc.name} — AHRI Launch — ${today}`;
 
@@ -6035,7 +6120,7 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name, se
 
   const targeting = {
     geo_locations: {
-      cities: [{ key: campaignLoc.meta.geoKey, name: campaignLoc.city, region: campaignLoc.meta.geoRegion, country: campaignLoc.meta.geoCountry, radius: 15, distance_unit: 'mile' }]
+      custom_locations: [{ latitude: geo.lat, longitude: geo.lng, radius: geo.radiusMiles, distance_unit: 'mile' }]
     },
     age_min: 30,
     age_max: 55,
@@ -6166,13 +6251,22 @@ app.post('/api/portal/launch-ads', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Meta credentials not configured' });
   }
 
+  // Geo guard — fail loud BEFORE any Meta resource is created and BEFORE
+  // loc.meta_campaign_id is set. Owner portal button stays on "Launch Ads"
+  // so re-running the flow once geo is configured isn't blocked.
+  const geo = await getEffectiveGeo(activeGymId);
+  if (!geo) {
+    console.warn(`[launch-ads] refusing to launch gymId=${activeGymId} — no geo configured`);
+    return res.status(400).json({ error: 'No geo configured for this gym — refusing to launch to avoid mis-targeting' });
+  }
+
   const campaignLoc = locationConfig.getLocation(activeGymId) || locationConfig.getLocation('bloomington');
   const gymName = loc.gymName || campaignLoc?.gymName || 'Your Gym';
   const today = new Date().toISOString().split('T')[0];
   const campaign_name = `${gymName} — AHRI Launch — ${today}`;
 
   try {
-    const result = await runMetaCampaignCreation({ campaignLoc, locMeta, campaign_name, sessionId: loc.sessionId || activeGymId });
+    const result = await runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_name, sessionId: loc.sessionId || activeGymId });
     loc.meta_campaign_id = result.campaign_id;
     await saveUsers(users);
     console.log(`[launch-ads] success — gymId=${activeGymId} campaignId=${result.campaign_id}`);

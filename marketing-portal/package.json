@@ -22,7 +22,8 @@
     "node-cron": "^4.2.1",
     "resend": "^6.12.2",
     "sharp": "^0.34.5",
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.0",
+    "zipcodes": "^8.0.0"
   },
   "engines": {
     "node": "18.x"
