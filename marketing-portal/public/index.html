@@ -4220,6 +4220,11 @@ const adStudio = {
   image: null,        // { type, temperature, url, status }
   body: '',           // editable body copy
   bodyDirty: false,   // user edited body — don't auto-reset on temp change
+  draftOffer: null,   // current AHRI-generated offer draft (browser-only, never persisted)
+  chat: {
+    messages: [],     // [{ role: 'user'|'assistant', content: string }]
+    pending: false,   // request in flight
+  },
 };
 
 const TEMP_LABEL = { cold: 'Cold', warm: 'Warm', offer: 'Offer' };
@@ -4256,11 +4261,13 @@ async function loadAdStudio() {
   renderAdStudio();
 }
 
-// Compose a sensible body pre-fill from the confirmed offer. Returns a
-// non-empty string even when the offer is missing — the UI flag drives the
-// "No offer generated yet." surface.
+// Compose a sensible body pre-fill from the confirmed offer. The chat draft
+// offer (browser-only, never persisted) wins over the saved confirmed offer
+// when present — that's how the owner sees their AHRI conversation reflected
+// in the live preview. Returns a non-empty string even when no offer is
+// available — the UI flag drives the "No offer generated yet." surface.
 function composeDefaultBody(data) {
-  const offer = data && data.offer;
+  const offer = (adStudio && adStudio.draftOffer) || (data && data.offer);
   if (!offer) return '';
   const lines = [];
   if (offer.title) lines.push(offer.title + '.');
@@ -4457,11 +4464,47 @@ function renderAdStudio() {
       .launch-stub { padding:16px 20px; background:rgba(255,255,255,0.02); border:1px dashed var(--border); border-radius:10px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
       .launch-stub-text { font-size:13px; color:var(--text-secondary); }
       .launch-stub-btn { background:rgba(124,58,237,0.2); color:rgba(255,255,255,0.5); border:1px solid rgba(124,58,237,0.2); border-radius:8px; padding:10px 18px; font-family:inherit; font-size:13px; font-weight:600; cursor:not-allowed; }
+      .offer-grid { display:grid; grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap:20px; align-items:start; margin-bottom:20px; }
+      @media(max-width:1100px){ .offer-grid { grid-template-columns: 1fr; } }
+      .chat-log { display:flex; flex-direction:column; gap:10px; max-height:340px; overflow-y:auto; padding:4px; }
+      .chat-msg { padding:10px 13px; border-radius:10px; font-size:13px; line-height:1.5; white-space:pre-wrap; max-width:92%; }
+      .chat-msg.user { background:rgba(124,58,237,0.14); border:1px solid rgba(124,58,237,0.35); align-self:flex-end; }
+      .chat-msg.ahri { background:rgba(255,255,255,0.04); border:1px solid var(--border); align-self:flex-start; }
+      .chat-msg.empty { color:var(--text-muted); font-style:italic; align-self:flex-start; }
+      .chat-input-row { display:flex; gap:8px; margin-top:12px; }
+      .chat-input { flex:1; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:9px 12px; color:var(--text-primary); font-family:inherit; font-size:13px; outline:none; box-sizing:border-box; }
+      .chat-input:focus { border-color:var(--purple); }
+      .chat-send { background:var(--purple); color:#fff; border:none; border-radius:8px; padding:9px 16px; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+      .chat-send:disabled { background:rgba(124,58,237,0.35); cursor:wait; }
+      .draft-field { padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+      .draft-field:last-child { border-bottom:none; }
+      .draft-label { font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted); margin-bottom:3px; }
+      .draft-value { font-size:13px; color:var(--text-primary); line-height:1.4; word-break:break-word; }
+      .draft-empty { font-size:13px; color:var(--text-muted); padding:20px 4px; text-align:center; font-style:italic; }
+      .draft-flag { font-size:12px; color:var(--gold); margin-top:8px; padding:8px 10px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:6px; }
     </style>
 
     <div style="margin-bottom:18px">
       <div class="section-title" style="margin-bottom:4px">AD STUDIO</div>
       <div class="text-muted" style="font-size:12px">Build the ad step by step. The preview on the right updates live as you go.</div>
+    </div>
+
+    <div class="offer-grid">
+      <div class="as-card">
+        <div class="as-card-label">Offer — talk to AHRI</div>
+        <div id="ad-studio-chat-log" class="chat-log"></div>
+        <div class="chat-input-row">
+          <input id="ad-studio-chat-input" class="chat-input" type="text" autocomplete="off"
+                 placeholder="Tell AHRI what offer you want to build…"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();sendOfferMessage();}">
+          <button id="ad-studio-chat-send" class="chat-send" type="button" onclick="sendOfferMessage()">Send</button>
+        </div>
+        <div class="text-muted" style="font-size:11px;margin-top:8px">Draft only — nothing saves until launch.</div>
+      </div>
+      <div class="as-card">
+        <div class="as-card-label">Current offer draft</div>
+        <div id="ad-studio-offer-draft"></div>
+      </div>
     </div>
 
     <div class="as-grid">
@@ -4524,6 +4567,8 @@ function renderAdStudio() {
   renderBodyEditor(meta);
   renderPreview();
   updateAdStudioDoneStates();
+  renderOfferChatLog();
+  renderOfferDraft();
 }
 
 function renderHooks() {
@@ -4689,6 +4734,133 @@ function renderPreview() {
       </div>
     </div>
   `;
+}
+
+// ── Offer chat (owner ⇄ AHRI) ────────────────────────────────────────────
+// Posts the full message history to /api/portal/offer-chat each turn. The
+// endpoint is stateless and writes nothing — the draft offer lives in
+// adStudio.draftOffer until reload, exactly like the rest of this builder.
+async function sendOfferMessage() {
+  const input = document.getElementById('ad-studio-chat-input');
+  if (!input) return;
+  const text = (input.value || '').trim();
+  if (!text || adStudio.chat.pending) return;
+
+  adStudio.chat.messages.push({ role: 'user', content: text });
+  input.value = '';
+  adStudio.chat.pending = true;
+  renderOfferChatLog();
+  setChatSendDisabled(true);
+
+  try {
+    const data = await apiPost('/api/portal/offer-chat', { messages: adStudio.chat.messages });
+    if (!data) {
+      adStudio.chat.messages.push({ role: 'assistant', content: "AHRI couldn't respond right now. Try again in a moment." });
+    } else {
+      const reply = (data && typeof data.message === 'string' && data.message.trim())
+        ? data.message
+        : "(AHRI returned an empty reply — try rephrasing.)";
+      adStudio.chat.messages.push({ role: 'assistant', content: reply });
+      if (data.offer) {
+        adStudio.draftOffer = data.offer;
+        // If the owner hasn't manually edited the body, re-pre-fill from the
+        // new draft so the live preview reflects the conversation.
+        if (!adStudio.bodyDirty) {
+          adStudio.body = composeDefaultBody(adStudio.data);
+          const ta = document.getElementById('ad-studio-body');
+          if (ta) ta.value = adStudio.body;
+          renderPreview();
+        }
+      }
+    }
+  } catch (err) {
+    adStudio.chat.messages.push({ role: 'assistant', content: "Something went wrong reaching AHRI." });
+  } finally {
+    adStudio.chat.pending = false;
+    setChatSendDisabled(false);
+    renderOfferChatLog();
+    renderOfferDraft();
+  }
+}
+window.sendOfferMessage = sendOfferMessage;
+
+function setChatSendDisabled(disabled) {
+  const btn = document.getElementById('ad-studio-chat-send');
+  if (btn) {
+    btn.disabled = !!disabled;
+    btn.textContent = disabled ? 'Thinking…' : 'Send';
+  }
+}
+
+function renderOfferChatLog() {
+  const wrap = document.getElementById('ad-studio-chat-log');
+  if (!wrap) return;
+  const msgs = adStudio.chat.messages;
+  if (msgs.length === 0) {
+    wrap.innerHTML = `<div class="chat-msg empty">Tell AHRI what you want — e.g. "Build me a 21-day offer that beats the $10/month gyms in my city."</div>`;
+    return;
+  }
+  wrap.innerHTML = msgs.map(m => {
+    const cls = m.role === 'user' ? 'user' : 'ahri';
+    return `<div class="chat-msg ${cls}">${esc(m.content)}</div>`;
+  }).join('');
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function renderOfferDraft() {
+  const wrap = document.getElementById('ad-studio-offer-draft');
+  if (!wrap) return;
+  // Prefer chat draft; fall back to the saved confirmed offer so the owner
+  // sees what they already have before they start the conversation.
+  const draft = adStudio.draftOffer || (adStudio.data && adStudio.data.offer);
+  if (!draft) {
+    wrap.innerHTML = `<div class="draft-empty">No offer yet. Start the conversation on the left.</div>`;
+    return;
+  }
+  const fields = [
+    ['Title', draft.title],
+    ['Duration', draft.duration],
+    ['Price', draft.price],
+    ['Included', draft.included],
+    ['Guarantee', draft.guarantee],
+    ['Differentiator', draft.differentiator],
+    ['Score dimension', draft.scoreDimension],
+    ['Score', (draft.scoreFrom || draft.scoreFrom === 0) ? `${draft.scoreFrom} → ${draft.scoreTo}` : ''],
+    ['Why this fits', draft.explanation],
+    ['AHRI take', draft.ackIfSelected],
+  ];
+  let html = fields
+    .filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '')
+    .map(([label, v]) => `
+      <div class="draft-field">
+        <div class="draft-label">${esc(label)}</div>
+        <div class="draft-value">${esc(String(v))}</div>
+      </div>`)
+    .join('');
+
+  if (Array.isArray(draft.valueStack) && draft.valueStack.length) {
+    const stackLines = draft.valueStack.map(s => {
+      const comp = (s && s.component) ? esc(s.component) : '';
+      const desc = (s && s.description) ? ' — ' + esc(s.description) : '';
+      const val  = (s && (s.value || s.value === 0)) ? ` ($${esc(String(s.value))})` : '';
+      return `<div style="font-size:12px;margin:2px 0">• ${comp}${desc}${val}</div>`;
+    }).join('');
+    html += `
+      <div class="draft-field">
+        <div class="draft-label">Value stack</div>
+        <div class="draft-value">${stackLines}</div>
+      </div>`;
+  }
+
+  if (Array.isArray(draft.complianceFlags) && draft.complianceFlags.length) {
+    html += `<div class="draft-flag">⚠ ${draft.complianceFlags.map(f => esc(String(f))).join(' · ')}</div>`;
+  }
+
+  if (adStudio.draftOffer) {
+    html += `<div class="text-muted" style="font-size:11px;margin-top:10px">Browser draft only — pre-fills the body copy below.</div>`;
+  }
+
+  wrap.innerHTML = html;
 }
 
 // ── Creative (owner) ─────────────────────────────────────────────────────────
