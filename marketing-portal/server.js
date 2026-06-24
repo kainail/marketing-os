@@ -6425,6 +6425,41 @@ If the context shows a missing file ("no avatar on file…"), say so naturally i
 
 Reply with the JSON object now.`;
 
+// Generate-mode contract — replaces the single-offer instruction when the
+// owner clicks "Generate offers for me". Asks for TWO genuinely divergent
+// offers built on the A/B angles from SKILL.md (dream-outcome vs risk-removal).
+// Same 11+optional shape per offer, but returned in an `offers` array.
+const OFFER_GENERATE_INSTRUCTION = `
+
+# Output contract — STRICT — GENERATE TWO OFFERS
+
+The owner has asked for offer OPTIONS. Produce TWO complete, genuinely DIFFERENT offers — NOT two reworded versions of the same offer. They must reflect the A/B angles defined in this skill:
+
+- Variant A — Dream Outcome Angle: Lead with the result the avatar most wants. The whole offer frame is oriented around the positive destination — who they become, what they feel, what changes in their life. Title, included bundle, explanation, and ackIfSelected all speak to "what is the best possible version of what I can get?"
+- Variant B — Risk-Removal Angle: Lead with eliminating the biggest fear or barrier. The whole offer frame is oriented around making it safe to say yes — reducing perceived risk, removing effort, eliminating the fear of failing again. Title, guarantee, included items, and explanation all speak to "what if I try this and it doesn't work?"
+
+The two offers MUST differ meaningfully in at least THREE of: title framing, guarantee text, included bundle, price or duration, differentiator, explanation lead. If you cannot make them meaningfully different given the context, do NOT return offers — instead return { "message": "<ask the owner for the missing context>", "offer": null } using the single-offer contract.
+
+Reply with a SINGLE JSON object and NOTHING ELSE. No markdown fences. No prose outside the JSON.
+
+Shape:
+{
+  "message": "<short conversational reply naming the two angles and inviting the owner to pick. Don't dump the full offer content — the cards render the structured fields.>",
+  "offers": [
+    { ... Variant A — same 11 required fields as the single-offer shape, plus optional rich fields ... },
+    { ... Variant B — same shape ... }
+  ]
+}
+
+Each offer object MUST contain these 11 fields (use empty string only if truly unknown):
+- title, scoreDimension, scoreFrom, scoreTo, duration, price, included, guarantee, differentiator, explanation, ackIfSelected
+
+Each MAY ALSO contain the optional fields: valueStack, valueEquation, guaranteeOptions, cialdiniAudit, complianceFlags.
+
+In each offer's "explanation", LEAD with the variant label so the cards make the angle obvious — e.g. "Dream-outcome lead: …" for Variant A and "Risk-removal lead: …" for Variant B.
+
+Return the array in the order [Variant A, Variant B]. Reply with the JSON object now.`;
+
 app.post('/api/portal/offer-chat', requireAuth, async (req, res) => {
   const { activeGymId, userId } = req.user;
   if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
@@ -6441,6 +6476,15 @@ app.post('/api/portal/offer-chat', requireAuth, async (req, res) => {
   if (safeMessages.length === 0) {
     return res.status(400).json({ error: 'messages[] had no usable entries' });
   }
+
+  // Optional new fields:
+  // - mode: 'generate' triggers the two-offer A/B output contract.
+  // - draftOffer: the browser-state offer the owner is currently refining.
+  //   Injected into the system prompt as "## Current draft offer" so AHRI
+  //   knows what to refine across turns without needing it inlined in chat.
+  const generateMode = req.body && req.body.mode === 'generate';
+  const incomingDraft = (req.body && typeof req.body.draftOffer === 'object') ? req.body.draftOffer : null;
+  const draftForContext = generateMode ? null : normalizeOffer(incomingDraft);
 
   // Resolve sessionKey from the AUTHED owner's own location record — never
   // from a module-scope global. This mirrors /api/portal/ad-assets.
@@ -6476,14 +6520,26 @@ app.post('/api/portal/offer-chat', requireAuth, async (req, res) => {
     gymContext = '(context assembly failed — proceed with knowledge-base defaults only)';
   }
 
-  const systemPrompt = `${skillBody}\n\n# Gym Context\n${gymContext}${OFFER_OUTPUT_INSTRUCTION}`;
+  // Inject the active draft offer (if any) so refinement turns operate on
+  // the offer the owner picked, even across page-state-only sessions.
+  const draftBlock = draftForContext
+    ? `\n\n## Current draft offer (browser-state — the one the owner is refining right now)\n${JSON.stringify(draftForContext, null, 2)}`
+    : '';
+
+  // Pick the output contract. Generate mode requests two A/B offers;
+  // everything else stays on the single-offer contract.
+  const outputInstruction = generateMode ? OFFER_GENERATE_INSTRUCTION : OFFER_OUTPUT_INSTRUCTION;
+
+  const systemPrompt = `${skillBody}\n\n# Gym Context\n${gymContext}${draftBlock}${outputInstruction}`;
 
   try {
     const Anthropic = require('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
+      // Two complete offers is roughly double the single-offer payload;
+      // bump the cap so generate-mode replies don't get truncated.
+      max_tokens: generateMode ? 4096 : 2048,
       system: systemPrompt,
       messages: safeMessages,
     });
@@ -6501,9 +6557,24 @@ app.post('/api/portal/offer-chat', requireAuth, async (req, res) => {
     }
 
     const message = typeof parsed.message === 'string' ? parsed.message : (typeof parsed.reply === 'string' ? parsed.reply : '');
-    const offer = normalizeOffer(parsed.offer);
+
+    // Response shape resolution — `offer` and `offers` are mutually exclusive.
+    // Priority: a valid offers[] (2+) wins for generate mode; otherwise a
+    // single offer; otherwise message-only. A degraded generate turn with
+    // only ONE usable offer falls back to the single-offer shape so the UI
+    // still has something to show.
     const out = { message };
-    if (offer) out.offer = offer;
+    if (Array.isArray(parsed.offers)) {
+      const normalizedList = parsed.offers.map(normalizeOffer).filter(Boolean);
+      if (normalizedList.length >= 2) {
+        out.offers = normalizedList.slice(0, 2);
+      } else if (normalizedList.length === 1) {
+        out.offer = normalizedList[0];
+      }
+    } else {
+      const offer = normalizeOffer(parsed.offer);
+      if (offer) out.offer = offer;
+    }
     return res.json(out);
   } catch (err) {
     console.error('[offer-chat] anthropic call failed:', err.message);
