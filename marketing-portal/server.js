@@ -6226,6 +6226,363 @@ app.get('/api/portal/ad-assets', requireAuth, async (req, res) => {
   });
 });
 
+// ─── /api/portal/offer-chat — owner ⇄ AHRI offer construction ──────────────
+// Stateless chat turn. Loads the offer-machine skill from R2 (with repo-root
+// disk fallback), assembles whatever per-gym context exists, calls Anthropic,
+// and returns { message, offer? }. ZERO writes — drafts live in the browser
+// until the launch session adds explicit save.
+//
+// Skill load is cached in-process after first read; per-gym context is read
+// fresh every turn (small files, owner edits should reflect immediately).
+let _offerSkillCache = null;
+const OFFER_SKILL_R2_KEY = 'skills/offer-machine.md';
+const OFFER_SKILL_DISK_PATHS = [
+  // Deployed: marketing-portal copy (if a build step or script seeds it here).
+  path.join(__dirname, 'skills', 'offer-machine', 'SKILL.md'),
+  // Local dev: repo-root canonical source.
+  path.join(__dirname, '..', 'skills', 'offer-machine', 'SKILL.md'),
+];
+
+async function loadOfferSkill() {
+  if (_offerSkillCache) return _offerSkillCache;
+  // R2 first — the canonical source once upload-offer-skill.js has been run.
+  try {
+    const r2Body = await r2GetShared(OFFER_SKILL_R2_KEY);
+    if (typeof r2Body === 'string' && r2Body.trim()) {
+      _offerSkillCache = r2Body;
+      console.log(`[offer-chat] skill loaded from R2 (${r2Body.length} chars)`);
+      return _offerSkillCache;
+    }
+  } catch (err) {
+    console.warn('[offer-chat] R2 skill read failed, will try disk:', err.message);
+  }
+  // Disk fallback — works before the R2 upload has happened.
+  for (const p of OFFER_SKILL_DISK_PATHS) {
+    try {
+      if (fs.existsSync(p)) {
+        const body = fs.readFileSync(p, 'utf-8');
+        if (body.trim()) {
+          _offerSkillCache = body;
+          console.log(`[offer-chat] skill loaded from disk: ${p} (${body.length} chars)`);
+          return _offerSkillCache;
+        }
+      }
+    } catch (err) {
+      console.warn(`[offer-chat] disk read failed for ${p}:`, err.message);
+    }
+  }
+  return null;
+}
+
+// Assemble a "# Gym Context" block from whatever session files are present.
+// Every read is wrapped — a missing file becomes a one-line "(not on file…)"
+// note so AHRI knows to fall back to the knowledge base instead of hallucinating.
+async function assembleGymContext(sessionKey) {
+  const base = `onboarding/sessions/${sessionKey}/`;
+  const reads = await Promise.allSettled([
+    r2GetShared(`${base}session.json`),
+    r2GetShared(`${base}confirmed-offer.json`),
+    r2GetShared(`${base}knowledge-base/fitness/lifestyle-avatar.md`),
+    r2GetShared(`${base}knowledge-base/fitness/objection-vault.md`),
+    r2GetShared(`${base}knowledge-base/brain-state/current-state.md`),
+    r2GetShared(`${base}prospect-research.json`),
+  ]);
+  const settled = (r) => (r.status === 'fulfilled' ? r.value : null);
+  const [session, confirmedOffer, avatar, objections, brainState, research] = reads.map(settled);
+
+  const parts = [];
+
+  if (session && typeof session === 'object') {
+    const profile = {
+      gymName: session.gymName || null,
+      city: session.city || null,
+      state: session.state || null,
+      currentPricing: session.currentPricing || null,
+      offerSoFar: session.offerSoFar || null,
+    };
+    parts.push(`## Gym profile\n${JSON.stringify(profile, null, 2)}`);
+  } else {
+    parts.push('## Gym profile\n(no gym profile on file — ask the owner for gym name, city, current pricing before proposing an offer)');
+  }
+
+  if (confirmedOffer && typeof confirmedOffer === 'object') {
+    parts.push(`## Current confirmed offer\n${JSON.stringify(confirmedOffer, null, 2)}`);
+  } else {
+    parts.push('## Current confirmed offer\n(no confirmed offer on file — this is a fresh build, not a refinement)');
+  }
+
+  if (typeof avatar === 'string' && avatar.trim()) {
+    parts.push(`## Active avatar\n${avatar.trim()}`);
+  } else {
+    parts.push('## Active avatar\n(no avatar on file — use the knowledge-base lifestyle-member defaults)');
+  }
+
+  if (typeof objections === 'string' && objections.trim()) {
+    parts.push(`## Objection vault\n${objections.trim()}`);
+  } else {
+    parts.push('## Objection vault\n(no objection vault on file — use the knowledge-base defaults)');
+  }
+
+  if (typeof brainState === 'string' && brainState.trim()) {
+    parts.push(`## Brain state\n${brainState.trim()}`);
+  } else {
+    parts.push('## Brain state\n(no brain state on file — assume seasonal default for current month)');
+  }
+
+  if (research && typeof research === 'object') {
+    const slim = {
+      marketGaps: research.marketGaps || null,
+      competitors: Array.isArray(research.competitors)
+        ? research.competitors.slice(0, 5).map(c => ({ name: c.name, adCount: c.adCount, adThemes: c.adThemes }))
+        : null,
+      reviewExcerpts: Array.isArray(research.googleReviews)
+        ? research.googleReviews.slice(0, 3).map(r => (r.text || '').substring(0, 200))
+        : null,
+    };
+    parts.push(`## Prospect research\n${JSON.stringify(slim, null, 2)}`);
+  } else {
+    parts.push('## Prospect research\n(no prospect research on file — proceed without market intel)');
+  }
+
+  return parts.join('\n\n');
+}
+
+// Strip ```json fences AHRI sometimes wraps the JSON in despite instructions.
+function stripJsonFences(text) {
+  return String(text || '')
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+}
+
+// The 11 canonical offer fields + the offer-machine richer fields. Returned
+// object keeps the exact 11 confirmed-offer.json fields first so the Ad Studio
+// composeDefaultBody prefill stays binary-compatible.
+const OFFER_REQUIRED_FIELDS = [
+  'title', 'scoreDimension', 'scoreFrom', 'scoreTo',
+  'duration', 'price', 'included', 'guarantee',
+  'differentiator', 'explanation', 'ackIfSelected',
+];
+const OFFER_OPTIONAL_FIELDS = [
+  'valueStack', 'valueEquation', 'guaranteeOptions', 'cialdiniAudit', 'complianceFlags',
+];
+
+function normalizeOffer(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const out = {};
+  let anyRequiredPresent = false;
+  for (const k of OFFER_REQUIRED_FIELDS) {
+    if (raw[k] !== undefined && raw[k] !== null && raw[k] !== '') {
+      out[k] = raw[k];
+      anyRequiredPresent = true;
+    } else {
+      out[k] = '';
+    }
+  }
+  for (const k of OFFER_OPTIONAL_FIELDS) {
+    if (raw[k] !== undefined && raw[k] !== null) out[k] = raw[k];
+  }
+  // If none of the 11 required fields are present, this isn't a real offer —
+  // treat as a conversational turn that nullified the draft.
+  return anyRequiredPresent ? out : null;
+}
+
+const OFFER_OUTPUT_INSTRUCTION = `
+
+# Output contract — STRICT
+
+Every reply you produce MUST be a single JSON object and NOTHING ELSE. No prose outside the JSON. No markdown code fences around the JSON. No commentary before or after.
+
+Shape:
+{
+  "message": "<your conversational reply to the gym owner — natural English, complete thoughts, no JSON syntax leaking into prose>",
+  "offer": <null OR an object with the fields below>
+}
+
+Set "offer" to null on any turn where you do NOT yet have a complete offer worth saving — for example when you are asking the owner clarifying questions, restating their goals, or proposing a direction.
+
+Set "offer" to an object on any turn where you HAVE produced or refined a complete Grand Slam Offer. The object MUST contain these 11 fields EXACTLY (use empty strings if a field is truly unknown, but prefer to derive a real value from the context):
+- title              : short specific offer name (the "Primary Name" from Step 2)
+- scoreDimension     : the value-equation dimension this offer most improves (e.g. "Perceived Likelihood")
+- scoreFrom          : integer 1–10, prior score on that dimension
+- scoreTo            : integer 1–10, projected score after this offer
+- duration           : trial/program length, plain English (e.g. "21 days", "6 weeks")
+- price              : dollar amount as written (e.g. "$29", "$1 trial then $99/mo")
+- included           : one-line list of what's bundled (the value-stack summary)
+- guarantee          : one sentence — the recommended guarantee, specific and achievable
+- differentiator     : one sentence — what makes THIS gym's offer un-copyable
+- explanation        : one or two sentences — WHY this offer fits this avatar/market right now, referencing real context where possible
+- ackIfSelected      : one sentence AHRI says when the owner picks this offer — must reference something specific from the context (a competitor, a review, a market gap)
+
+The object MAY ALSO contain these richer fields (omit if you don't have them):
+- valueStack          : array of { component: string, description: string, value: number }
+- valueEquation       : { dreamOutcome: number, perceivedLikelihood: number, timeDelay: number, effortSacrifice: number, total: number }
+- guaranteeOptions    : array of { type: "outcome"|"effort", text: string, recommended: boolean }
+- cialdiniAudit       : array of { principle: string, present: boolean, where: string }
+- complianceFlags     : array of strings — any FTC/Meta/TCPA concerns you flagged
+
+If the context shows a missing file ("no avatar on file…"), say so naturally in "message" and fall back to the knowledge-base defaults rather than inventing facts.
+
+Reply with the JSON object now.`;
+
+// Generate-mode contract — replaces the single-offer instruction when the
+// owner clicks "Generate offers for me". Asks for TWO genuinely divergent
+// offers built on the A/B angles from SKILL.md (dream-outcome vs risk-removal).
+// Same 11+optional shape per offer, but returned in an `offers` array.
+const OFFER_GENERATE_INSTRUCTION = `
+
+# Output contract — STRICT — GENERATE TWO OFFERS
+
+The owner has asked for offer OPTIONS. Produce TWO complete, genuinely DIFFERENT offers — NOT two reworded versions of the same offer. They must reflect the A/B angles defined in this skill:
+
+- Variant A — Dream Outcome Angle: Lead with the result the avatar most wants. The whole offer frame is oriented around the positive destination — who they become, what they feel, what changes in their life. Title, included bundle, explanation, and ackIfSelected all speak to "what is the best possible version of what I can get?"
+- Variant B — Risk-Removal Angle: Lead with eliminating the biggest fear or barrier. The whole offer frame is oriented around making it safe to say yes — reducing perceived risk, removing effort, eliminating the fear of failing again. Title, guarantee, included items, and explanation all speak to "what if I try this and it doesn't work?"
+
+The two offers MUST differ meaningfully in at least THREE of: title framing, guarantee text, included bundle, price or duration, differentiator, explanation lead. If you cannot make them meaningfully different given the context, do NOT return offers — instead return { "message": "<ask the owner for the missing context>", "offer": null } using the single-offer contract.
+
+Reply with a SINGLE JSON object and NOTHING ELSE. No markdown fences. No prose outside the JSON.
+
+Shape:
+{
+  "message": "<short conversational reply naming the two angles and inviting the owner to pick. Don't dump the full offer content — the cards render the structured fields.>",
+  "offers": [
+    { ... Variant A — same 11 required fields as the single-offer shape, plus optional rich fields ... },
+    { ... Variant B — same shape ... }
+  ]
+}
+
+Each offer object MUST contain these 11 fields (use empty string only if truly unknown):
+- title, scoreDimension, scoreFrom, scoreTo, duration, price, included, guarantee, differentiator, explanation, ackIfSelected
+
+Each MAY ALSO contain the optional fields: valueStack, valueEquation, guaranteeOptions, cialdiniAudit, complianceFlags.
+
+In each offer's "explanation", LEAD with the variant label so the cards make the angle obvious — e.g. "Dream-outcome lead: …" for Variant A and "Risk-removal lead: …" for Variant B.
+
+Return the array in the order [Variant A, Variant B]. Reply with the JSON object now.`;
+
+app.post('/api/portal/offer-chat', requireAuth, async (req, res) => {
+  const { activeGymId, userId } = req.user;
+  if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+
+  const messages = Array.isArray(req.body && req.body.messages) ? req.body.messages : null;
+  if (!messages || messages.length === 0) {
+    return res.status(400).json({ error: 'messages[] required' });
+  }
+  // Defensive: Anthropic rejects empty content; coerce shape.
+  const safeMessages = messages
+    .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .map(m => ({ role: m.role, content: m.content.trim() }))
+    .filter(m => m.content.length > 0);
+  if (safeMessages.length === 0) {
+    return res.status(400).json({ error: 'messages[] had no usable entries' });
+  }
+
+  // Optional new fields:
+  // - mode: 'generate' triggers the two-offer A/B output contract.
+  // - draftOffer: the browser-state offer the owner is currently refining.
+  //   Injected into the system prompt as "## Current draft offer" so AHRI
+  //   knows what to refine across turns without needing it inlined in chat.
+  const generateMode = req.body && req.body.mode === 'generate';
+  const incomingDraft = (req.body && typeof req.body.draftOffer === 'object') ? req.body.draftOffer : null;
+  const draftForContext = generateMode ? null : normalizeOffer(incomingDraft);
+
+  // Resolve sessionKey from the AUTHED owner's own location record — never
+  // from a module-scope global. This mirrors /api/portal/ad-assets.
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+  const user = users.find(u => u.id === userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const loc = (user.locations || []).find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  if (!loc || typeof loc !== 'object') return res.status(404).json({ error: 'Location not found on this account' });
+  const sessionKey = loc.sessionId || loc.gymId || activeGymId;
+  if (!sessionKey) return res.status(400).json({ error: 'No sessionId linked to this gym' });
+
+  // API key — mirror /api/ahri: per-location override, bloomington fallback.
+  const apiKey = locationConfig.getLocation(activeGymId)?.keys?.anthropicApiKey
+    || locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'No Anthropic API key configured for this gym' });
+  }
+
+  // Skill — REQUIRED. If neither R2 nor disk has it, 500 with a clear message.
+  const skillBody = await loadOfferSkill();
+  if (!skillBody) {
+    console.error('[offer-chat] offer skill not available in R2 or on disk');
+    return res.status(500).json({ error: 'offer skill not available' });
+  }
+
+  // Per-gym context — always assembled, missing files become inline notes.
+  let gymContext;
+  try {
+    gymContext = await assembleGymContext(sessionKey);
+  } catch (err) {
+    console.error('[offer-chat] context assembly failed:', err.message);
+    gymContext = '(context assembly failed — proceed with knowledge-base defaults only)';
+  }
+
+  // Inject the active draft offer (if any) so refinement turns operate on
+  // the offer the owner picked, even across page-state-only sessions.
+  const draftBlock = draftForContext
+    ? `\n\n## Current draft offer (browser-state — the one the owner is refining right now)\n${JSON.stringify(draftForContext, null, 2)}`
+    : '';
+
+  // Pick the output contract. Generate mode requests two A/B offers;
+  // everything else stays on the single-offer contract.
+  const outputInstruction = generateMode ? OFFER_GENERATE_INSTRUCTION : OFFER_OUTPUT_INSTRUCTION;
+
+  const systemPrompt = `${skillBody}\n\n# Gym Context\n${gymContext}${draftBlock}${outputInstruction}`;
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      // Two complete offers is roughly double the single-offer payload;
+      // bump the cap so generate-mode replies don't get truncated.
+      max_tokens: generateMode ? 4096 : 2048,
+      system: systemPrompt,
+      messages: safeMessages,
+    });
+
+    const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
+
+    // Defensive parse: strip fences → JSON.parse → on failure, treat whole
+    // text as the message and null offer. A malformed turn never 500s.
+    let parsed;
+    try {
+      parsed = JSON.parse(stripJsonFences(text));
+    } catch {
+      console.warn('[offer-chat] model returned non-JSON, falling back to raw text');
+      return res.json({ message: text || "I'm having trouble formatting that — could you rephrase?", offer: null });
+    }
+
+    const message = typeof parsed.message === 'string' ? parsed.message : (typeof parsed.reply === 'string' ? parsed.reply : '');
+
+    // Response shape resolution — `offer` and `offers` are mutually exclusive.
+    // Priority: a valid offers[] (2+) wins for generate mode; otherwise a
+    // single offer; otherwise message-only. A degraded generate turn with
+    // only ONE usable offer falls back to the single-offer shape so the UI
+    // still has something to show.
+    const out = { message };
+    if (Array.isArray(parsed.offers)) {
+      const normalizedList = parsed.offers.map(normalizeOffer).filter(Boolean);
+      if (normalizedList.length >= 2) {
+        out.offers = normalizedList.slice(0, 2);
+      } else if (normalizedList.length === 1) {
+        out.offer = normalizedList[0];
+      }
+    } else {
+      const offer = normalizeOffer(parsed.offer);
+      if (offer) out.offer = offer;
+    }
+    return res.json(out);
+  } catch (err) {
+    console.error('[offer-chat] anthropic call failed:', err.message);
+    return res.status(500).json({ error: err.message || 'Offer chat is temporarily unavailable' });
+  }
+});
+
 // Creates the full Meta campaign (campaign → 2 ad sets → 2 creatives → 2 ads)
 // and persists the result to intelligence-db/paid/active-campaign.json in R2.
 // Throws on any Meta API failure. Used by POST /api/portal/launch-ads — the

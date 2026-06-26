@@ -4220,6 +4220,12 @@ const adStudio = {
   image: null,        // { type, temperature, url, status }
   body: '',           // editable body copy
   bodyDirty: false,   // user edited body — don't auto-reset on temp change
+  draftOffer: null,   // current AHRI-generated offer draft (browser-only, never persisted)
+  offerOptions: null, // [offerA, offerB] when a generate turn just returned — cleared on pick
+  chat: {
+    messages: [],     // [{ role: 'user'|'assistant', content: string }]
+    pending: false,   // request in flight
+  },
 };
 
 const TEMP_LABEL = { cold: 'Cold', warm: 'Warm', offer: 'Offer' };
@@ -4256,11 +4262,13 @@ async function loadAdStudio() {
   renderAdStudio();
 }
 
-// Compose a sensible body pre-fill from the confirmed offer. Returns a
-// non-empty string even when the offer is missing — the UI flag drives the
-// "No offer generated yet." surface.
+// Compose a sensible body pre-fill from the confirmed offer. The chat draft
+// offer (browser-only, never persisted) wins over the saved confirmed offer
+// when present — that's how the owner sees their AHRI conversation reflected
+// in the live preview. Returns a non-empty string even when no offer is
+// available — the UI flag drives the "No offer generated yet." surface.
 function composeDefaultBody(data) {
-  const offer = data && data.offer;
+  const offer = (adStudio && adStudio.draftOffer) || (data && data.offer);
   if (!offer) return '';
   const lines = [];
   if (offer.title) lines.push(offer.title + '.');
@@ -4457,11 +4465,65 @@ function renderAdStudio() {
       .launch-stub { padding:16px 20px; background:rgba(255,255,255,0.02); border:1px dashed var(--border); border-radius:10px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
       .launch-stub-text { font-size:13px; color:var(--text-secondary); }
       .launch-stub-btn { background:rgba(124,58,237,0.2); color:rgba(255,255,255,0.5); border:1px solid rgba(124,58,237,0.2); border-radius:8px; padding:10px 18px; font-family:inherit; font-size:13px; font-weight:600; cursor:not-allowed; }
+      .offer-grid { display:grid; grid-template-columns: minmax(0,1.1fr) minmax(0,1fr); gap:20px; align-items:start; margin-bottom:20px; }
+      @media(max-width:1100px){ .offer-grid { grid-template-columns: 1fr; } }
+      .chat-log { display:flex; flex-direction:column; gap:10px; max-height:340px; overflow-y:auto; padding:4px; }
+      .chat-msg { padding:10px 13px; border-radius:10px; font-size:13px; line-height:1.5; white-space:pre-wrap; max-width:92%; }
+      .chat-msg.user { background:rgba(124,58,237,0.14); border:1px solid rgba(124,58,237,0.35); align-self:flex-end; }
+      .chat-msg.ahri { background:rgba(255,255,255,0.04); border:1px solid var(--border); align-self:flex-start; }
+      .chat-msg.empty { color:var(--text-muted); font-style:italic; align-self:flex-start; }
+      .chat-input-row { display:flex; gap:8px; margin-top:12px; }
+      .chat-input { flex:1; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:9px 12px; color:var(--text-primary); font-family:inherit; font-size:13px; outline:none; box-sizing:border-box; }
+      .chat-input:focus { border-color:var(--purple); }
+      .chat-send { background:var(--purple); color:#fff; border:none; border-radius:8px; padding:9px 16px; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+      .chat-send:disabled { background:rgba(124,58,237,0.35); cursor:wait; }
+      .draft-field { padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+      .draft-field:last-child { border-bottom:none; }
+      .draft-label { font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-muted); margin-bottom:3px; }
+      .draft-value { font-size:13px; color:var(--text-primary); line-height:1.4; word-break:break-word; }
+      .draft-empty { font-size:13px; color:var(--text-muted); padding:20px 4px; text-align:center; font-style:italic; }
+      .draft-flag { font-size:12px; color:var(--gold); margin-top:8px; padding:8px 10px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25); border-radius:6px; }
+      .chat-generate-row { margin-top:10px; }
+      .chat-generate-btn { width:100%; background:rgba(124,58,237,0.12); color:var(--text-primary); border:1px solid rgba(124,58,237,0.45); border-radius:8px; padding:9px 12px; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; transition:background .15s, border-color .15s; }
+      .chat-generate-btn:hover:not(:disabled) { background:rgba(124,58,237,0.22); border-color:var(--purple); }
+      .chat-generate-btn:disabled { opacity:.55; cursor:wait; }
+      .option-cards { display:flex; flex-direction:column; gap:12px; }
+      .option-card { border:1px solid var(--border); border-radius:10px; padding:14px; background:rgba(255,255,255,0.025); display:flex; flex-direction:column; gap:8px; }
+      .option-card-angle { font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--purple); }
+      .option-card-title { font-size:15px; font-weight:600; color:var(--text-primary); line-height:1.3; }
+      .option-card-meta { display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:var(--text-muted); }
+      .option-card-meta b { color:var(--text-primary); font-weight:600; }
+      .option-card-line { font-size:12px; color:var(--text-secondary); line-height:1.45; }
+      .option-card-pick { margin-top:4px; background:var(--purple); color:#fff; border:none; border-radius:7px; padding:8px 12px; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; align-self:flex-start; }
+      .option-card-pick:hover { filter:brightness(1.1); }
     </style>
 
     <div style="margin-bottom:18px">
       <div class="section-title" style="margin-bottom:4px">AD STUDIO</div>
       <div class="text-muted" style="font-size:12px">Build the ad step by step. The preview on the right updates live as you go.</div>
+    </div>
+
+    <div class="offer-grid">
+      <div class="as-card">
+        <div class="as-card-label">Offer — talk to AHRI</div>
+        <div id="ad-studio-chat-log" class="chat-log"></div>
+        <div class="chat-input-row">
+          <input id="ad-studio-chat-input" class="chat-input" type="text" autocomplete="off"
+                 placeholder="Tell AHRI what offer you want to build…"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();sendOfferMessage();}">
+          <button id="ad-studio-chat-send" class="chat-send" type="button" onclick="sendOfferMessage()">Send</button>
+        </div>
+        <div class="chat-generate-row">
+          <button id="ad-studio-generate-btn" class="chat-generate-btn" type="button" onclick="generateOfferOptions()">
+            ✦ Generate offers for me
+          </button>
+        </div>
+        <div class="text-muted" style="font-size:11px;margin-top:8px">Draft only — nothing saves until launch.</div>
+      </div>
+      <div class="as-card">
+        <div class="as-card-label">Current offer draft</div>
+        <div id="ad-studio-offer-draft"></div>
+      </div>
     </div>
 
     <div class="as-grid">
@@ -4524,6 +4586,8 @@ function renderAdStudio() {
   renderBodyEditor(meta);
   renderPreview();
   updateAdStudioDoneStates();
+  renderOfferChatLog();
+  renderOfferDraft();
 }
 
 function renderHooks() {
@@ -4689,6 +4753,259 @@ function renderPreview() {
       </div>
     </div>
   `;
+}
+
+// ── Offer chat (owner ⇄ AHRI) ────────────────────────────────────────────
+// Posts the full message history to /api/portal/offer-chat each turn. The
+// endpoint is stateless and writes nothing — the draft offer lives in
+// adStudio.draftOffer / adStudio.offerOptions until reload, exactly like the
+// rest of this builder. Two entry points:
+//   - sendOfferMessage()     — free-form chat turn (refine / converse)
+//   - generateOfferOptions() — request two A/B offer cards to pick from
+// Both funnel into postOfferChat() so response handling stays in one place.
+
+async function postOfferChat({ mode } = {}) {
+  // Always send the current draftOffer along — the server injects it into the
+  // system prompt so AHRI knows what to refine across turns. Skipped on
+  // generate mode (server ignores it there to keep new options unbiased).
+  const body = { messages: adStudio.chat.messages };
+  if (mode) body.mode = mode;
+  if (!mode && adStudio.draftOffer) body.draftOffer = adStudio.draftOffer;
+
+  const data = await apiPost('/api/portal/offer-chat', body);
+  if (!data) {
+    adStudio.chat.messages.push({ role: 'assistant', content: "AHRI couldn't respond right now. Try again in a moment." });
+    return;
+  }
+  const reply = (typeof data.message === 'string' && data.message.trim())
+    ? data.message
+    : "(AHRI returned an empty reply — try rephrasing.)";
+  adStudio.chat.messages.push({ role: 'assistant', content: reply });
+
+  if (Array.isArray(data.offers) && data.offers.length >= 2) {
+    // Generate-turn payload: present the two cards. Don't auto-set draftOffer
+    // — the owner picks. Clear any prior single draft so the cards are the
+    // only choice on screen.
+    adStudio.offerOptions = data.offers.slice(0, 2);
+    adStudio.draftOffer = null;
+  } else if (data.offer) {
+    // Single-offer turn (initial build or refine). Clear any stale options.
+    adStudio.draftOffer = data.offer;
+    adStudio.offerOptions = null;
+    if (!adStudio.bodyDirty) {
+      adStudio.body = composeDefaultBody(adStudio.data);
+      const ta = document.getElementById('ad-studio-body');
+      if (ta) ta.value = adStudio.body;
+      renderPreview();
+    }
+  }
+}
+
+async function sendOfferMessage() {
+  const input = document.getElementById('ad-studio-chat-input');
+  if (!input) return;
+  const text = (input.value || '').trim();
+  if (!text || adStudio.chat.pending) return;
+
+  adStudio.chat.messages.push({ role: 'user', content: text });
+  input.value = '';
+  adStudio.chat.pending = true;
+  renderOfferChatLog();
+  setChatBusy(true);
+
+  try {
+    await postOfferChat();
+  } catch (err) {
+    adStudio.chat.messages.push({ role: 'assistant', content: "Something went wrong reaching AHRI." });
+  } finally {
+    adStudio.chat.pending = false;
+    setChatBusy(false);
+    renderOfferChatLog();
+    renderOfferDraft();
+  }
+}
+window.sendOfferMessage = sendOfferMessage;
+
+// Two-offer A/B generation. Adds a visible user prompt to the chat so the
+// transcript stays honest about what was requested, then posts mode='generate'.
+async function generateOfferOptions() {
+  if (adStudio.chat.pending) return;
+
+  adStudio.chat.messages.push({
+    role: 'user',
+    content: 'Generate two offer options for me to compare — a dream-outcome angle and a risk-removal angle.',
+  });
+  adStudio.chat.pending = true;
+  renderOfferChatLog();
+  setChatBusy(true);
+
+  try {
+    await postOfferChat({ mode: 'generate' });
+  } catch (err) {
+    adStudio.chat.messages.push({ role: 'assistant', content: "Something went wrong generating offers." });
+  } finally {
+    adStudio.chat.pending = false;
+    setChatBusy(false);
+    renderOfferChatLog();
+    renderOfferDraft();
+  }
+}
+window.generateOfferOptions = generateOfferOptions;
+
+// Owner picks one of the two generated offers. This is the generate→refine
+// handoff: the chosen offer becomes adStudio.draftOffer (browser state, no
+// writes), an assistant chat line acknowledges the pick, and subsequent
+// sendOfferMessage calls post draftOffer along so AHRI refines THIS specific
+// offer on every following turn.
+function chooseOfferOption(idx) {
+  const opts = adStudio.offerOptions;
+  if (!Array.isArray(opts) || !opts[idx]) return;
+  const chosen = opts[idx];
+  adStudio.draftOffer = chosen;
+  adStudio.offerOptions = null;
+
+  const title = (chosen.title || '').trim() || `Option ${idx + 1}`;
+  adStudio.chat.messages.push({
+    role: 'assistant',
+    content: `Selected: ${title}. What would you like to adjust — guarantee, price, included items, or something else?`,
+  });
+
+  // Push the chosen offer into the body prefill if the owner hasn't edited it.
+  if (!adStudio.bodyDirty) {
+    adStudio.body = composeDefaultBody(adStudio.data);
+    const ta = document.getElementById('ad-studio-body');
+    if (ta) ta.value = adStudio.body;
+    renderPreview();
+  }
+
+  renderOfferChatLog();
+  renderOfferDraft();
+}
+window.chooseOfferOption = chooseOfferOption;
+
+function setChatBusy(busy) {
+  const send = document.getElementById('ad-studio-chat-send');
+  if (send) {
+    send.disabled = !!busy;
+    send.textContent = busy ? 'Thinking…' : 'Send';
+  }
+  const gen = document.getElementById('ad-studio-generate-btn');
+  if (gen) {
+    gen.disabled = !!busy;
+    gen.textContent = busy ? 'Generating…' : '✦ Generate offers for me';
+  }
+  const input = document.getElementById('ad-studio-chat-input');
+  if (input) input.disabled = !!busy;
+}
+
+function renderOfferChatLog() {
+  const wrap = document.getElementById('ad-studio-chat-log');
+  if (!wrap) return;
+  const msgs = adStudio.chat.messages;
+  if (msgs.length === 0) {
+    wrap.innerHTML = `<div class="chat-msg empty">Tell AHRI what you want — e.g. "Build me a 21-day offer that beats the $10/month gyms in my city."</div>`;
+    return;
+  }
+  wrap.innerHTML = msgs.map(m => {
+    const cls = m.role === 'user' ? 'user' : 'ahri';
+    return `<div class="chat-msg ${cls}">${esc(m.content)}</div>`;
+  }).join('');
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+function renderOfferDraft() {
+  const wrap = document.getElementById('ad-studio-offer-draft');
+  if (!wrap) return;
+
+  // Generate-mode picker: two cards take precedence over the single draft view.
+  if (Array.isArray(adStudio.offerOptions) && adStudio.offerOptions.length >= 2) {
+    wrap.innerHTML = renderOfferOptionCards(adStudio.offerOptions);
+    return;
+  }
+
+  // Prefer chat draft; fall back to the saved confirmed offer so the owner
+  // sees what they already have before they start the conversation.
+  const draft = adStudio.draftOffer || (adStudio.data && adStudio.data.offer);
+  if (!draft) {
+    wrap.innerHTML = `<div class="draft-empty">No offer yet. Start the conversation on the left, or hit Generate.</div>`;
+    return;
+  }
+  const fields = [
+    ['Title', draft.title],
+    ['Duration', draft.duration],
+    ['Price', draft.price],
+    ['Included', draft.included],
+    ['Guarantee', draft.guarantee],
+    ['Differentiator', draft.differentiator],
+    ['Score dimension', draft.scoreDimension],
+    ['Score', (draft.scoreFrom || draft.scoreFrom === 0) ? `${draft.scoreFrom} → ${draft.scoreTo}` : ''],
+    ['Why this fits', draft.explanation],
+    ['AHRI take', draft.ackIfSelected],
+  ];
+  let html = fields
+    .filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '')
+    .map(([label, v]) => `
+      <div class="draft-field">
+        <div class="draft-label">${esc(label)}</div>
+        <div class="draft-value">${esc(String(v))}</div>
+      </div>`)
+    .join('');
+
+  if (Array.isArray(draft.valueStack) && draft.valueStack.length) {
+    const stackLines = draft.valueStack.map(s => {
+      const comp = (s && s.component) ? esc(s.component) : '';
+      const desc = (s && s.description) ? ' — ' + esc(s.description) : '';
+      const val  = (s && (s.value || s.value === 0)) ? ` ($${esc(String(s.value))})` : '';
+      return `<div style="font-size:12px;margin:2px 0">• ${comp}${desc}${val}</div>`;
+    }).join('');
+    html += `
+      <div class="draft-field">
+        <div class="draft-label">Value stack</div>
+        <div class="draft-value">${stackLines}</div>
+      </div>`;
+  }
+
+  if (Array.isArray(draft.complianceFlags) && draft.complianceFlags.length) {
+    html += `<div class="draft-flag">⚠ ${draft.complianceFlags.map(f => esc(String(f))).join(' · ')}</div>`;
+  }
+
+  if (adStudio.draftOffer) {
+    html += `<div class="text-muted" style="font-size:11px;margin-top:10px">Browser draft only — pre-fills the body copy below.</div>`;
+  }
+
+  wrap.innerHTML = html;
+}
+
+// Two A/B offer cards from a generate-mode response. Label by angle so the
+// owner reads them as different bets, not duplicates. Picking one hands off
+// into the existing refine loop (see chooseOfferOption).
+function renderOfferOptionCards(options) {
+  const ANGLE_LABEL = ['Dream-outcome lead', 'Risk-removal lead'];
+  const cards = options.map((o, i) => {
+    const angle = ANGLE_LABEL[i] || `Option ${i + 1}`;
+    const title = (o && o.title) ? o.title : `Option ${i + 1}`;
+    const metaBits = [];
+    if (o.price)    metaBits.push(`<span><b>${esc(String(o.price))}</b></span>`);
+    if (o.duration) metaBits.push(`<span>${esc(String(o.duration))}</span>`);
+    if (o.valueEquation && (o.valueEquation.total || o.valueEquation.total === 0)) {
+      metaBits.push(`<span>Value-eq <b>${esc(String(o.valueEquation.total))}</b>/40</span>`);
+    } else if (o.scoreTo || o.scoreTo === 0) {
+      metaBits.push(`<span>Score <b>${esc(String(o.scoreFrom))}→${esc(String(o.scoreTo))}</b></span>`);
+    }
+    const guarantee = (o.guarantee || '').toString();
+    const included  = (o.included || '').toString();
+    return `
+      <div class="option-card">
+        <div class="option-card-angle">${esc(angle)}</div>
+        <div class="option-card-title">${esc(title)}</div>
+        ${metaBits.length ? `<div class="option-card-meta">${metaBits.join('')}</div>` : ''}
+        ${included ? `<div class="option-card-line"><b style="color:var(--text-primary)">Included:</b> ${esc(included)}</div>` : ''}
+        ${guarantee ? `<div class="option-card-line"><b style="color:var(--text-primary)">Guarantee:</b> ${esc(guarantee)}</div>` : ''}
+        <button class="option-card-pick" type="button" onclick="chooseOfferOption(${i})">Use this one →</button>
+      </div>`;
+  }).join('');
+  return `<div class="option-cards">${cards}</div>
+    <div class="text-muted" style="font-size:11px;margin-top:10px">Pick one to start refining it in the chat.</div>`;
 }
 
 // ── Creative (owner) ─────────────────────────────────────────────────────────
