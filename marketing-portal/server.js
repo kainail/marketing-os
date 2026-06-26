@@ -6007,6 +6007,7 @@ async function appendBridgeEvent(locationId, type, body) {
 // portal can render a "Campaign launching" empty state.
 app.get('/api/portal/landing-intel', requireAuth, async (req, res) => {
   const { activeGymId, userId } = req.user;
+  console.log('[landing-intel] activeGymId=', activeGymId, 'email=', req.user?.email);
   if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
 
   const users = await getUsers().catch(() => null);
