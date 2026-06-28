@@ -5727,6 +5727,12 @@ app.get('/api/portal/session-data', requireAuth, async (req, res) => {
   const liveUser = users.find(u => u.id === req.user.userId);
   const status = liveUser?.status || req.user.status || 'demo';
 
+  // Dynamic owner-data feed — disable HTTP caching. Same reason as landing-intel.
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
+
   res.json({
     status,
     session,
@@ -5919,6 +5925,13 @@ app.get('/api/portal/campaign-status', requireAuth, async (req, res) => {
   const meta_setup_pending = (typeof loc === 'object' ? loc?.meta_setup_pending : false) || false;
 
   const meta_campaign_id = (typeof loc === 'object' ? loc?.meta_campaign_id : null) || null;
+
+  // Dynamic owner-data feed — disable HTTP caching. Same reason as landing-intel.
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
+
   res.json({ campaign_status, launched_at, meta_setup_pending, meta_campaign_id, gymId: activeGymId });
 });
 
@@ -6055,6 +6068,15 @@ app.get('/api/portal/landing-intel', requireAuth, async (req, res) => {
       spend:    daily.spend     || 0,
     });
   }
+
+  // Dynamic owner-data feed — disable HTTP caching so the browser never reuses
+  // a stale (pre-data) 304 in place of a fresh roll-up. Express's default ETag
+  // on GETs was letting the browser serve a cached empty body even after R2
+  // filled in. Set the headers before res.json so they ride on the 200.
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
 
   res.json({
     metrics: {
@@ -6211,6 +6233,12 @@ app.get('/api/portal/ad-assets', requireAuth, async (req, res) => {
   // (title, guarantee, price, differentiator) — there is no separate ad-copy
   // file in the current pipeline (skill is dormant; see audit).
   const offer = (confirmedOffer && typeof confirmedOffer === 'object') ? { ...confirmedOffer } : null;
+
+  // Dynamic owner-data feed — disable HTTP caching. Same reason as landing-intel.
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.set('Surrogate-Control', 'no-store');
 
   res.json({
     hooks: { library, ownerPicks, generated },
