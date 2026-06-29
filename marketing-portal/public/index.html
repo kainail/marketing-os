@@ -4254,6 +4254,7 @@ const adStudio = {
   },
   library: null,           // /api/portal/creative-library payload (items + counts + meta)
   libraryExpanded: false,  // "Browse all creatives" expander state
+  libraryError: null,      // inline error from a failed library pick / rehost
   cta: 'bridge',           // 'bridge' | 'leadgen' — drives launch payload + preview CTA label
   // TEMPORARY: hardcoded single-gym default. Replace with per-gym form management
   // once we add a form-id field to gyms/<id>/meta-credentials.json or similar.
@@ -4394,6 +4395,9 @@ function selectDefaultsForTemperature() {
     } else {
       slot.image = all.find(t => t.status === 'complete' && t.url) || null;
     }
+    // Tile URLs are permanent — seed the settled snapshot so a future library
+    // pick that fails can revert cleanly to this tile (not to null/blob).
+    if (slot.image) slot._settledImage = { ...slot.image };
   }
 }
 
@@ -4467,7 +4471,14 @@ function setImage(type) {
   if (!next || next.status !== 'complete' || !next.url) return;
   // Store the tile with an explicit selectionKey so getSelectionKey can find
   // it without re-parsing the shape. Writes to the ACTIVE slot only.
-  activeSlot().image = { ...next, selectionKey: 'tile:' + type };
+  const slot = activeSlot();
+  slot.image = { ...next, selectionKey: 'tile:' + type };
+  // Tile URLs are already permanent — record as settled and bump the pick
+  // token so any in-flight library rehost for this slot will be discarded
+  // on return (stale-rehost guard).
+  slot._settledImage = { ...slot.image };
+  slot._pickToken = (slot._pickToken || 0) + 1;
+  clearLibraryError();
   renderImages();
   renderLibrary();
   renderPreview();
@@ -4536,6 +4547,38 @@ function renderCta() {
 // Confirm-time rehost (server.js confirmed-creative) reads driveFileId to
 // upgrade the URL to /api/public/creative/... before persisting.
 
+// Pull the owner's sessionId out of the JWT — same fallback chain
+// /api/portal/ad-assets uses server-side (loc.sessionId || loc.gymId
+// || activeGymId). Never trust a client-supplied id.
+function resolveOwnerSessionId() {
+  try {
+    const token = localStorage.getItem('gymsuite_token');
+    if (!token) return null;
+    const payload = parseJwt(token);
+    if (!payload) return null;
+    const activeGymId = payload.activeGymId || null;
+    const locs = Array.isArray(payload.locations) ? payload.locations : [];
+    const loc = locs.find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+    if (loc && typeof loc === 'object') {
+      return loc.sessionId || loc.gymId || activeGymId || null;
+    }
+    return activeGymId || payload.sessionId || null;
+  } catch (_) { return null; }
+}
+
+// Inline error surface for the library picker (rehost failure, blob load
+// failure, etc.). Lives in #ad-studio-library-error so a section re-render
+// preserves the text via state in adStudio.libraryError.
+function setLibraryError(msg) {
+  adStudio.libraryError = msg || null;
+  const el = document.getElementById('ad-studio-library-error');
+  if (el) {
+    el.textContent = msg || '';
+    el.style.display = msg ? '' : 'none';
+  }
+}
+function clearLibraryError() { setLibraryError(null); }
+
 async function fetchProtectedBlobUrl(proxyUrl) {
   const token = localStorage.getItem('gymsuite_token');
   try {
@@ -4552,6 +4595,27 @@ function toggleLibraryExpand() {
 }
 window.toggleAdStudioLibrary = toggleLibraryExpand;
 
+// Library picks have a two-phase shape because the per-browser blob URL we
+// load for instant display is useless to Meta at launch time. The PERSISTED
+// state on the slot must always be a permanent /api/public/creative/... URL.
+//
+// Flow:
+//   1. Optimistic: write the slot with the blob URL so the picker visual
+//      updates immediately. Capture a per-slot pick token + a snapshot of the
+//      last SETTLED image (last permanent-URL state) for potential revert.
+//   2. Fire POST /api/onboarding/sessions/<sid>/confirmed-creative with
+//      { type:'library', url:<proxy URL>, driveFileId, slot:<temp> }. The
+//      server downloads the Drive bytes, runs the existing rehost pipeline,
+//      and writes the permanent URL into confirmed-creative.json.slots[temp].
+//   3. On response: if the slot's pick token still matches what we captured
+//      (no newer pick has happened), swap slot.image.url to the permanent
+//      URL and record it as the new settled state. If the token has moved
+//      on, DISCARD the response — a later pick is now authoritative.
+//   4. On failure: if token still matches, REVERT slot.image to the prior
+//      settled snapshot (last permanent state) and surface an inline error.
+//      Crucially: the slot never retains the blob URL as a permanent value
+//      after a failure — it falls back to a real prior pick (tile or
+//      successfully-rehosted library) or to null if nothing was picked.
 async function pickLibraryItem(driveFileId) {
   const lib = adStudio.library;
   if (!lib || !Array.isArray(lib.items)) return;
@@ -4563,32 +4627,123 @@ async function pickLibraryItem(driveFileId) {
   if (!item._blobUrl) {
     const blobUrl = await fetchProtectedBlobUrl(item.url);
     if (!blobUrl) {
-      console.warn('[ad-studio] failed to load library image', driveFileId);
+      setLibraryError("Couldn't load that image — try again.");
       return;
     }
     item._blobUrl = blobUrl;
   }
 
-  // Writes to the ACTIVE slot only. The other slot's image stays untouched.
-  activeSlot().image = {
-    // No .type field — that's what makes getSelectionKey return 'lib:...'
-    // instead of 'tile:...', which is what de-selects the curated 3 tiles
-    // visually on the next renderImages() call.
+  // Capture which slot + the per-slot token at PICK time. The slot we write
+  // into is whichever the temperature toggle is on right now; the rehost
+  // callback validates against the same slot's token to detect stale returns.
+  const tempAtPick = adStudio.temperature;
+  const slot = adStudio.slots[tempAtPick];
+  if (!slot) return;
+  const myToken = (slot._pickToken = (slot._pickToken || 0) + 1);
+  const priorSettled = slot._settledImage ? { ...slot._settledImage } : null;
+
+  // Optimistic update — blob URL shows immediately; _pending flags that this
+  // is not yet a permanent URL (useful for future debug; not required for
+  // correctness).
+  slot.image = {
     selectionKey: 'lib:' + driveFileId,
     driveFileId,
-    url: item._blobUrl,
+    url: item._blobUrl,           // blob URL — replaced on rehost success
     kind: item.kind,
     badge: item.badge,
     temperature: item.temperature || null,
     source: item.source,
+    _pending: true,
   };
-
-  // Render-from-state — both render fns re-derive selection via getSelectionKey.
+  clearLibraryError();
   renderImages();
   renderLibrary();
   renderPreview();
   updateAdStudioDoneStates();
   rerenderTempToggle();
+
+  // Resolve sessionId from JWT — never trust a client-supplied id; pull it
+  // from the auth token like /api/portal/ad-assets does server-side.
+  const sessionId = resolveOwnerSessionId();
+  if (!sessionId) {
+    if (adStudio.slots[tempAtPick]._pickToken === myToken) {
+      adStudio.slots[tempAtPick].image = priorSettled;
+      setLibraryError('No session id on your account — refresh and try again.');
+      renderImages(); renderLibrary(); renderPreview(); updateAdStudioDoneStates(); rerenderTempToggle();
+    }
+    return;
+  }
+
+  // Kick the rehost.
+  let res, data;
+  try {
+    const token = localStorage.getItem('gymsuite_token') || '';
+    res = await fetch(`/api/onboarding/sessions/${encodeURIComponent(sessionId)}/confirmed-creative`, {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'library',
+        url: '/api/onboard/creative-file/' + driveFileId,
+        driveFileId,
+        slot: tempAtPick,
+      }),
+    });
+    data = await res.json().catch(() => ({}));
+  } catch (err) {
+    // Network/transport failure — only act if this pick is still the active one.
+    if (adStudio.slots[tempAtPick]._pickToken === myToken) {
+      adStudio.slots[tempAtPick].image = priorSettled;
+      setLibraryError("Couldn't reach the rehost service — try again.");
+      renderImages(); renderLibrary(); renderPreview(); updateAdStudioDoneStates(); rerenderTempToggle();
+    }
+    return;
+  }
+
+  // Stale-rehost guard: if the slot's pick token has advanced past mine, a
+  // newer pick (tile or library) has taken over this slot. Discard whatever
+  // came back — success OR failure — so we never overwrite the newer pick.
+  if (adStudio.slots[tempAtPick]._pickToken !== myToken) {
+    return;
+  }
+
+  if (!res.ok || !data || typeof data.url !== 'string' || !data.url.startsWith('/api/public/creative/')) {
+    // Hard fail: revert the slot to its last SETTLED state (a tile pick or a
+    // previously-rehosted library pick). Never leave a blob URL behind as if
+    // it were a usable persisted value.
+    adStudio.slots[tempAtPick].image = priorSettled;
+    const errMsg = (data && data.error) || (res ? `HTTP ${res.status}` : 'Rehost failed');
+    setLibraryError(`Couldn't save that pick — ${errMsg}. The previous image is back.`);
+    renderImages(); renderLibrary(); renderPreview(); updateAdStudioDoneStates(); rerenderTempToggle();
+    return;
+  }
+
+  // Success: swap blob → permanent URL on the slot. Record as the new settled
+  // state so future failures revert to THIS, not to the pre-pick state.
+  const oldBlobUrl = adStudio.slots[tempAtPick].image.url;
+  adStudio.slots[tempAtPick].image.url = data.url;
+  adStudio.slots[tempAtPick].image._pending = false;
+  adStudio.slots[tempAtPick]._settledImage = { ...adStudio.slots[tempAtPick].image };
+
+  // Memory hygiene: revoke the blob URL — but only if no OTHER slot is still
+  // pointing at it (e.g. the same library item picked into both slots while
+  // both rehosts were in flight).
+  if (oldBlobUrl && oldBlobUrl.startsWith('blob:')) {
+    const stillInUse = ['cold', 'warm'].some(t =>
+      t !== tempAtPick &&
+      adStudio.slots[t] && adStudio.slots[t].image && adStudio.slots[t].image.url === oldBlobUrl
+    );
+    if (!stillInUse) {
+      try { URL.revokeObjectURL(oldBlobUrl); } catch (_) { /* already revoked */ }
+      // Clear the cached blob on the library item if it matches; next pick
+      // of the same item refetches.
+      if (item._blobUrl === oldBlobUrl) delete item._blobUrl;
+    }
+  }
+
+  // Visual: featured card and preview already point at slot.image.url — both
+  // automatically reflect the new permanent URL on next render.
+  renderImages();
+  renderPreview();
 }
 window.pickAdStudioLibraryItem = pickLibraryItem;
 
@@ -4764,6 +4919,7 @@ function renderAdStudio() {
       .lib-badge-ai          { background:rgba(124,58,237,0.85); color:#fff; }
       .lib-badge-photo       { background:rgba(16,185,129,0.85); color:#fff; }
       .lib-badge-unreviewed  { background:rgba(245,158,11,0.85); color:#1a1a1a; }
+      .lib-error { margin-top:10px; padding:9px 12px; background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.35); border-radius:8px; color:#fca5a5; font-size:12px; line-height:1.4; }
       .cta-row { display:flex; gap:8px; }
       .cta-seg { flex:1; background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-secondary); font-family:inherit; font-size:13px; font-weight:600; padding:10px 14px; border-radius:8px; cursor:pointer; letter-spacing:.02em; transition:background .15s, color .15s, border-color .15s; text-align:left; }
       .cta-seg:hover { background:rgba(124,58,237,0.06); color:var(--text-primary); }
@@ -4912,6 +5068,7 @@ function renderAdStudio() {
           <div class="as-step-helper">What they'll see.</div>
           <div id="ad-studio-images"></div>
           <div id="ad-studio-library-wrap" style="margin-top:14px"></div>
+          <div id="ad-studio-library-error" class="lib-error" style="display:none"></div>
         </div>
 
         <div class="as-step" id="as-step-cta">
@@ -4948,6 +5105,9 @@ function renderAdStudio() {
   renderPreview();
   updateAdStudioDoneStates();
   renderOfferChatLog();
+  // Re-apply any sticky library error after the section template rebuild so
+  // the message survives a temperature toggle.
+  if (adStudio.libraryError) setLibraryError(adStudio.libraryError);
   renderOfferDraft();
 }
 

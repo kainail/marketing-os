@@ -4698,11 +4698,32 @@ app.get('/api/onboarding/sessions/:sessionId/ad-creatives', async (req, res) => 
 // Hard failure mode: if rehost fails, the endpoint returns 5xx WITHOUT
 // writing confirmed-creative.json — we never persist a Drive-proxy URL there
 // because Meta cannot fetch from auth-gated endpoints at launch.
+//
+// PER-SLOT EXTENSION (Stage A of launch wiring):
+//   body.slot ∈ {'cold','warm'} → writes record.slots[slot] = { url, selectedAt, driveFileId }
+//   - merges with existing record so the OTHER slot's entry is preserved
+//   - cold writes ALSO mirror to legacy top-level {type,url,selectedAt,driveFileId}
+//     so the launch path's existing read at runMetaCampaignCreation (which
+//     uses confirmed-creative.json.url as coldImageUrl) keeps working
+//   - warm writes touch ONLY record.slots.warm; legacy top-level is never
+//     overwritten with a warm URL (would mis-target the launch's cold ad)
+//   body.slot absent → legacy behavior (top-level only), exactly as the
+//     onboarding picker writes today
 app.post('/api/onboarding/sessions/:sessionId/confirmed-creative', async (req, res) => {
   const { sessionId } = req.params;
-  const { type, url, driveFileId: bodyDriveFileId } = req.body || {};
+  const { type, url, driveFileId: bodyDriveFileId, slot: bodySlot } = req.body || {};
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
   if (!type || !url) return res.status(400).json({ error: 'type and url required' });
+
+  // Slot: optional. Reject anything that isn't undefined/null or one of the
+  // two valid temperatures so a typo can't silently land in a third bucket.
+  let slot = null;
+  if (bodySlot !== undefined && bodySlot !== null && bodySlot !== '') {
+    if (bodySlot !== 'cold' && bodySlot !== 'warm') {
+      return res.status(400).json({ error: "slot must be 'cold' or 'warm' (or omitted)" });
+    }
+    slot = bodySlot;
+  }
 
   // Detect library picks: either explicit driveFileId, OR url matches the
   // Drive-proxy pattern. Extract the file id either way.
@@ -4734,7 +4755,7 @@ app.post('/api/onboarding/sessions/:sessionId/confirmed-creative', async (req, r
         return res.status(502).json({ error: 'Failed to rehost picked image to R2 — try again' });
       }
       persistedUrl = permanentUrl;
-      console.log(`[confirmed-creative] rehosted Drive file ${driveFileId} → ${permanentUrl}`);
+      console.log(`[confirmed-creative] rehosted Drive file ${driveFileId} → ${permanentUrl}${slot ? ` (slot=${slot})` : ''}`);
     } catch (err) {
       console.error('[confirmed-creative] rehost failed:', err.message);
       return res.status(502).json({ error: `Rehost failed: ${err.message}` });
@@ -4742,14 +4763,46 @@ app.post('/api/onboarding/sessions/:sessionId/confirmed-creative', async (req, r
   }
 
   try {
-    const record = {
-      type,
-      url: persistedUrl,
-      selectedAt: new Date().toISOString(),
-    };
-    if (driveFileId) record.driveFileId = driveFileId;
+    const selectedAt = new Date().toISOString();
+    const slotEntry = { url: persistedUrl, selectedAt };
+    if (driveFileId) slotEntry.driveFileId = driveFileId;
+
+    // Merge with the existing record so a cold write doesn't clobber a prior
+    // warm entry (and vice versa).
+    const existing = await r2GetShared(`onboarding/sessions/${sessionId}/confirmed-creative.json`);
+    const base = (existing && typeof existing === 'object') ? existing : {};
+    const record = { ...base };
+    record.slots = (base.slots && typeof base.slots === 'object') ? { ...base.slots } : {};
+
+    if (slot === 'cold') {
+      record.slots.cold = slotEntry;
+      // Mirror to legacy top-level so runMetaCampaignCreation's existing
+      // coldImageUrl resolution keeps finding the right URL.
+      record.type = type;
+      record.url = persistedUrl;
+      record.selectedAt = selectedAt;
+      if (driveFileId) record.driveFileId = driveFileId;
+      else delete record.driveFileId;
+    } else if (slot === 'warm') {
+      record.slots.warm = slotEntry;
+      // Do NOT touch legacy top-level — the launch path's coldImageUrl
+      // resolution would otherwise mis-target the cold ad with warm's URL.
+    } else {
+      // Slot absent — legacy single-pick behavior, byte-for-byte identical to
+      // pre-Stage-A. Writes only the top-level fields; preserves any existing
+      // .slots map (this branch represents an onboarding-picker write that
+      // pre-dates the slots concept, so we don't drop slots state we may
+      // have written in a prior call).
+      record.type = type;
+      record.url = persistedUrl;
+      record.selectedAt = selectedAt;
+      if (driveFileId) record.driveFileId = driveFileId;
+      else delete record.driveFileId;
+      if (!base.slots) delete record.slots; // never invent an empty slots map
+    }
+
     await r2PutShared(`onboarding/sessions/${sessionId}/confirmed-creative.json`, record);
-    res.json({ success: true, url: persistedUrl, rehosted: needsRehost });
+    res.json({ success: true, url: persistedUrl, rehosted: needsRehost, slot });
   } catch (err) {
     console.error('[onboarding] confirmed-creative failed:', err.message);
     res.status(500).json({ error: err.message });
