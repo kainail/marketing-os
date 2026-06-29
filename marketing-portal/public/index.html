@@ -4223,14 +4223,30 @@ function populateOwnerOverview(data) {
 // Reads /api/portal/ad-assets, lets the owner select temperature/hook/image,
 // edit body copy, and preview a Facebook-style ad. NO launch this session —
 // any "Launch" action is a disabled stub. State held locally; no writes.
+// Per-slot ad build state. Cold and warm are two FULLY INDEPENDENT ads — each
+// holds its own hook/image/body so switching the active toggle no longer wipes
+// the in-progress build of the other temperature. The shared offer (deal
+// terms — title, price, guarantee) lives at adStudio.draftOffer below; it's
+// referenced by BOTH slots' body prefill, never duplicated per slot.
+function newAdSlot() {
+  return {
+    hook:      null,   // { hook, framework, level, temperature }
+    image:     null,   // tile object OR library-pick object — see getSelectionKey
+    body:      '',     // editable body copy
+    bodyDirty: false,  // owner edited body — don't auto-reset when the offer changes
+  };
+}
+
 const adStudio = {
   data: null,         // raw /api/portal/ad-assets payload
-  temperature: null,  // 'cold' | 'warm' | 'offer'
-  hook: null,         // { hook, framework, level, temperature }
-  image: null,        // { type, temperature, url, status }
-  body: '',           // editable body copy
-  bodyDirty: false,   // user edited body — don't auto-reset on temp change
-  draftOffer: null,   // current AHRI-generated offer draft (browser-only, never persisted)
+  // 'temperature' = the ACTIVE slot key. The cold/warm toggle just changes
+  // this value; both slot blobs in adStudio.slots stay populated.
+  temperature: null,  // 'cold' | 'warm'
+  slots: {
+    cold: newAdSlot(),
+    warm: newAdSlot(),
+  },
+  draftOffer: null,   // SHARED across slots — current AHRI-generated offer draft (browser-only, never persisted)
   offerOptions: null, // [offerA, offerB] when a generate turn just returned — cleared on pick
   chat: {
     messages: [],     // [{ role: 'user'|'assistant', content: string }]
@@ -4243,6 +4259,19 @@ const adStudio = {
   // once we add a form-id field to gyms/<id>/meta-credentials.json or similar.
   leadgenFormId: '1012435414839954',
 };
+
+// Helper used by every read/write in the picker. Always operates on whichever
+// slot the cold/warm toggle currently points at. Inactive slot stays untouched.
+function activeSlot() {
+  return adStudio.slots[adStudio.temperature] || adStudio.slots.cold;
+}
+
+// "Built" = owner has picked the two things only they can pick: a hook and an
+// image. Body copy is excluded because it auto-fills from the shared offer
+// (a slot can be "built" with an offer-derived body the owner never touched).
+function slotIsComplete(slot) {
+  return !!(slot && slot.hook && slot.hook.hook && slot.image && slot.image.url);
+}
 
 const TEMP_LABEL = { cold: 'Cold', warm: 'Warm', offer: 'Offer' };
 const TEMP_CTA   = { cold: 'Learn More', warm: 'Sign Up', offer: 'Get Offer' };
@@ -4267,12 +4296,26 @@ async function loadAdStudio() {
 
   adStudio.data = data;
 
-  // Default temperature: confirmed creative's temp if present, else cold.
-  adStudio.temperature = (data.creatives && data.creatives.ownerPick && data.creatives.ownerPick.temperature) || 'cold';
-  // Default body: composed from offer (or empty-state copy).
-  adStudio.body = composeDefaultBody(data);
-  adStudio.bodyDirty = false;
-  // Default hook + image: pick best matches for the default temperature.
+  // Reset the slot map on every fresh load so re-entering the Ad Studio
+  // doesn't surface stale picks from a previous session.
+  adStudio.slots = { cold: newAdSlot(), warm: newAdSlot() };
+
+  // Default ACTIVE temperature: confirmed creative's temp if present, else
+  // cold. The previous code allowed 'offer' here; we collapse that to cold
+  // since the offer slot is gone.
+  const confirmedTemp = data.creatives && data.creatives.ownerPick && data.creatives.ownerPick.temperature;
+  adStudio.temperature = (confirmedTemp === 'cold' || confirmedTemp === 'warm') ? confirmedTemp : 'cold';
+
+  // Seed BOTH slots' body copy from the shared offer up front so the toggle
+  // doesn't show a blank textarea on first visit to the other slot. Either
+  // slot's body can be overwritten by the owner later; bodyDirty starts false.
+  const defaultBody = composeDefaultBody(data);
+  adStudio.slots.cold.body = defaultBody;
+  adStudio.slots.warm.body = defaultBody;
+
+  // Default hook + image for the active slot only. The inactive slot stays
+  // empty until the owner switches into it (setTemperature handles that lazy
+  // population — see selectDefaultsForTemperature below).
   selectDefaultsForTemperature();
 
   renderAdStudio();
@@ -4325,28 +4368,61 @@ function tilesByTemperature(temp) {
   return { featured, others, all: tiles };
 }
 
+// Populate the ACTIVE slot's defaults — but only fields that are still null.
+// This is what makes per-slot persistence work: switching cold↔warm a second
+// time finds the slot's prior picks intact and leaves them alone.
 function selectDefaultsForTemperature() {
-  // Hook: owner pick at this temp → first library hook at this temp → first
-  // owner pick of any temp → first library hook overall → null.
-  const { pick, pool, fallbackPool } = hooksForTemperature(adStudio.temperature);
-  adStudio.hook = pick
-    || pool[0]
-    || (adStudio.data.hooks.ownerPicks && adStudio.data.hooks.ownerPicks[0])
-    || fallbackPool[0]
-    || null;
+  const slot = activeSlot();
+  if (!slot) return;
 
-  // Image: featured tile if complete → any complete tile → null.
-  const { featured, all } = tilesByTemperature(adStudio.temperature);
-  if (featured && featured.status === 'complete' && featured.url) {
-    adStudio.image = featured;
-  } else {
-    adStudio.image = all.find(t => t.status === 'complete' && t.url) || null;
+  if (!slot.hook) {
+    // Hook: owner pick at this temp → first library hook at this temp → first
+    // owner pick of any temp → first library hook overall → null.
+    const { pick, pool, fallbackPool } = hooksForTemperature(adStudio.temperature);
+    slot.hook = pick
+      || pool[0]
+      || (adStudio.data.hooks.ownerPicks && adStudio.data.hooks.ownerPicks[0])
+      || fallbackPool[0]
+      || null;
+  }
+
+  if (!slot.image) {
+    // Image: featured tile if complete → any complete tile → null.
+    const { featured, all } = tilesByTemperature(adStudio.temperature);
+    if (featured && featured.status === 'complete' && featured.url) {
+      slot.image = featured;
+    } else {
+      slot.image = all.find(t => t.status === 'complete' && t.url) || null;
+    }
   }
 }
 
+// Toggle button HTML — extracted so picking a hook/image can refresh just
+// the ✓/⬜ mark without re-rendering the whole Ad Studio section.
+function buildTempButtonsHtml() {
+  return ['cold', 'warm'].map(t => {
+    const isActive = t === adStudio.temperature;
+    const isDone   = slotIsComplete(adStudio.slots[t]);
+    const mark     = isDone ? '✓' : '⬜';
+    return `
+      <button type="button" class="temp-seg ${isActive ? 'active' : ''}"
+        onclick="setAdStudioTemperature('${t}')">
+        ${TEMP_LABEL[t]} <span class="temp-seg-mark ${isDone ? 'done' : 'empty'}">${mark}</span>
+      </button>`;
+  }).join('');
+}
+
+function rerenderTempToggle() {
+  const row = document.getElementById('ad-studio-temp-row');
+  if (row) row.innerHTML = buildTempButtonsHtml();
+}
+
 function setTemperature(temp) {
+  if (temp !== 'cold' && temp !== 'warm') return;
   if (adStudio.temperature === temp) return;
   adStudio.temperature = temp;
+  // Lazy-populate defaults for the slot we just switched INTO (only if empty)
+  // — the slot we just left keeps its hook/image/body untouched.
   selectDefaultsForTemperature();
   renderAdStudio();
 }
@@ -4359,13 +4435,16 @@ function setHook(idx, source) {
              : pool;
   const next = list[idx];
   if (!next) return;
-  adStudio.hook = next;
+  activeSlot().hook = next;
   // Live update of preview only — hook list highlight refresh inline below.
   document.querySelectorAll('#ad-studio-hooks .hook-card').forEach(el => el.classList.remove('selected'));
   const sel = document.querySelector(`#ad-studio-hooks .hook-card[data-src="${source}"][data-idx="${idx}"]`);
   if (sel) sel.classList.add('selected');
   renderPreview();
   updateAdStudioDoneStates();
+  // Slot-complete mark in the temperature toggle needs re-rendering too —
+  // but the toggle is part of the section template; full re-render covers it.
+  rerenderTempToggle();
 }
 window.setAdStudioHook = setHook;
 
@@ -4387,12 +4466,13 @@ function setImage(type) {
   const next = tiles.find(t => t.type === type);
   if (!next || next.status !== 'complete' || !next.url) return;
   // Store the tile with an explicit selectionKey so getSelectionKey can find
-  // it without re-parsing the shape. Render-from-state — no manual classList.
-  adStudio.image = { ...next, selectionKey: 'tile:' + type };
+  // it without re-parsing the shape. Writes to the ACTIVE slot only.
+  activeSlot().image = { ...next, selectionKey: 'tile:' + type };
   renderImages();
   renderLibrary();
   renderPreview();
   updateAdStudioDoneStates();
+  rerenderTempToggle();
 }
 window.setAdStudioImage = setImage;
 
@@ -4450,8 +4530,8 @@ function renderCta() {
 // which is the auth'd Drive proxy — <img src=...> alone 401s, so we use the
 // same fetch+Bearer+blob trick the Creative tab uses (loadCreativeImage).
 //
-// Selection model: the existing 3 tiles set adStudio.image to an object with
-// .type. Library picks set adStudio.image with NO .type but with a blob URL
+// Selection model: the existing 3 tiles set activeSlot().image to an object
+// with .type. Library picks set activeSlot().image with NO .type but a blob URL
 // + driveFileId. Picking either side clears the other's visual selection.
 // Confirm-time rehost (server.js confirmed-creative) reads driveFileId to
 // upgrade the URL to /api/public/creative/... before persisting.
@@ -4489,7 +4569,8 @@ async function pickLibraryItem(driveFileId) {
     item._blobUrl = blobUrl;
   }
 
-  adStudio.image = {
+  // Writes to the ACTIVE slot only. The other slot's image stays untouched.
+  activeSlot().image = {
     // No .type field — that's what makes getSelectionKey return 'lib:...'
     // instead of 'tile:...', which is what de-selects the curated 3 tiles
     // visually on the next renderImages() call.
@@ -4507,6 +4588,7 @@ async function pickLibraryItem(driveFileId) {
   renderLibrary();
   renderPreview();
   updateAdStudioDoneStates();
+  rerenderTempToggle();
 }
 window.pickAdStudioLibraryItem = pickLibraryItem;
 
@@ -4530,7 +4612,7 @@ function renderLibrary() {
   }
   const expanded = !!adStudio.libraryExpanded;
   const arrow = expanded ? '▾' : '▸';
-  const selectedKey = getSelectionKey(adStudio.image);
+  const selectedKey = getSelectionKey(activeSlot().image);
 
   let gridHtml = '';
   if (expanded) {
@@ -4578,8 +4660,9 @@ function renderLibrary() {
 }
 
 function onBodyInput(e) {
-  adStudio.body = e.target.value;
-  adStudio.bodyDirty = true;
+  const slot = activeSlot();
+  slot.body = e.target.value;
+  slot.bodyDirty = true;
   renderPreview();
   updateAdStudioDoneStates();
 }
@@ -4588,10 +4671,12 @@ window.onAdStudioBodyInput = onBodyInput;
 // Subtle per-card completion cue — toggles .done on each step card when the
 // owner has a real selection. Called from renderAdStudio + every setter so
 // the column shows progress as the owner moves down. Layout only — no data.
+// Reads from the ACTIVE slot — flipping cold/warm shows that slot's progress.
 function updateAdStudioDoneStates() {
-  const hookDone  = !!(adStudio.hook && adStudio.hook.hook);
-  const bodyDone  = !!(adStudio.body && adStudio.body.trim().length > 0);
-  const imageDone = !!(adStudio.image && adStudio.image.url);
+  const slot = activeSlot();
+  const hookDone  = !!(slot && slot.hook && slot.hook.hook);
+  const bodyDone  = !!(slot && slot.body && slot.body.trim().length > 0);
+  const imageDone = !!(slot && slot.image && slot.image.url);
   const hookEl  = document.getElementById('as-step-hook');
   const offerEl = document.getElementById('as-step-offer');
   const imageEl = document.getElementById('as-step-image');
@@ -4608,10 +4693,12 @@ function renderAdStudio() {
   const meta = adStudio.data.meta || {};
   const gymName = meta.gymName || 'Your Gym';
 
-  const tempButtons = ['cold', 'warm', 'offer'].map(t => `
-    <button type="button" class="temp-seg ${t === adStudio.temperature ? 'active' : ''}"
-      onclick="setAdStudioTemperature('${t}')">${TEMP_LABEL[t]}</button>
-  `).join('');
+  // Cold + warm are the two persistent ad slots. The old 'offer' segment was
+  // a Schwartz awareness band, not an independent ad — it's been retired now
+  // that the builder explicitly models two parallel ads.
+  // Each segment carries a status mark (✓ when slot is built, ⬜ when empty)
+  // so the owner can see at a glance which slots are ready before launch.
+  const tempButtons = buildTempButtonsHtml();
 
   section.innerHTML = `
     <style>
@@ -4637,6 +4724,10 @@ function renderAdStudio() {
       .temp-seg { flex:1; background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-secondary); font-family:inherit; font-size:13px; font-weight:600; padding:10px 18px; border-radius:8px; cursor:pointer; letter-spacing:.02em; transition:background .15s, color .15s, border-color .15s; }
       .temp-seg:hover { color:var(--text-primary); }
       .temp-seg.active { background:var(--purple); color:#fff; border-color:var(--purple); }
+      .temp-seg-mark { display:inline-block; margin-left:6px; font-size:11px; opacity:.85; }
+      .temp-seg-mark.done  { color:#10b981; }
+      .temp-seg-mark.empty { color:var(--text-muted); }
+      .temp-seg.active .temp-seg-mark.empty { color:rgba(255,255,255,0.55); }
 
       /* Hook selector (unchanged internals — reused by renderHooks). */
       .hook-card { background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px; cursor:pointer; transition:border-color .15s, background .15s; }
@@ -4785,7 +4876,7 @@ function renderAdStudio() {
             <div class="as-step-label"><span class="as-num">0</span>· Temperature</div>
           </div>
           <div class="as-step-helper">Who is this ad for?</div>
-          <div class="as-temp-row">${tempButtons}</div>
+          <div id="ad-studio-temp-row" class="as-temp-row">${tempButtons}</div>
         </div>
 
         <div class="as-step" id="as-step-hook">
@@ -4879,11 +4970,13 @@ function renderHooks() {
     html = `<div class="text-muted" style="font-size:13px">No hooks available yet.</div>`;
   }
   wrap.innerHTML = html;
-  // Mark currently selected card.
-  if (adStudio.hook) {
+  // Mark currently selected card — read the ACTIVE slot's hook so flipping
+  // cold/warm shows that slot's picked hook, not a global selection.
+  const slotHook = activeSlot().hook;
+  if (slotHook) {
     const allCards = wrap.querySelectorAll('.hook-card');
     allCards.forEach(el => {
-      if (el.dataset.hookText === adStudio.hook.hook) el.classList.add('selected');
+      if (el.dataset.hookText === slotHook.hook) el.classList.add('selected');
     });
   }
 }
@@ -4911,17 +5004,17 @@ function renderImages() {
     return;
   }
 
-  const selectedKey = getSelectionKey(adStudio.image);
+  const slotImage = activeSlot().image;
+  const selectedKey = getSelectionKey(slotImage);
 
-  // Featured card = whatever's currently selected (tile OR library). Single
-  // source of truth: adStudio.image. Fallback to the temperature-matching
-  // tile only when nothing is selected yet (which on a normal load won't
-  // happen — selectDefaultsForTemperature sets adStudio.image before render).
+  // Featured card = whatever the ACTIVE slot has selected (tile OR library).
+  // Single source of truth: activeSlot().image. Fallback to the temperature-
+  // matching tile only when nothing is selected yet.
   let featuredUrl = null, featuredAlt = null;
-  if (adStudio.image && adStudio.image.url) {
-    featuredUrl = adStudio.image.url;
-    featuredAlt = adStudio.image.kind === 'photo' ? 'Your photo'
-                : (TEMP_LABEL[adStudio.image.temperature] || adStudio.image.type || 'creative');
+  if (slotImage && slotImage.url) {
+    featuredUrl = slotImage.url;
+    featuredAlt = slotImage.kind === 'photo' ? 'Your photo'
+                : (TEMP_LABEL[slotImage.temperature] || slotImage.type || 'creative');
   } else {
     const { featured } = tilesByTemperature(adStudio.temperature);
     const fb = featured || tiles.find(t => t.status === 'complete' && t.url);
@@ -4982,7 +5075,7 @@ function renderBodyEditor(meta) {
   const ta = document.getElementById('ad-studio-body');
   const empty = document.getElementById('ad-studio-body-empty');
   if (!ta) return;
-  ta.value = adStudio.body || '';
+  ta.value = activeSlot().body || '';
   if (empty) empty.style.display = (meta && meta.hasOffer === false) ? '' : 'none';
 }
 
@@ -4998,8 +5091,11 @@ function renderPreview() {
   const meta = adStudio.data.meta || {};
   const gymName = meta.gymName || 'Your Gym';
   const initials = initialsFor(gymName);
-  const hookText = (adStudio.hook && adStudio.hook.hook) || '(Select a hook)';
-  const body = adStudio.body || '';
+  // Preview reads from the ACTIVE slot — flipping cold/warm shows that slot's
+  // hook/image/body in the FB feed mock.
+  const slot = activeSlot();
+  const hookText = (slot.hook && slot.hook.hook) || '(Select a hook)';
+  const body = slot.body || '';
   // Leadgen ads always show "Sign Up" (matches the SIGN_UP CTA type the
   // launch path sends to Meta). Bridge ads keep the per-temperature label.
   const ctaLabel = adStudio.cta === 'leadgen'
@@ -5014,8 +5110,8 @@ function renderPreview() {
     bodyDisplay = esc(body) || '<span style="color:#8a8d91">(Body copy will appear here)</span>';
   }
 
-  const imageHtml = adStudio.image && adStudio.image.url
-    ? `<img src="${esc(adStudio.image.url)}" alt="ad creative">`
+  const imageHtml = slot.image && slot.image.url
+    ? `<img src="${esc(slot.image.url)}" alt="ad creative">`
     : `<div class="fb-image-empty">No creative selected</div>`;
 
   wrap.innerHTML = `
@@ -5082,13 +5178,24 @@ async function postOfferChat({ mode } = {}) {
     // Single-offer turn (initial build or refine). Clear any stale options.
     adStudio.draftOffer = data.offer;
     adStudio.offerOptions = null;
-    if (!adStudio.bodyDirty) {
-      adStudio.body = composeDefaultBody(adStudio.data);
-      const ta = document.getElementById('ad-studio-body');
-      if (ta) ta.value = adStudio.body;
-      renderPreview();
-    }
+    applyOfferToBothSlotBodies();
   }
+}
+
+// The offer is shared across slots — when the chat produces a new draft, both
+// slots' body copy should reflect it UNLESS the owner has manually edited
+// that slot's body (bodyDirty=true on that slot). Per-slot dirty flag is what
+// makes this safe: editing cold's body doesn't lock warm's prefill, and vice
+// versa. Always refresh the visible textarea from the ACTIVE slot.
+function applyOfferToBothSlotBodies() {
+  const defaultBody = composeDefaultBody(adStudio.data);
+  for (const t of ['cold', 'warm']) {
+    const s = adStudio.slots[t];
+    if (s && !s.bodyDirty) s.body = defaultBody;
+  }
+  const ta = document.getElementById('ad-studio-body');
+  if (ta) ta.value = activeSlot().body || '';
+  renderPreview();
 }
 
 async function sendOfferMessage() {
@@ -5160,13 +5267,9 @@ function chooseOfferOption(idx) {
     content: `Selected: ${title}. What would you like to adjust — guarantee, price, included items, or something else?`,
   });
 
-  // Push the chosen offer into the body prefill if the owner hasn't edited it.
-  if (!adStudio.bodyDirty) {
-    adStudio.body = composeDefaultBody(adStudio.data);
-    const ta = document.getElementById('ad-studio-body');
-    if (ta) ta.value = adStudio.body;
-    renderPreview();
-  }
+  // Push the chosen offer into the body prefill for both slots (per-slot
+  // bodyDirty protects any slot the owner has already manually edited).
+  applyOfferToBothSlotBodies();
 
   renderOfferChatLog();
   renderOfferDraft();
