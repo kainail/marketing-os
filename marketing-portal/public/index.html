@@ -4155,10 +4155,20 @@ async function handleLaunchAds() {
   btn.disabled = true;
   btn.textContent = 'Launching…';
   if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+
+  // Pick up CTA choice from the Ad Studio state. Defaults preserve the
+  // existing bridge-page behavior for anyone who never opens the toggle.
+  const ctaType = (adStudio && adStudio.cta === 'leadgen') ? 'leadgen' : 'bridge';
+  const body = { cta_type: ctaType };
+  if (ctaType === 'leadgen') {
+    body.leadgen_form_id = (adStudio && adStudio.leadgenFormId) || '';
+  }
+
   try {
     const res = await fetch('/api/portal/launch-ads', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('gymsuite_token') || ''), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.success) {
@@ -4228,6 +4238,10 @@ const adStudio = {
   },
   library: null,           // /api/portal/creative-library payload (items + counts + meta)
   libraryExpanded: false,  // "Browse all creatives" expander state
+  cta: 'bridge',           // 'bridge' | 'leadgen' — drives launch payload + preview CTA label
+  // TEMPORARY: hardcoded single-gym default. Replace with per-gym form management
+  // once we add a form-id field to gyms/<id>/meta-credentials.json or similar.
+  leadgenFormId: '1012435414839954',
 };
 
 const TEMP_LABEL = { cold: 'Cold', warm: 'Warm', offer: 'Offer' };
@@ -4381,6 +4395,54 @@ function setImage(type) {
   updateAdStudioDoneStates();
 }
 window.setAdStudioImage = setImage;
+
+// ── Step 4 · Call to Action ────────────────────────────────────────────────
+// 'bridge' uses the existing testimonials destination URL with a LEARN_MORE
+// button. 'leadgen' references a pre-created Facebook Instant Form by id and
+// flips the button to SIGN_UP. The choice flows into the launch payload at
+// handleLaunchAds (POST /api/portal/launch-ads) as { cta_type, leadgen_form_id }.
+function setCta(cta) {
+  if (cta !== 'bridge' && cta !== 'leadgen') return;
+  if (adStudio.cta === cta) return;
+  adStudio.cta = cta;
+  renderCta();
+  renderPreview();    // CTA button label changes (Learn More ↔ Sign Up)
+  updateAdStudioDoneStates();
+}
+window.setAdStudioCta = setCta;
+
+function onCtaFormIdInput(e) {
+  adStudio.leadgenFormId = (e.target.value || '').trim();
+}
+window.onAdStudioCtaFormIdInput = onCtaFormIdInput;
+
+function renderCta() {
+  const wrap = document.getElementById('ad-studio-cta');
+  if (!wrap) return;
+  const isLeadgen = adStudio.cta === 'leadgen';
+  const formIdVal = (adStudio.leadgenFormId || '').replace(/"/g, '&quot;');
+  wrap.innerHTML = `
+    <div class="cta-row">
+      <button type="button" class="cta-seg ${!isLeadgen ? 'active' : ''}" onclick="setAdStudioCta('bridge')">
+        <div class="cta-seg-title">Bridge Page</div>
+        <div class="cta-seg-sub">Send clicks to your testimonials landing page (Learn More).</div>
+      </button>
+      <button type="button" class="cta-seg ${isLeadgen ? 'active' : ''}" onclick="setAdStudioCta('leadgen')">
+        <div class="cta-seg-title">Lead Form</div>
+        <div class="cta-seg-sub">Open an in-Facebook form with the archetype question (Sign Up).</div>
+      </button>
+    </div>
+    ${isLeadgen ? `
+      <div class="cta-form-row">
+        <div class="cta-form-label">Lead form ID</div>
+        <input id="ad-studio-cta-form-id" class="cta-form-input" type="text" autocomplete="off"
+               value="${formIdVal}" oninput="onAdStudioCtaFormIdInput(event)"
+               placeholder="e.g. 1012435414839954">
+        <div class="cta-note">Default form (Bloomington archetype). Per-gym form management is a later feature.</div>
+      </div>
+    ` : ''}
+  `;
+}
 
 // ── Creative library (Step 3 expander) ─────────────────────────────────────
 // /api/portal/creative-library returns every image in driveFolders.generated +
@@ -4611,6 +4673,17 @@ function renderAdStudio() {
       .lib-badge-ai          { background:rgba(124,58,237,0.85); color:#fff; }
       .lib-badge-photo       { background:rgba(16,185,129,0.85); color:#fff; }
       .lib-badge-unreviewed  { background:rgba(245,158,11,0.85); color:#1a1a1a; }
+      .cta-row { display:flex; gap:8px; }
+      .cta-seg { flex:1; background:rgba(255,255,255,0.04); border:1px solid var(--border); color:var(--text-secondary); font-family:inherit; font-size:13px; font-weight:600; padding:10px 14px; border-radius:8px; cursor:pointer; letter-spacing:.02em; transition:background .15s, color .15s, border-color .15s; text-align:left; }
+      .cta-seg:hover { background:rgba(124,58,237,0.06); color:var(--text-primary); }
+      .cta-seg.active { background:var(--purple); color:#fff; border-color:var(--purple); }
+      .cta-seg-title { font-size:13px; font-weight:700; }
+      .cta-seg-sub   { font-size:11px; font-weight:500; opacity:.8; margin-top:2px; }
+      .cta-form-row  { margin-top:10px; }
+      .cta-form-label { font-size:11px; font-weight:600; color:var(--text-muted); letter-spacing:.04em; text-transform:uppercase; margin-bottom:6px; }
+      .cta-form-input { width:100%; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:9px 12px; color:var(--text-primary); font-family:inherit; font-size:13px; outline:none; box-sizing:border-box; }
+      .cta-form-input:focus { border-color:var(--purple); }
+      .cta-note { font-size:11px; color:var(--text-muted); margin-top:6px; }
 
       /* Body textarea (unchanged — reused by renderBodyEditor). */
       .body-textarea { width:100%; min-height:180px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:12px 14px; color:var(--text-primary); font-family:inherit; font-size:13px; line-height:1.55; resize:vertical; outline:none; box-sizing:border-box; }
@@ -4750,6 +4823,15 @@ function renderAdStudio() {
           <div id="ad-studio-library-wrap" style="margin-top:14px"></div>
         </div>
 
+        <div class="as-step" id="as-step-cta">
+          <div class="as-step-head">
+            <div class="as-step-label"><span class="as-num">4</span>· Call to Action</div>
+            <span class="as-step-check">✓</span>
+          </div>
+          <div class="as-step-helper">Where the click goes.</div>
+          <div id="ad-studio-cta"></div>
+        </div>
+
         <div class="launch-stub">
           <div class="launch-stub-text">When you're ready, launching this ad pushes it to Meta Ads Manager as PAUSED.</div>
           <button type="button" class="launch-stub-btn" disabled title="Launching opens in the next release">Next: Launch (coming soon)</button>
@@ -4771,6 +4853,7 @@ function renderAdStudio() {
   renderImages();
   renderLibrary();
   renderBodyEditor(meta);
+  renderCta();
   renderPreview();
   updateAdStudioDoneStates();
   renderOfferChatLog();
@@ -4917,7 +5000,11 @@ function renderPreview() {
   const initials = initialsFor(gymName);
   const hookText = (adStudio.hook && adStudio.hook.hook) || '(Select a hook)';
   const body = adStudio.body || '';
-  const ctaLabel = TEMP_CTA[adStudio.temperature] || 'Learn More';
+  // Leadgen ads always show "Sign Up" (matches the SIGN_UP CTA type the
+  // launch path sends to Meta). Bridge ads keep the per-temperature label.
+  const ctaLabel = adStudio.cta === 'leadgen'
+    ? 'Sign Up'
+    : (TEMP_CTA[adStudio.temperature] || 'Learn More');
 
   // FB feed truncation kicks in around 125 chars. "See more" is decorative.
   let bodyDisplay;

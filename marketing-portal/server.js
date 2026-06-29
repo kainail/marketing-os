@@ -6990,7 +6990,7 @@ app.post('/api/portal/generate-hooks', requireAuth, async (req, res) => {
 // Throws on any Meta API failure. Used by POST /api/portal/launch-ads — the
 // step sequence mirrors POST /api/meta/create-campaign with defaults baked in
 // so the owner can launch in one click.
-async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_name, sessionId, cold_daily_budget = 1500, warm_daily_budget = 1000, destination_url, image_url, cold_primary_text, warm_primary_text, cold_headline, warm_headline }) {
+async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_name, sessionId, cold_daily_budget = 1500, warm_daily_budget = 1000, destination_url, image_url, cold_primary_text, warm_primary_text, cold_headline, warm_headline, cta_type = 'bridge', leadgen_form_id = null }) {
   // The caller (/api/portal/launch-ads) is responsible for the upfront geo guard;
   // assert defensively here so a future caller can't bypass it and silently
   // mis-target a gym's budget.
@@ -7018,10 +7018,25 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_nam
     console.warn(`[launch-ads] no sessionId provided — using fallback image_url`);
   }
 
-  console.log(`[launch-ads] creating campaign "${finalName}" on ${locMeta.adAccountId}`);
+  // CTA branch — additive over the existing bridge-page flow. When cta_type
+  // is 'leadgen', three values change in lockstep below (campaign objective,
+  // both adsets' optimization_goal, both creatives' call_to_action). When
+  // cta_type is 'bridge' (default), every Meta call is byte-for-byte the
+  // same as before — the bridge path is unchanged.
+  const isLeadgen = cta_type === 'leadgen';
+  if (isLeadgen && !leadgen_form_id) {
+    throw new Error('runMetaCampaignCreation: leadgen_form_id is required when cta_type=leadgen');
+  }
+  const objective = isLeadgen ? 'OUTCOME_LEADS' : 'OUTCOME_TRAFFIC';
+  const optimizationGoal = isLeadgen ? 'LEAD_GENERATION' : 'LINK_CLICKS';
+  // Lead-form CTA uses SIGN_UP (Meta's recommended type for lead-gen ads
+  // with a form attached). Bridge keeps LEARN_MORE.
+  const ctaTypeForButton = isLeadgen ? 'SIGN_UP' : 'LEARN_MORE';
+
+  console.log(`[launch-ads] creating campaign "${finalName}" on ${locMeta.adAccountId} (cta=${cta_type})`);
   const campaign = await metaApiCall(`${locMeta.adAccountId}/campaigns`, 'POST', {
     name: finalName,
-    objective: 'OUTCOME_TRAFFIC',
+    objective,
     status: 'PAUSED',
     special_ad_categories: [],
     is_adset_budget_sharing_enabled: false,
@@ -7045,7 +7060,7 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_nam
     campaign_id: campaign.id,
     daily_budget: cold_daily_budget,
     billing_event: 'IMPRESSIONS',
-    optimization_goal: 'LINK_CLICKS',
+    optimization_goal: optimizationGoal,
     bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
     promoted_object: JSON.stringify(promotedObject),
     targeting: JSON.stringify(targeting),
@@ -7058,7 +7073,7 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_nam
     campaign_id: campaign.id,
     daily_budget: warm_daily_budget,
     billing_event: 'IMPRESSIONS',
-    optimization_goal: 'LINK_CLICKS',
+    optimization_goal: optimizationGoal,
     bid_strategy: 'LOWEST_COST_WITHOUT_CAP',
     promoted_object: JSON.stringify(promotedObject),
     targeting: JSON.stringify(targeting),
@@ -7067,11 +7082,16 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_nam
   }, 3, locMeta.accessToken);
 
   const destinationUrl = 'https://go.ahrimarketing.com/testimonials';
+  // CTA value swaps between bridge URL and lead form. Everything else
+  // (message, link, headline, picture) stays identical.
+  const ctaValue = isLeadgen
+    ? { lead_gen_form_id: leadgen_form_id }
+    : { link: destinationUrl };
   const coldLinkData = {
     message: cold_primary_text || `The moment you realized you couldn't keep up with your own kids.\n\nThat feeling isn't about fitness. It's about who you want to be.\n\nAt ${campaignLoc.gymName}, your first 30 days are fully coached for $1.\n\nPrivate orientation. Weekly check-ins. A coach who texts you in week two — because that's when people stop. We know.\n\nShow up 12 times. If it's not worth it, full refund. You keep everything.\n\nThe form is below.`,
     link: destinationUrl,
     name: cold_headline || '30 Days Fully Coached. $1 to Start.',
-    call_to_action: { type: 'LEARN_MORE', value: { link: destinationUrl } },
+    call_to_action: { type: ctaTypeForButton, value: ctaValue },
   };
   if (coldImageUrl) coldLinkData.picture = coldImageUrl;
   const coldCreative = await metaApiCall(`${locMeta.adAccountId}/adcreatives`, 'POST', {
@@ -7093,7 +7113,7 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_nam
         message: warm_primary_text || `First 30 days, fully coached. One dollar to start.\n\nPrivate orientation. Done-for-you plan. Weekly coach check-ins. Direct text access.\n\nWe built this for people who've tried gyms before and stopped. The difference isn't motivation — it's having someone who notices when you go quiet.\n\nShow up 12 times or full refund. You keep the workout plan either way.\n\nClaim your spot below.`,
         link: destinationUrl,
         name: warm_headline || "Built for People Who've Quit Before.",
-        call_to_action: { type: 'LEARN_MORE', value: { link: destinationUrl } },
+        call_to_action: { type: ctaTypeForButton, value: ctaValue },
       },
     }),
   }, 3, locMeta.accessToken);
@@ -7117,6 +7137,8 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_nam
     },
     ads: { cold: { id: coldAd.id }, warm: { id: warmAd.id } },
     destination_url: destinationUrl,
+    cta_type,
+    leadgen_form_id: isLeadgen ? leadgen_form_id : null,
     created_at: new Date().toISOString(),
     notes: 'Created via Meta Marketing API. Status PAUSED — activate in Ads Manager when ready to spend.',
   };
@@ -7139,6 +7161,16 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_nam
 app.post('/api/portal/launch-ads', requireAuth, async (req, res) => {
   const { activeGymId, userId } = req.user;
   if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+
+  // CTA option — defaults to the existing bridge-page flow. Lead form requires
+  // an explicit form id; we refuse early rather than create a half-broken ad.
+  const cta_type = (req.body && req.body.cta_type) === 'leadgen' ? 'leadgen' : 'bridge';
+  const leadgen_form_id = (req.body && typeof req.body.leadgen_form_id === 'string')
+    ? req.body.leadgen_form_id.trim()
+    : null;
+  if (cta_type === 'leadgen' && !leadgen_form_id) {
+    return res.status(400).json({ error: 'leadgen_form_id is required when cta_type=leadgen' });
+  }
 
   const users = await getUsers().catch(() => null);
   if (!users) return res.status(503).json({ error: 'User database unavailable' });
@@ -7175,14 +7207,23 @@ app.post('/api/portal/launch-ads', requireAuth, async (req, res) => {
   const campaign_name = `${gymName} — AHRI Launch — ${today}`;
 
   try {
-    const result = await runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_name, sessionId: loc.sessionId || activeGymId });
+    const result = await runMetaCampaignCreation({
+      campaignLoc, locMeta, geo, campaign_name,
+      sessionId: loc.sessionId || activeGymId,
+      cta_type, leadgen_form_id,
+    });
     loc.meta_campaign_id = result.campaign_id;
     await saveUsers(users);
-    console.log(`[launch-ads] success — gymId=${activeGymId} campaignId=${result.campaign_id}`);
-    res.json({ success: true, campaignId: result.campaign_id });
+    console.log(`[launch-ads] success — gymId=${activeGymId} cta=${cta_type} campaignId=${result.campaign_id}`);
+    res.json({ success: true, campaignId: result.campaign_id, cta_type });
   } catch (err) {
-    console.error(`[launch-ads] failed for gymId=${activeGymId}:`, err.message);
-    res.status(500).json({ error: err.message || 'Campaign creation failed' });
+    // Surface Meta OAuthException details verbatim so missing-scope failures
+    // (e.g. "Requires pages_manage_ads permission") aren't lost. We don't
+    // know yet whether launching a leadgen ad needs that scope at ad-creation
+    // time even though form-creation does — letting the message through is
+    // how we'll find out the first time someone tries.
+    console.error(`[launch-ads] failed for gymId=${activeGymId} (cta=${cta_type}):`, err.message);
+    res.status(500).json({ error: err.message || 'Campaign creation failed', cta_type });
   }
 });
 
