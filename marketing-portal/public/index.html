@@ -4226,6 +4226,8 @@ const adStudio = {
     messages: [],     // [{ role: 'user'|'assistant', content: string }]
     pending: false,   // request in flight
   },
+  library: null,           // /api/portal/creative-library payload (items + counts + meta)
+  libraryExpanded: false,  // "Browse all creatives" expander state
 };
 
 const TEMP_LABEL = { cold: 'Cold', warm: 'Warm', offer: 'Offer' };
@@ -4260,6 +4262,16 @@ async function loadAdStudio() {
   selectDefaultsForTemperature();
 
   renderAdStudio();
+
+  // Library load is non-blocking — renderAdStudio paints the curated 3 tiles
+  // immediately; the library expander populates once /api/portal/creative-library
+  // returns. Failure here doesn't break the picker, just leaves the expander
+  // showing 0 items.
+  api('/api/portal/creative-library').then(lib => {
+    if (!lib || !Array.isArray(lib.items)) return;
+    adStudio.library = lib;
+    renderLibrary();
+  }).catch(() => { /* silent — expander stays empty */ });
 }
 
 // Compose a sensible body pre-fill from the confirmed offer. The chat draft
@@ -4347,14 +4359,151 @@ function setImage(type) {
   const tiles = (adStudio.data && adStudio.data.creatives && adStudio.data.creatives.tiles) || [];
   const next = tiles.find(t => t.type === type);
   if (!next || next.status !== 'complete' || !next.url) return;
-  adStudio.image = next;
+  adStudio.image = next; // tile shape: { type, temperature, url, status } — has .type
+  // Clear tile-side selection then re-apply.
   document.querySelectorAll('#ad-studio-images .image-tile').forEach(el => el.classList.remove('selected'));
   const sel = document.querySelector(`#ad-studio-images .image-tile[data-type="${type}"]`);
   if (sel) sel.classList.add('selected');
+  // Single selection across tiles + library — clear any library card highlight.
+  document.querySelectorAll('#ad-studio-library .lib-card.selected').forEach(el => el.classList.remove('selected'));
   renderPreview();
   updateAdStudioDoneStates();
 }
 window.setAdStudioImage = setImage;
+
+// ── Creative library (Step 3 expander) ─────────────────────────────────────
+// /api/portal/creative-library returns every image in driveFolders.generated +
+// driveFolders.photos (deduped). Each item has url='/api/onboard/creative-file/<id>'
+// which is the auth'd Drive proxy — <img src=...> alone 401s, so we use the
+// same fetch+Bearer+blob trick the Creative tab uses (loadCreativeImage).
+//
+// Selection model: the existing 3 tiles set adStudio.image to an object with
+// .type. Library picks set adStudio.image with NO .type but with a blob URL
+// + driveFileId. Picking either side clears the other's visual selection.
+// Confirm-time rehost (server.js confirmed-creative) reads driveFileId to
+// upgrade the URL to /api/public/creative/... before persisting.
+
+async function fetchProtectedBlobUrl(proxyUrl) {
+  const token = localStorage.getItem('gymsuite_token');
+  try {
+    const res = await fetch(proxyUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch (e) { return null; }
+}
+
+function toggleLibraryExpand() {
+  adStudio.libraryExpanded = !adStudio.libraryExpanded;
+  renderLibrary();
+}
+window.toggleAdStudioLibrary = toggleLibraryExpand;
+
+async function pickLibraryItem(driveFileId) {
+  const lib = adStudio.library;
+  if (!lib || !Array.isArray(lib.items)) return;
+  const item = lib.items.find(i => i.id === driveFileId);
+  if (!item) return;
+
+  // Cache the blob URL on the item so subsequent picks of the same image are
+  // instant. URL.createObjectURL leaks per call; reusing avoids piling them up.
+  if (!item._blobUrl) {
+    const blobUrl = await fetchProtectedBlobUrl(item.url);
+    if (!blobUrl) {
+      console.warn('[ad-studio] failed to load library image', driveFileId);
+      return;
+    }
+    item._blobUrl = blobUrl;
+  }
+
+  adStudio.image = {
+    // No .type field — that's what de-selects the curated 3 tiles visually.
+    selectionKey: 'lib:' + driveFileId,
+    driveFileId,
+    url: item._blobUrl,
+    kind: item.kind,
+    badge: item.badge,
+    temperature: item.temperature || null,
+    source: item.source,
+  };
+
+  // Single selection: clear tile + library highlights, then mark this card.
+  document.querySelectorAll('#ad-studio-images .image-tile.selected').forEach(el => el.classList.remove('selected'));
+  document.querySelectorAll('#ad-studio-library .lib-card.selected').forEach(el => el.classList.remove('selected'));
+  const card = document.querySelector(`#ad-studio-library .lib-card[data-id="${driveFileId}"]`);
+  if (card) card.classList.add('selected');
+
+  renderPreview();
+  updateAdStudioDoneStates();
+}
+window.pickAdStudioLibraryItem = pickLibraryItem;
+
+function renderLibrary() {
+  const wrap = document.getElementById('ad-studio-library-wrap');
+  if (!wrap) return;
+  if (!adStudio.library) {
+    // Still loading — keep wrap empty rather than flashing a "0" state.
+    wrap.innerHTML = '';
+    return;
+  }
+  const items = Array.isArray(adStudio.library.items) ? adStudio.library.items : [];
+  if (items.length === 0) {
+    wrap.innerHTML = `
+      <div class="lib-header" onclick="toggleAdStudioLibrary()">
+        <span class="lib-toggle">▸</span>
+        <span class="lib-header-title">Browse all creatives</span>
+        <span class="lib-header-count">0</span>
+      </div>`;
+    return;
+  }
+  const expanded = !!adStudio.libraryExpanded;
+  const arrow = expanded ? '▾' : '▸';
+  const selectedKey = adStudio.image && adStudio.image.selectionKey;
+
+  let gridHtml = '';
+  if (expanded) {
+    gridHtml = `<div id="ad-studio-library" class="lib-grid">${items.map(item => {
+      const isSel = selectedKey === 'lib:' + item.id;
+      const badgeClass = item.kind === 'ai' ? 'lib-badge-ai'
+                       : item.reviewed ? 'lib-badge-photo'
+                       : 'lib-badge-unreviewed';
+      return `
+        <div class="lib-card ${isSel ? 'selected' : ''}" data-id="${esc(item.id)}"
+             onclick="pickAdStudioLibraryItem('${esc(item.id)}')"
+             title="${esc(item.name)}">
+          <div class="lib-thumb">
+            <img data-lib-id="${esc(item.id)}" alt="${esc(item.name)}" loading="lazy">
+          </div>
+          <div class="lib-badge ${badgeClass}">${esc(item.badge)}</div>
+        </div>`;
+    }).join('')}</div>`;
+  }
+
+  wrap.innerHTML = `
+    <div class="lib-header" onclick="toggleAdStudioLibrary()">
+      <span class="lib-toggle">${arrow}</span>
+      <span class="lib-header-title">Browse all creatives</span>
+      <span class="lib-header-count">${items.length}</span>
+    </div>
+    ${gridHtml}
+  `;
+
+  if (expanded) {
+    // Kick off blob loads for each thumb. fetchProtectedBlobUrl caches on the
+    // item so re-expanding doesn't refetch.
+    wrap.querySelectorAll('img[data-lib-id]').forEach(async (img) => {
+      const id = img.dataset.libId;
+      const item = items.find(i => i.id === id);
+      if (!item) return;
+      if (item._blobUrl) { img.src = item._blobUrl; return; }
+      const blobUrl = await fetchProtectedBlobUrl(item.url);
+      if (blobUrl) {
+        item._blobUrl = blobUrl;
+        img.src = blobUrl;
+      }
+    });
+  }
+}
 
 function onBodyInput(e) {
   adStudio.body = e.target.value;
@@ -4437,6 +4586,21 @@ function renderAdStudio() {
       .image-tile.selected { border-color:var(--purple); }
       .image-tile.disabled { cursor:not-allowed; background:rgba(255,255,255,0.04); border-color:var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:9px; text-align:center; padding:4px; line-height:1.3; }
       .image-empty { aspect-ratio: 4/5; background:rgba(255,255,255,0.03); border:1px dashed var(--border); border-radius:10px; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:13px; text-align:center; padding:24px; }
+      .lib-header { display:flex; align-items:center; gap:8px; cursor:pointer; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,0.02); user-select:none; }
+      .lib-header:hover { background:rgba(124,58,237,0.06); border-color:rgba(124,58,237,0.4); }
+      .lib-toggle { font-size:12px; color:var(--text-muted); width:14px; display:inline-block; text-align:center; }
+      .lib-header-title { font-size:12px; font-weight:600; letter-spacing:.02em; color:var(--text-secondary); flex:1; }
+      .lib-header-count { font-size:11px; color:var(--text-muted); background:rgba(255,255,255,0.05); padding:2px 7px; border-radius:10px; }
+      .lib-grid { margin-top:10px; display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; }
+      .lib-card { position:relative; aspect-ratio:4/5; border-radius:8px; overflow:hidden; cursor:pointer; border:2px solid transparent; background:#000; }
+      .lib-card:hover { border-color:rgba(124,58,237,0.5); }
+      .lib-card.selected { border-color:var(--purple); box-shadow:0 0 0 1px var(--purple); }
+      .lib-thumb { width:100%; height:100%; }
+      .lib-thumb img { width:100%; height:100%; object-fit:cover; display:block; background:rgba(255,255,255,0.04); }
+      .lib-badge { position:absolute; left:6px; bottom:6px; right:6px; font-size:9px; font-weight:700; letter-spacing:.04em; padding:3px 5px; border-radius:4px; text-align:center; text-transform:uppercase; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .lib-badge-ai          { background:rgba(124,58,237,0.85); color:#fff; }
+      .lib-badge-photo       { background:rgba(16,185,129,0.85); color:#fff; }
+      .lib-badge-unreviewed  { background:rgba(245,158,11,0.85); color:#1a1a1a; }
 
       /* Body textarea (unchanged — reused by renderBodyEditor). */
       .body-textarea { width:100%; min-height:180px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:12px 14px; color:var(--text-primary); font-family:inherit; font-size:13px; line-height:1.55; resize:vertical; outline:none; box-sizing:border-box; }
@@ -4573,6 +4737,7 @@ function renderAdStudio() {
           </div>
           <div class="as-step-helper">What they'll see.</div>
           <div id="ad-studio-images"></div>
+          <div id="ad-studio-library-wrap" style="margin-top:14px"></div>
         </div>
 
         <div class="launch-stub">
@@ -4594,6 +4759,7 @@ function renderAdStudio() {
 
   renderHooks();
   renderImages();
+  renderLibrary();
   renderBodyEditor(meta);
   renderPreview();
   updateAdStudioDoneStates();

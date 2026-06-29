@@ -20,15 +20,47 @@ const KIE_CREATE_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const KIE_QUERY_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo';
 
 /**
- * Download a freshly-generated kie.ai image while the URL is still alive,
- * compress it, and store the bytes permanently in R2. Returns a permanent
- * public-proxy URL on success, or null on any failure (caller falls back
- * to the kie URL so a broken reference is never persisted).
+ * Compress a raw image buffer and store the bytes permanently in R2. Returns
+ * the permanent public-proxy URL on success, null on failure.
  *
- * Path:  shared/gyms/<scopeId>/creatives/<tier>-<uuid>.jpg
- * URL:   /api/public/creative/<scopeId>/<tier>-<uuid>.jpg
- *   (the server-side route validates scopeId is UUID-shaped, the filename
- *   is plain, and the resolved key stays inside the creatives prefix.)
+ * Shared tail of all rehost paths — kie URL fetch, Drive SDK download, future
+ * sources all pipe through here so the on-disk shape stays uniform.
+ *
+ * Path:  shared/gyms/<scopeId>/creatives/<slotPrefix>-<uuid>.jpg
+ * URL:   /api/public/creative/<scopeId>/<slotPrefix>-<uuid>.jpg
+ *   (the public route validates scopeId is UUID-shaped, the filename is
+ *   plain, and the resolved key stays inside the creatives prefix.)
+ *
+ * slotPrefix is purely a filename-readability hint — anything safe is fine.
+ * Conventions in use: 'cold' / 'warm' / 'offer' for pipeline-tier images,
+ * 'library' for confirm-time rehosts of owner-picked Drive images.
+ */
+async function rehostBufferToR2(rawBuffer, scopeId, slotPrefix) {
+  if (!Buffer.isBuffer(rawBuffer) || !rawBuffer.length || !scopeId) return null;
+  try {
+    const buffer = await sharp(rawBuffer)
+      .resize({ width: 1200, withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    const filename = `${slotPrefix}-${crypto.randomUUID()}.jpg`;
+    const r2Path = `gyms/${scopeId}/creatives/${filename}`;
+    await r2PutSharedBinary(r2Path, buffer, 'image/jpeg');
+
+    const permanentUrl = `/api/public/creative/${scopeId}/${filename}`;
+    console.log(`[Creative] rehost: ${slotPrefix} → R2 ${rawBuffer.length}→${buffer.length} bytes, url=${permanentUrl}`);
+    return permanentUrl;
+  } catch (err) {
+    console.warn(`[Creative] rehost FAILED for ${slotPrefix}: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Download a freshly-generated kie.ai image while the URL is still alive and
+ * rehost it via rehostBufferToR2. Returns the permanent URL on success, null
+ * on failure (caller falls back to the kie URL so a broken reference is never
+ * persisted).
  */
 async function rehostKieImageToR2(kieUrl, scopeId, tier) {
   if (!kieUrl || !scopeId) return null;
@@ -39,26 +71,9 @@ async function rehostKieImageToR2(kieUrl, scopeId, tier) {
       return null;
     }
     const rawBuffer = Buffer.from(await fetchRes.arrayBuffer());
-    if (!rawBuffer.length) {
-      console.warn(`[Creative] rehost: kie download returned 0 bytes for tier=${tier}`);
-      return null;
-    }
-    // Compress to keep R2 payload + proxy bandwidth reasonable. Same shape as
-    // the Drive upload path: 1200px wide, quality-85 JPEG.
-    const buffer = await sharp(rawBuffer)
-      .resize({ width: 1200, withoutEnlargement: true })
-      .jpeg({ quality: 85 })
-      .toBuffer();
-
-    const filename = `${tier}-${crypto.randomUUID()}.jpg`;
-    const r2Path = `gyms/${scopeId}/creatives/${filename}`;
-    await r2PutSharedBinary(r2Path, buffer, 'image/jpeg');
-
-    const permanentUrl = `/api/public/creative/${scopeId}/${filename}`;
-    console.log(`[Creative] rehost: ${tier} → R2 ${rawBuffer.length}→${buffer.length} bytes, url=${permanentUrl}`);
-    return permanentUrl;
+    return await rehostBufferToR2(rawBuffer, scopeId, tier);
   } catch (err) {
-    console.warn(`[Creative] rehost FAILED for tier=${tier}: ${err.message}`);
+    console.warn(`[Creative] rehost (kie) FAILED for tier=${tier}: ${err.message}`);
     return null;
   }
 }
@@ -609,4 +624,4 @@ RULES:
   }
 }
 
-module.exports = { generateOnboardingCreative, generateContentSchedule, tierFromPosition };
+module.exports = { generateOnboardingCreative, generateContentSchedule, tierFromPosition, rehostBufferToR2, rehostKieImageToR2 };

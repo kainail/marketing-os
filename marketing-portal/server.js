@@ -4667,18 +4667,73 @@ app.get('/api/onboarding/sessions/:sessionId/ad-creatives', async (req, res) => 
   res.json(data);
 });
 
-// POST /api/onboarding/sessions/:sessionId/confirmed-creative — owner picked one of the 3 ads.
-// Writes confirmed-creative.json. Additive to session complete — never blocks it.
+// POST /api/onboarding/sessions/:sessionId/confirmed-creative — owner picked
+// one of the 3 ads (or a library image). Writes confirmed-creative.json.
+//
+// REHOST-ON-CONFIRM: if the pick came from the Drive-backed library — flagged
+// either by an explicit driveFileId in the body OR a url that starts with
+// /api/onboard/creative-file/ — the server downloads the bytes from Drive,
+// pipes them through the same rehost path the kie pipeline uses
+// (sharp 1200px q85 → r2PutSharedBinary → gyms/<sessionId>/creatives/<uuid>.jpg),
+// and persists the PERMANENT /api/public/creative/... URL. Display in the
+// picker is cheap (auth'd Drive proxy + blob trick), but the committed pick
+// is always a Meta-fetchable, browser-fetchable, permanent URL.
+//
+// Hard failure mode: if rehost fails, the endpoint returns 5xx WITHOUT
+// writing confirmed-creative.json — we never persist a Drive-proxy URL there
+// because Meta cannot fetch from auth-gated endpoints at launch.
 app.post('/api/onboarding/sessions/:sessionId/confirmed-creative', async (req, res) => {
   const { sessionId } = req.params;
-  const { type, url } = req.body || {};
+  const { type, url, driveFileId: bodyDriveFileId } = req.body || {};
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
   if (!type || !url) return res.status(400).json({ error: 'type and url required' });
+
+  // Detect library picks: either explicit driveFileId, OR url matches the
+  // Drive-proxy pattern. Extract the file id either way.
+  let driveFileId = bodyDriveFileId || null;
+  if (!driveFileId) {
+    const m = String(url).match(/^\/api\/onboard\/creative-file\/([^/?#]+)/);
+    if (m) driveFileId = m[1];
+  }
+  const needsRehost = !!driveFileId;
+
+  // Persisted URL: starts equal to the body's url, replaced with the permanent
+  // R2 URL after a successful rehost.
+  let persistedUrl = url;
+
+  if (needsRehost) {
+    try {
+      const drive = getDriveClient();
+      const dlRes = await drive.files.get(
+        { fileId: driveFileId, alt: 'media', supportsAllDrives: true },
+        { responseType: 'arraybuffer' }
+      );
+      const rawBuffer = Buffer.from(dlRes.data);
+      if (!rawBuffer.length) {
+        return res.status(502).json({ error: 'Drive returned empty bytes for picked file' });
+      }
+      const { rehostBufferToR2 } = require('./services/creativeGenerator');
+      const permanentUrl = await rehostBufferToR2(rawBuffer, sessionId, 'library');
+      if (!permanentUrl) {
+        return res.status(502).json({ error: 'Failed to rehost picked image to R2 — try again' });
+      }
+      persistedUrl = permanentUrl;
+      console.log(`[confirmed-creative] rehosted Drive file ${driveFileId} → ${permanentUrl}`);
+    } catch (err) {
+      console.error('[confirmed-creative] rehost failed:', err.message);
+      return res.status(502).json({ error: `Rehost failed: ${err.message}` });
+    }
+  }
+
   try {
-    await r2PutShared(`onboarding/sessions/${sessionId}/confirmed-creative.json`, {
-      type, url, selectedAt: new Date().toISOString(),
-    });
-    res.json({ success: true });
+    const record = {
+      type,
+      url: persistedUrl,
+      selectedAt: new Date().toISOString(),
+    };
+    if (driveFileId) record.driveFileId = driveFileId;
+    await r2PutShared(`onboarding/sessions/${sessionId}/confirmed-creative.json`, record);
+    res.json({ success: true, url: persistedUrl, rehosted: needsRehost });
   } catch (err) {
     console.error('[onboarding] confirmed-creative failed:', err.message);
     res.status(500).json({ error: err.message });
@@ -6255,6 +6310,137 @@ app.get('/api/portal/ad-assets', requireAuth, async (req, res) => {
       hasOffer:      !!offer,
       hasCreative:   !!ownerCreativePick,
       hasHookPick:   ownerPicks.length > 0,
+    },
+  });
+});
+
+// ─── /api/portal/creative-library — full Drive-backed creative library ─────
+// Lists BOTH driveFolders.generated AND driveFolders.photos and merges into a
+// single flat catalog the Ad Studio picker renders below its curated 3-tile
+// row. requireAuth + owner-scoped + zero writes. Each item's display `url`
+// points at the existing auth'd Drive proxy (/api/onboard/creative-file/<id>)
+// — the browser loads bytes via the fetch+Bearer+blob trick from index.html's
+// loadCreativeImage(), because <img src> can't carry an Authorization header.
+//
+// The PICKED image is rehosted to R2 later at confirm time (see
+// POST /api/onboarding/sessions/:sessionId/confirmed-creative). Display stays
+// cheap; only the committed pick spends R2 bytes.
+//
+// AI filename → tier:  /^creative-\d+-(\d+)-/ middle group, mod-5 maps to
+// cold/warm/offer the same way services/creativeGenerator.js:tierFromPosition
+// does. Photos have no tier; tier/temperature are null for them.
+//
+// Dedup: an analyze-photos-approved photo is copied from Photos into Generated
+// with the 'photo-approved-' prefix, leaving the raw original behind. We treat
+// 'photo-approved-X' and 'X' as the same image and prefer the Generated copy.
+const CREATIVE_AI_NAME_RX = /^creative-\d+-(\d+)-/i;
+const TEMP_BY_TIER = { 1: 'cold', 2: 'cold', 3: 'warm', 4: 'warm', 5: 'offer' };
+
+function canonicalCreativeName(name) {
+  if (!name) return '';
+  // Strip the 'photo-approved-' prefix that analyze-photos prepends.
+  return String(name).toLowerCase().replace(/^photo-approved-/, '');
+}
+
+function classifyCreativeFile(file, source) {
+  const name = file.name || '';
+  const aiMatch = name.match(CREATIVE_AI_NAME_RX);
+  if (aiMatch) {
+    const tier = parseInt(aiMatch[1], 10);
+    return {
+      id: file.id,
+      name,
+      mimeType: file.mimeType,
+      createdTime: file.createdTime || null,
+      source,                       // 'generated' | 'photos'
+      kind: 'ai',
+      tier,                         // 1-5 from filename
+      temperature: TEMP_BY_TIER[tier] || null,
+      reviewed: true,               // AI creatives pass the authenticity gate before landing in Drive
+      badge: 'AI Generated',
+      driveFileId: file.id,
+      url: `/api/onboard/creative-file/${file.id}`,
+    };
+  }
+  // Owner photo. Reviewed if it's already in Generated (analyze-photos copied
+  // it there) OR the filename itself signals approval.
+  const reviewed = (source === 'generated') || /^photo-approved-/i.test(name);
+  return {
+    id: file.id,
+    name,
+    mimeType: file.mimeType,
+    createdTime: file.createdTime || null,
+    source,
+    kind: 'photo',
+    tier: null,
+    temperature: null,
+    reviewed,
+    badge: reviewed ? 'Your Photo' : 'Your Photo — Unreviewed',
+    driveFileId: file.id,
+    url: `/api/onboard/creative-file/${file.id}`,
+  };
+}
+
+app.get('/api/portal/creative-library', requireAuth, async (req, res) => {
+  const { activeGymId, userId } = req.user;
+  if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+  const user = users.find(u => u.id === userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const loc = (user.locations || []).find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  if (!loc || typeof loc !== 'object') return res.status(404).json({ error: 'Location not found on this account' });
+  const sessionKey = loc.sessionId || loc.gymId || activeGymId;
+  if (!sessionKey) return res.status(400).json({ error: 'No sessionId linked to this gym' });
+
+  // Read session.json for the Drive folder ids. Missing folders degrade to
+  // empty lists — endpoint still returns 200 with whatever's available.
+  const session = await r2GetShared(`onboarding/sessions/${sessionKey}/session.json`);
+  const generatedFolderId = session?.driveFolders?.generated || null;
+  const photosFolderId    = session?.driveFolders?.photos    || null;
+
+  const [generatedR, photosR] = await Promise.allSettled([
+    generatedFolderId ? listDriveFolder(generatedFolderId) : Promise.resolve([]),
+    photosFolderId    ? listDriveFolder(photosFolderId)    : Promise.resolve([]),
+  ]);
+  const generated = (generatedR.status === 'fulfilled' ? generatedR.value : []).filter(f => (f.mimeType || '').startsWith('image/'));
+  const photos    = (photosR.status === 'fulfilled' ? photosR.value : []).filter(f => (f.mimeType || '').startsWith('image/'));
+
+  // Classify everything first.
+  const classifiedGenerated = generated.map(f => classifyCreativeFile(f, 'generated'));
+  const classifiedPhotos    = photos.map(f => classifyCreativeFile(f, 'photos'));
+
+  // Dedup: build a set of canonical names already represented by an item in
+  // Generated, then drop Photos items whose canonical name collides.
+  const canonicalInGenerated = new Set(classifiedGenerated.map(i => canonicalCreativeName(i.name)));
+  const dedupedPhotos = classifiedPhotos.filter(i => !canonicalInGenerated.has(canonicalCreativeName(i.name)));
+  const droppedDuplicates = classifiedPhotos.length - dedupedPhotos.length;
+
+  // Merge order: Generated first (curated content first), then any remaining
+  // raw Photos. AI items sorted by tier then score embedded in filename so
+  // the UI can render in a stable order without re-sorting client-side.
+  const orderedGenerated = [...classifiedGenerated].sort((a, b) => {
+    // AI before photo, then by tier ascending.
+    if (a.kind !== b.kind) return a.kind === 'ai' ? -1 : 1;
+    if (a.kind === 'ai') return (a.tier || 99) - (b.tier || 99) || (a.name < b.name ? -1 : 1);
+    return (a.name < b.name ? -1 : 1);
+  });
+  const items = [...orderedGenerated, ...dedupedPhotos];
+
+  res.json({
+    items,
+    counts: {
+      generated: classifiedGenerated.length,
+      photos_raw: classifiedPhotos.length,
+      photos_after_dedup: dedupedPhotos.length,
+      dropped_duplicates: droppedDuplicates,
+      total: items.length,
+    },
+    meta: {
+      gymId: sessionKey,
+      generatedFolderId,
+      photosFolderId,
     },
   });
 });
