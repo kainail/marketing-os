@@ -4496,6 +4496,11 @@ function renderAdStudio() {
       .option-card-line { font-size:12px; color:var(--text-secondary); line-height:1.45; }
       .option-card-pick { margin-top:4px; background:var(--purple); color:#fff; border:none; border-radius:7px; padding:8px 12px; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; align-self:flex-start; }
       .option-card-pick:hover { filter:brightness(1.1); }
+      .hook-gen-row { display:flex; align-items:center; gap:12px; margin-top:12px; }
+      .hook-gen-btn { background:rgba(124,58,237,0.12); color:var(--text-primary); border:1px solid rgba(124,58,237,0.45); border-radius:8px; padding:8px 14px; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; transition:background .15s, border-color .15s; }
+      .hook-gen-btn:hover:not(:disabled) { background:rgba(124,58,237,0.22); border-color:var(--purple); }
+      .hook-gen-btn:disabled { opacity:.55; cursor:wait; }
+      .hook-gen-meta { font-size:11px; color:var(--text-muted); }
     </style>
 
     <div style="margin-bottom:18px">
@@ -4543,6 +4548,12 @@ function renderAdStudio() {
           </div>
           <div class="as-step-helper">The line that stops the scroll.</div>
           <div id="ad-studio-hooks"></div>
+          <div class="hook-gen-row">
+            <button id="ad-studio-hook-gen-btn" class="hook-gen-btn" type="button" onclick="generateMoreHooks()">
+              ✦ Generate 5 hooks
+            </button>
+            <span id="ad-studio-hook-gen-meta" class="hook-gen-meta"></span>
+          </div>
         </div>
 
         <div class="as-step" id="as-step-offer">
@@ -4882,6 +4893,61 @@ function chooseOfferOption(idx) {
   renderOfferDraft();
 }
 window.chooseOfferOption = chooseOfferOption;
+
+// ── Hook generator (owner) ───────────────────────────────────────────────
+// "Generate 5 hooks" button in the Hook step. POSTs the current Ad Studio
+// temperature, appends the returned hooks to adStudio.data.hooks.library so
+// the existing hooksForTemperature() filter picks them up automatically.
+// Browser state only — nothing persists.
+async function generateMoreHooks() {
+  if (adStudio.hookGenPending) return;
+  if (!adStudio.data || !adStudio.data.hooks) return;
+  const temp = adStudio.temperature || 'cold';
+
+  adStudio.hookGenPending = true;
+  setHookGenBusy(true, temp);
+
+  try {
+    const data = await apiPost('/api/portal/generate-hooks', { temperature: temp });
+    if (!data || !Array.isArray(data.hooks) || data.hooks.length === 0) {
+      setHookGenMeta('Generation failed — try again.');
+      return;
+    }
+
+    // Append to the library pool so the existing selector picks them up. Each
+    // entry already carries its own temperature tag from the server.
+    const fresh = data.hooks.map(h => ({
+      hook:        h.hook || '',
+      framework:   h.framework || null,
+      level:       h.awarenessLevel || null,
+      temperature: h.temperature || temp,
+      whyItWorks:  h.whyItWorks || '',
+      generated:   true,
+    }));
+    adStudio.data.hooks.library = (adStudio.data.hooks.library || []).concat(fresh);
+    adStudio.hookGenCount = (adStudio.hookGenCount || 0) + fresh.length;
+    setHookGenMeta(`+${fresh.length} new · ${adStudio.hookGenCount} this session`);
+    renderHooks();
+  } catch (err) {
+    setHookGenMeta('Generation failed — try again.');
+  } finally {
+    adStudio.hookGenPending = false;
+    setHookGenBusy(false, temp);
+  }
+}
+window.generateMoreHooks = generateMoreHooks;
+
+function setHookGenBusy(busy, temp) {
+  const btn = document.getElementById('ad-studio-hook-gen-btn');
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.textContent = busy ? `Generating ${temp || ''} hooks…` : '✦ Generate 5 hooks';
+}
+
+function setHookGenMeta(text) {
+  const el = document.getElementById('ad-studio-hook-gen-meta');
+  if (el) el.textContent = text || '';
+}
 
 function setChatBusy(busy) {
   const send = document.getElementById('ad-studio-chat-send');

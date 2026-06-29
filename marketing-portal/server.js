@@ -6610,6 +6610,189 @@ app.post('/api/portal/offer-chat', requireAuth, async (req, res) => {
   }
 });
 
+// ─── /api/portal/generate-hooks — owner-scoped batch hook generation ──────
+// Pure generation, no chat, no refinement. Returns 5 hooks in the awareness
+// band that matches the requested temperature. Same skill-from-R2 pattern as
+// offer-chat (cache → R2 → repo-root disk → hard 500). Same defensive context
+// assembly (each per-gym file optional). ZERO writes.
+let _hookSkillCache = null;
+const HOOK_SKILL_R2_KEY = 'skills/hook-writer.md';
+const HOOK_SKILL_DISK_PATHS = [
+  path.join(__dirname, 'skills', 'hook-writer', 'SKILL.md'),
+  path.join(__dirname, '..', 'skills', 'hook-writer', 'SKILL.md'),
+];
+
+async function loadHookSkill() {
+  if (_hookSkillCache) return _hookSkillCache;
+  try {
+    const r2Body = await r2GetShared(HOOK_SKILL_R2_KEY);
+    if (typeof r2Body === 'string' && r2Body.trim()) {
+      _hookSkillCache = r2Body;
+      console.log(`[generate-hooks] skill loaded from R2 (${r2Body.length} chars)`);
+      return _hookSkillCache;
+    }
+  } catch (err) {
+    console.warn('[generate-hooks] R2 skill read failed, will try disk:', err.message);
+  }
+  for (const p of HOOK_SKILL_DISK_PATHS) {
+    try {
+      if (fs.existsSync(p)) {
+        const body = fs.readFileSync(p, 'utf-8');
+        if (body.trim()) {
+          _hookSkillCache = body;
+          console.log(`[generate-hooks] skill loaded from disk: ${p} (${body.length} chars)`);
+          return _hookSkillCache;
+        }
+      }
+    } catch (err) {
+      console.warn(`[generate-hooks] disk read failed for ${p}:`, err.message);
+    }
+  }
+  return null;
+}
+
+// temperature → awareness band + framework whitelist. Lifted from the brief;
+// the framework names match SKILL.md (Pain Point, Curiosity Gap, Bold Claim,
+// Relatability, Pattern Interrupt). The endpoint composes this into the
+// system-prompt instruction so the skill produces hooks in the right band.
+const HOOK_BAND_BY_TEMP = {
+  cold:  { levelRange: 'Level 2-3', frameworks: ['Pain Point', 'Relatability', 'Curiosity Gap'] },
+  warm:  { levelRange: 'Level 3-4', frameworks: ['Curiosity Gap', 'Pattern Interrupt', 'Bold Claim'] },
+  offer: { levelRange: 'Level 4-5', frameworks: ['Bold Claim', 'Pattern Interrupt'] },
+};
+
+function buildHookInstruction(temperature) {
+  const band = HOOK_BAND_BY_TEMP[temperature];
+  return `
+
+# Output contract — STRICT — GENERATE FIVE HOOKS
+
+The owner has requested a batch of FIVE hooks for the "${temperature}" audience temperature.
+
+Awareness band: ${band.levelRange}.
+Allowed frameworks (use a MIX — do NOT return five of the same framework):
+${band.frameworks.map(f => `  - ${f}`).join('\n')}
+
+Hard rules (carried over from the skill):
+- Each hook ≤ 15 words. Count them.
+- No forbidden words: transform, crush, journey, elevate, beast mode, no excuses, unlock your potential, revolutionary, game-changing, state-of-the-art, "Are you ready to..."
+- No unsubstantiated weight-loss or body-composition claims.
+- No fake urgency or manufactured scarcity.
+- Hooks must sound like a real person speaking, not an ad copywriter.
+
+Reply with a SINGLE JSON object and NOTHING ELSE. No markdown code fences. No prose outside the JSON.
+
+Shape:
+{
+  "hooks": [
+    {
+      "hook": "<hook text, ≤15 words>",
+      "framework": "<one of: ${band.frameworks.join(' | ')}>",
+      "awarenessLevel": <integer 1-5 — single number, not a range>,
+      "whyItWorks": "<one sentence — why this hook lands for THIS avatar in THIS context>"
+    },
+    ... exactly 5 entries total
+  ]
+}
+
+The 5 hooks together MUST span at least ${Math.min(3, band.frameworks.length)} different frameworks from the allowed list. Reply with the JSON object now.`;
+}
+
+function normalizeHook(raw, fallbackTemp) {
+  if (!raw || typeof raw !== 'object') return null;
+  const hook = typeof raw.hook === 'string' ? raw.hook.trim() : '';
+  if (!hook) return null;
+  const framework = typeof raw.framework === 'string' ? raw.framework.trim() : null;
+  // Coerce awarenessLevel to a string the existing UI normalizer accepts
+  // (levelToTemperature handles "L2", "2", "L2-3"). Default to fallback temp's
+  // mid-band if the model omitted it.
+  let level = raw.awarenessLevel;
+  if (typeof level === 'number') level = `L${level}`;
+  else if (typeof level === 'string' && level.trim()) level = level.trim();
+  else level = null;
+  const whyItWorks = typeof raw.whyItWorks === 'string' ? raw.whyItWorks.trim() : '';
+  return {
+    hook,
+    framework,
+    awarenessLevel: level,
+    whyItWorks,
+    temperature: fallbackTemp,
+  };
+}
+
+app.post('/api/portal/generate-hooks', requireAuth, async (req, res) => {
+  const { activeGymId, userId } = req.user;
+  if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
+
+  const temperature = (req.body && req.body.temperature) || 'cold';
+  if (!HOOK_BAND_BY_TEMP[temperature]) {
+    return res.status(400).json({ error: `temperature must be one of: ${Object.keys(HOOK_BAND_BY_TEMP).join(', ')}` });
+  }
+
+  // Resolve sessionKey from the AUTHED owner's own location record.
+  const users = await getUsers().catch(() => null);
+  if (!users) return res.status(503).json({ error: 'User database unavailable' });
+  const user = users.find(u => u.id === userId);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const loc = (user.locations || []).find(l => (typeof l === 'object' ? l.gymId : l) === activeGymId);
+  if (!loc || typeof loc !== 'object') return res.status(404).json({ error: 'Location not found on this account' });
+  const sessionKey = loc.sessionId || loc.gymId || activeGymId;
+  if (!sessionKey) return res.status(400).json({ error: 'No sessionId linked to this gym' });
+
+  // API key — same per-location override + bloomington fallback.
+  const apiKey = locationConfig.getLocation(activeGymId)?.keys?.anthropicApiKey
+    || locationConfig.getLocation('bloomington')?.keys?.anthropicApiKey;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'No Anthropic API key configured for this gym' });
+  }
+
+  const skillBody = await loadHookSkill();
+  if (!skillBody) {
+    console.error('[generate-hooks] hook skill not available in R2 or on disk');
+    return res.status(500).json({ error: 'hook skill not available' });
+  }
+
+  let gymContext;
+  try {
+    gymContext = await assembleGymContext(sessionKey);
+  } catch (err) {
+    console.error('[generate-hooks] context assembly failed:', err.message);
+    gymContext = '(context assembly failed — proceed with knowledge-base defaults only)';
+  }
+
+  const systemPrompt = `${skillBody}\n\n# Gym Context\n${gymContext}${buildHookInstruction(temperature)}`;
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: `Generate 5 ${temperature}-temperature hooks now.` }],
+    });
+
+    const text = response.content[0]?.type === 'text' ? response.content[0].text : '';
+
+    let parsed;
+    try {
+      parsed = JSON.parse(stripJsonFences(text));
+    } catch {
+      console.warn('[generate-hooks] model returned non-JSON');
+      return res.json({ hooks: [], error: 'parse' });
+    }
+
+    const hooks = Array.isArray(parsed.hooks)
+      ? parsed.hooks.map(h => normalizeHook(h, temperature)).filter(Boolean).slice(0, 5)
+      : [];
+
+    return res.json({ hooks });
+  } catch (err) {
+    console.error('[generate-hooks] anthropic call failed:', err.message);
+    return res.status(500).json({ error: err.message || 'Hook generator is temporarily unavailable' });
+  }
+});
+
 // Creates the full Meta campaign (campaign → 2 ad sets → 2 creatives → 2 ads)
 // and persists the result to intelligence-db/paid/active-campaign.json in R2.
 // Throws on any Meta API failure. Used by POST /api/portal/launch-ads — the
