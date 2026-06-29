@@ -7059,7 +7059,7 @@ app.post('/api/portal/generate-hooks', requireAuth, async (req, res) => {
 // Throws on any Meta API failure. Used by POST /api/portal/launch-ads — the
 // step sequence mirrors POST /api/meta/create-campaign with defaults baked in
 // so the owner can launch in one click.
-async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_name, sessionId, cold_daily_budget = 1500, warm_daily_budget = 1000, destination_url, image_url, cold_primary_text, warm_primary_text, cold_headline, warm_headline, cta_type = 'bridge', leadgen_form_id = null }) {
+async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_name, sessionId, cold_daily_budget = 1500, warm_daily_budget = 1000, destination_url, image_url, warm_image_url, cold_primary_text, warm_primary_text, cold_headline, warm_headline, cta_type = 'bridge', leadgen_form_id = null }) {
   // The caller (/api/portal/launch-ads) is responsible for the upfront geo guard;
   // assert defensively here so a future caller can't bypass it and silently
   // mis-target a gym's budget.
@@ -7069,22 +7069,26 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_nam
   const today = new Date().toISOString().split('T')[0];
   const finalName = campaign_name || `${campaignLoc.gymName || campaignLoc.name} — AHRI Launch — ${today}`;
 
-  // Resolve cold ad image: owner-confirmed creative from R2 wins; fall back to passed-in image_url.
-  let coldImageUrl = image_url;
-  if (sessionId) {
+  // Cold image precedence (Stage B): explicit image_url arg wins. Only fall
+  // back to confirmed-creative.json.url when the caller passes nothing —
+  // that's the legacy onboarding-picker path. After Stage A's slot
+  // persistence, an Ad Studio launch passes slots.cold.image.url directly
+  // and the R2 read is bypassed.
+  let coldImageUrl = image_url || null;
+  if (!coldImageUrl && sessionId) {
     try {
       const confirmed = await r2GetShared(`onboarding/sessions/${sessionId}/confirmed-creative.json`);
       if (confirmed && confirmed.url) {
         coldImageUrl = confirmed.url;
-        console.log(`[launch-ads] using confirmed-creative image (type=${confirmed.type || 'unknown'}) for sessionId=${sessionId}`);
+        console.log(`[launch-ads] cold image from confirmed-creative.json (type=${confirmed.type || 'unknown'}) for sessionId=${sessionId}`);
       } else {
-        console.warn(`[launch-ads] confirmed-creative.json missing or has no url for sessionId=${sessionId} — using fallback image`);
+        console.warn(`[launch-ads] no cold image — image_url arg not set AND confirmed-creative.json empty/missing for sessionId=${sessionId}`);
       }
     } catch (err) {
-      console.warn(`[launch-ads] failed to read confirmed-creative.json for sessionId=${sessionId}: ${err.message} — using fallback image`);
+      console.warn(`[launch-ads] failed to read confirmed-creative.json for sessionId=${sessionId}: ${err.message}`);
     }
-  } else {
-    console.warn(`[launch-ads] no sessionId provided — using fallback image_url`);
+  } else if (coldImageUrl) {
+    console.log(`[launch-ads] cold image from caller arg (${coldImageUrl.substring(0, 60)}…)`);
   }
 
   // CTA branch — additive over the existing bridge-page flow. When cta_type
@@ -7174,16 +7178,28 @@ async function runMetaCampaignCreation({ campaignLoc, locMeta, geo, campaign_nam
     status: 'PAUSED',
   }, 3, locMeta.accessToken);
 
+  // Warm image: caller's warm_image_url wins. NO R2 fallback for warm —
+  // confirmed-creative.json's top-level mirrors cold by design, so reading
+  // it for warm would mis-target. If caller doesn't supply, warm runs without
+  // a picture (matches pre-Stage-B behavior, which was the latent imageless
+  // bug — Stage B fix is that callers now DO supply warm_image_url).
+  const warmLinkData = {
+    message: warm_primary_text || `First 30 days, fully coached. One dollar to start.\n\nPrivate orientation. Done-for-you plan. Weekly coach check-ins. Direct text access.\n\nWe built this for people who've tried gyms before and stopped. The difference isn't motivation — it's having someone who notices when you go quiet.\n\nShow up 12 times or full refund. You keep the workout plan either way.\n\nClaim your spot below.`,
+    link: destinationUrl,
+    name: warm_headline || "Built for People Who've Quit Before.",
+    call_to_action: { type: ctaTypeForButton, value: ctaValue },
+  };
+  if (warm_image_url) {
+    warmLinkData.picture = warm_image_url;
+    console.log(`[launch-ads] warm image from caller arg (${warm_image_url.substring(0, 60)}…)`);
+  } else {
+    console.warn(`[launch-ads] no warm image — warm_image_url arg not set; warm ad will run without a picture`);
+  }
   const warmCreative = await metaApiCall(`${locMeta.adAccountId}/adcreatives`, 'POST', {
     name: 'Hook E — Offer Direct — Warm',
     object_story_spec: JSON.stringify({
       page_id: locMeta.pageId,
-      link_data: {
-        message: warm_primary_text || `First 30 days, fully coached. One dollar to start.\n\nPrivate orientation. Done-for-you plan. Weekly coach check-ins. Direct text access.\n\nWe built this for people who've tried gyms before and stopped. The difference isn't motivation — it's having someone who notices when you go quiet.\n\nShow up 12 times or full refund. You keep the workout plan either way.\n\nClaim your spot below.`,
-        link: destinationUrl,
-        name: warm_headline || "Built for People Who've Quit Before.",
-        call_to_action: { type: ctaTypeForButton, value: ctaValue },
-      },
+      link_data: warmLinkData,
     }),
   }, 3, locMeta.accessToken);
   const warmAd = await metaApiCall(`${locMeta.adAccountId}/ads`, 'POST', {
@@ -7241,6 +7257,31 @@ app.post('/api/portal/launch-ads', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'leadgen_form_id is required when cta_type=leadgen' });
   }
 
+  // Stage B — per-slot payload. The frontend pre-validates and blocks at
+  // click time, but we re-validate here so a hand-rolled request can't smuggle
+  // a blob URL through. The shape MUST be /api/public/creative/... — that's
+  // the only thing Meta can fetch at launch.
+  const PUBLIC_URL_RX = /^\/api\/public\/creative\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+\.(?:jpg|jpeg|png|webp)$/i;
+  const cold = (req.body && typeof req.body.cold === 'object' && req.body.cold) || null;
+  const warm = (req.body && typeof req.body.warm === 'object' && req.body.warm) || null;
+
+  // Slot data is optional — when absent we fall through to the legacy
+  // hardcoded fallbacks inside runMetaCampaignCreation (back-compat for any
+  // caller that hasn't migrated to the Stage B payload). But if a slot IS
+  // present, its image_url must be permanent or we refuse the whole launch.
+  const coldImageUrl = cold && typeof cold.image_url === 'string' ? cold.image_url : null;
+  const warmImageUrl = warm && typeof warm.image_url === 'string' ? warm.image_url : null;
+  if (cold && (!coldImageUrl || !PUBLIC_URL_RX.test(coldImageUrl))) {
+    return res.status(400).json({ error: 'cold.image_url must be a permanent /api/public/creative/... URL' });
+  }
+  if (warm && (!warmImageUrl || !PUBLIC_URL_RX.test(warmImageUrl))) {
+    return res.status(400).json({ error: 'warm.image_url must be a permanent /api/public/creative/... URL' });
+  }
+  const coldHeadline = (cold && typeof cold.headline === 'string' && cold.headline.trim()) ? cold.headline.trim() : null;
+  const coldBody     = (cold && typeof cold.body     === 'string' && cold.body.trim())     ? cold.body.trim()     : null;
+  const warmHeadline = (warm && typeof warm.headline === 'string' && warm.headline.trim()) ? warm.headline.trim() : null;
+  const warmBody     = (warm && typeof warm.body     === 'string' && warm.body.trim())     ? warm.body.trim()     : null;
+
   const users = await getUsers().catch(() => null);
   if (!users) return res.status(503).json({ error: 'User database unavailable' });
 
@@ -7280,6 +7321,15 @@ app.post('/api/portal/launch-ads', requireAuth, async (req, res) => {
       campaignLoc, locMeta, geo, campaign_name,
       sessionId: loc.sessionId || activeGymId,
       cta_type, leadgen_form_id,
+      // Stage B — per-slot data. Null-able; runMetaCampaignCreation falls
+      // back to hardcoded copy + (for cold) confirmed-creative.json when
+      // these are missing.
+      image_url:         coldImageUrl,
+      warm_image_url:    warmImageUrl,
+      cold_headline:     coldHeadline,
+      cold_primary_text: coldBody,
+      warm_headline:     warmHeadline,
+      warm_primary_text: warmBody,
     });
     loc.meta_campaign_id = result.campaign_id;
     await saveUsers(users);

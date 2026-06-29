@@ -4152,14 +4152,61 @@ async function handleLaunchAds() {
   const btn = document.getElementById('launch-ads-btn');
   const errorEl = document.getElementById('launch-ads-error');
   if (!btn) return;
+
+  const showError = (msg) => {
+    if (errorEl) {
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Launch Ads';
+  };
+
+  // ── Stage B pre-launch guard ────────────────────────────────────────────
+  // Both slots must be fully built AND both image URLs must be permanent
+  // (post-rehost). The rehost flow is OPTIMISTIC — for a brief window after
+  // a library pick, slot.image.url is a blob URL while the rehost is in
+  // flight. We MUST NOT send blob URLs to Meta. Same for any slot still on
+  // a Drive-proxy URL (legacy mis-state) or missing entirely.
+  const PUBLIC_URL_RX = /^\/api\/public\/creative\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+\.(?:jpg|jpeg|png|webp)$/i;
+  const isPermanent = (u) => typeof u === 'string' && PUBLIC_URL_RX.test(u);
+  const slotIssue = (label, slot) => {
+    if (!slot) return `${label} slot is empty.`;
+    if (!slot.hook || !slot.hook.hook) return `${label} hook is not picked.`;
+    if (!slot.image || !slot.image.url) return `${label} image is not picked.`;
+    if (slot.image._pending) return `${label} image is still processing — wait a couple of seconds and try again.`;
+    if (!isPermanent(slot.image.url)) {
+      return slot.image.url.startsWith('blob:')
+        ? `${label} image hasn't finished uploading — wait a moment and try again.`
+        : `${label} image URL is not in the permanent shape (got: ${slot.image.url.substring(0, 60)}…). Re-pick the image.`;
+    }
+    return null;
+  };
+  const coldIssue = slotIssue('Cold', adStudio && adStudio.slots && adStudio.slots.cold);
+  if (coldIssue) return showError(coldIssue);
+  const warmIssue = slotIssue('Warm', adStudio && adStudio.slots && adStudio.slots.warm);
+  if (warmIssue) return showError(warmIssue);
+
   btn.disabled = true;
   btn.textContent = 'Launching…';
   if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
 
-  // Pick up CTA choice from the Ad Studio state. Defaults preserve the
-  // existing bridge-page behavior for anyone who never opens the toggle.
+  // CTA + per-slot payload. Send both slots — cold goes to the cold ad set,
+  // warm goes to the warm ad set, server maps each into runMetaCampaignCreation.
   const ctaType = (adStudio && adStudio.cta === 'leadgen') ? 'leadgen' : 'bridge';
-  const body = { cta_type: ctaType };
+  const body = {
+    cta_type: ctaType,
+    cold: {
+      headline:  adStudio.slots.cold.hook.hook,
+      body:      adStudio.slots.cold.body || '',
+      image_url: adStudio.slots.cold.image.url,
+    },
+    warm: {
+      headline:  adStudio.slots.warm.hook.hook,
+      body:      adStudio.slots.warm.body || '',
+      image_url: adStudio.slots.warm.image.url,
+    },
+  };
   if (ctaType === 'leadgen') {
     body.leadgen_form_id = (adStudio && adStudio.leadgenFormId) || '';
   }
