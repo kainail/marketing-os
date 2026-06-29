@@ -542,6 +542,22 @@ async function atomicWriteJSON(filePath, data) {
   await fs.promises.rename(tmp, filePath);
 }
 
+// ─── asyncHandler ──────────────────────────────────────────────────────────
+// Express 4 doesn't route async rejections to the default error pipeline —
+// an unhandled rejection inside `async (req, res) => {...}` just leaks as an
+// unhandledRejection warning and the HTTP request HANGS until the client
+// timeout. asyncHandler wraps an async route so any rejection (R2 write
+// failure, getEffectiveMetaCreds throw, any await that explodes) gets
+// forwarded to next(err), where the error-handling middleware at the bottom
+// of this file converts it into a clean 500 + log.
+//
+// Used to wrap every async route that has at least one r2Put/r2PutShared
+// call without a try/catch around it. Wrapping a route that already has its
+// own try/catch is harmless — the inner catch fires first; the wrapper only
+// matters if something escapes.
+const asyncHandler = fn => (req, res, next) =>
+  Promise.resolve(fn(req, res, next)).catch(next);
+
 // --- Meta Marketing API helpers ---
 
 async function metaApiCall(endpoint, method = 'GET', params = {}, retries = 3, accessToken = META_ACCESS_TOKEN) {
@@ -915,7 +931,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 });
 
 // PATCH /api/auth/active-gym — switch the active gym for a multi-location owner
-app.patch('/api/auth/active-gym', requireAuth, async (req, res) => {
+app.patch('/api/auth/active-gym', requireAuth, asyncHandler(async (req, res) => {
   const { gymId } = req.body || {};
   if (!gymId) return res.status(400).json({ error: 'gymId required' });
 
@@ -935,7 +951,7 @@ app.patch('/api/auth/active-gym', requireAuth, async (req, res) => {
   const { passwordHash, resetToken, resetTokenExpiry, ...safeUser } = user;
   const token = generateToken(safeUser);
   res.json({ token });
-});
+}));
 
 app.get('/api/status', (req, res) => {
   const locationId = req.query.location || 'bloomington';
@@ -2809,7 +2825,7 @@ app.get('/onboard/portal/:sessionId', (req, res) => res.sendFile(path.join(__dir
 // ── Onboarding API ─────────────────────────────────────────────────────────────
 
 // POST /api/onboarding/sessions — create a new onboarding session
-app.post('/api/onboarding/sessions', requireAdmin, async (req, res) => {
+app.post('/api/onboarding/sessions', requireAdmin, asyncHandler(async (req, res) => {
   const { gymName, ownerName, ownerEmail, city, state, zip, franchiseType, websiteUrl } = req.body;
   if (!gymName || !ownerName || !city || !state) {
     return res.status(400).json({ error: 'gymName, ownerName, city, and state are required' });
@@ -2847,10 +2863,10 @@ app.post('/api/onboarding/sessions', requireAdmin, async (req, res) => {
     session,
     manus: { triggered: !!manusResult.task_id, task_id: manusResult.task_id || null, fallback: !!manusResult.fallback, error: manusResult.error || null },
   });
-});
+}));
 
 // POST /api/onboarding/sessions/add-location — owner (or admin on behalf of owner) adds a club
-app.post('/api/onboarding/sessions/add-location', requireAuth, async (req, res) => {
+app.post('/api/onboarding/sessions/add-location', requireAuth, asyncHandler(async (req, res) => {
   const isAdmin = req.user.role === 'admin';
   if (!isAdmin && req.user.role !== 'owner') return res.status(403).json({ error: 'Owner or admin access required' });
 
@@ -2950,7 +2966,7 @@ app.post('/api/onboarding/sessions/add-location', requireAuth, async (req, res) 
     shareUrl: `${baseUrl}/onboard/session/${newSessionId}`,
     manus: { triggered: !!manusResult.task_id, task_id: manusResult.task_id || null, fallback: !!manusResult.fallback },
   });
-});
+}));
 
 // GET /api/onboarding/sessions/:sessionId — get session state (no auth — secured by UUID)
 app.get('/api/onboarding/sessions/:sessionId', async (req, res) => {
@@ -2974,7 +2990,7 @@ app.get('/api/onboarding/sessions/:sessionId/research', async (req, res) => {
 });
 
 // POST /api/onboarding/sessions/:sessionId/research — re-trigger Manus research (admin)
-app.post('/api/onboarding/sessions/:sessionId/research', requireAdmin, async (req, res) => {
+app.post('/api/onboarding/sessions/:sessionId/research', requireAdmin, asyncHandler(async (req, res) => {
   const { sessionId } = req.params;
   const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
   if (!session) return res.status(404).json({ error: 'Session not found' });
@@ -2985,10 +3001,10 @@ app.post('/api/onboarding/sessions/:sessionId/research', requireAdmin, async (re
     await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
   }
   res.json({ success: true, triggered: !!manusResult.task_id, task_id: manusResult.task_id || null, error: manusResult.error || null });
-});
+}));
 
 // PATCH /api/onboarding/sessions/:sessionId/notes — save host notes (admin)
-app.patch('/api/onboarding/sessions/:sessionId/notes', requireAdmin, async (req, res) => {
+app.patch('/api/onboarding/sessions/:sessionId/notes', requireAdmin, asyncHandler(async (req, res) => {
   const { sessionId } = req.params;
   const { notes } = req.body;
   const session = await r2GetShared(`onboarding/sessions/${sessionId}/session.json`);
@@ -2997,7 +3013,7 @@ app.patch('/api/onboarding/sessions/:sessionId/notes', requireAdmin, async (req,
   session.notes_updated_at = new Date().toISOString();
   await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
   res.json({ success: true });
-});
+}));
 
 // GET /api/onboarding/admin/debug/:sessionId — inspect all R2 state for a session (admin only)
 app.get('/api/onboarding/admin/debug/:sessionId', requireAdmin, async (req, res) => {
@@ -4101,7 +4117,7 @@ app.post('/api/onboarding/sessions/:sessionId/select-offer', async (req, res) =>
 });
 
 // PATCH /api/onboarding/sessions/:sessionId/answers — persist answers to R2 (no auth — UUID secured)
-app.patch('/api/onboarding/sessions/:sessionId/answers', async (req, res) => {
+app.patch('/api/onboarding/sessions/:sessionId/answers', asyncHandler(async (req, res) => {
   const { sessionId } = req.params;
   const { answers } = req.body;
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
@@ -4113,10 +4129,10 @@ app.patch('/api/onboarding/sessions/:sessionId/answers', async (req, res) => {
   session.last_answer_at = new Date().toISOString();
   await r2PutShared(`onboarding/sessions/${sessionId}/session.json`, session);
   res.json({ success: true });
-});
+}));
 
 // POST /api/onboarding/sessions/:sessionId/reset-interview — clear interview progress, keep research
-app.post('/api/onboarding/sessions/:sessionId/reset-interview', requireAdmin, async (req, res) => {
+app.post('/api/onboarding/sessions/:sessionId/reset-interview', requireAdmin, asyncHandler(async (req, res) => {
   const { sessionId } = req.params;
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
 
@@ -4147,10 +4163,10 @@ app.post('/api/onboarding/sessions/:sessionId/reset-interview', requireAdmin, as
 
   console.log(`[onboarding] session ${sessionId} interview reset by ${session.reset_by}`);
   res.json({ success: true, status: session.status, reset_at: session.reset_at });
-});
+}));
 
 // POST /api/onboarding/sessions/:sessionId/nav-command — host triggers navigation on Marcus's screen
-app.post('/api/onboarding/sessions/:sessionId/nav-command', requireAdmin, async (req, res) => {
+app.post('/api/onboarding/sessions/:sessionId/nav-command', requireAdmin, asyncHandler(async (req, res) => {
   const { sessionId } = req.params;
   const { action } = req.body;
   if (!sessionId || sessionId.length < 10) return res.status(400).json({ error: 'Invalid sessionId' });
@@ -4164,7 +4180,7 @@ app.post('/api/onboarding/sessions/:sessionId/nav-command', requireAdmin, async 
 
   console.log(`[onboarding] nav-command=${action} set by ${req.user?.email} for session ${sessionId}`);
   res.json({ success: true, action });
-});
+}));
 
 // POST /api/onboarding/sessions/:sessionId/kb-section — generate + write canonical KB file to R2
 app.post('/api/onboarding/sessions/:sessionId/kb-section', async (req, res) => {
@@ -7228,7 +7244,7 @@ app.post('/api/portal/launch-ads', requireAuth, async (req, res) => {
 });
 
 // POST /api/portal/launch-campaign — flip campaign_status from ready_to_launch → active
-app.post('/api/portal/launch-campaign', requireAuth, async (req, res) => {
+app.post('/api/portal/launch-campaign', requireAuth, asyncHandler(async (req, res) => {
   const { activeGymId } = req.user;
   if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
 
@@ -7277,10 +7293,10 @@ app.post('/api/portal/launch-campaign', requireAuth, async (req, res) => {
   await saveUsers(users);
   console.log(`[campaign] launched for gym ${activeGymId} at ${launched_at} (meta_setup_pending: ${meta_setup_pending})`);
   res.json({ success: true, campaign_status: 'active', launched_at, meta_setup_pending, gymId: activeGymId });
-});
+}));
 
 // POST /api/portal/pause-campaign — flip active → paused
-app.post('/api/portal/pause-campaign', requireAuth, async (req, res) => {
+app.post('/api/portal/pause-campaign', requireAuth, asyncHandler(async (req, res) => {
   const { activeGymId } = req.user;
   if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
   const users = await getUsers().catch(() => null);
@@ -7296,10 +7312,10 @@ app.post('/api/portal/pause-campaign', requireAuth, async (req, res) => {
   await saveUsers(users);
   console.log(`[campaign] paused for gym ${activeGymId}`);
   res.json({ success: true, campaign_status: 'paused', gymId: activeGymId });
-});
+}));
 
 // POST /api/portal/resume-campaign — flip paused → active
-app.post('/api/portal/resume-campaign', requireAuth, async (req, res) => {
+app.post('/api/portal/resume-campaign', requireAuth, asyncHandler(async (req, res) => {
   const { activeGymId } = req.user;
   if (!activeGymId) return res.status(400).json({ error: 'No active gym on this account' });
   const users = await getUsers().catch(() => null);
@@ -7315,7 +7331,7 @@ app.post('/api/portal/resume-campaign', requireAuth, async (req, res) => {
   await saveUsers(users);
   console.log(`[campaign] resumed for gym ${activeGymId}`);
   res.json({ success: true, campaign_status: 'active', gymId: activeGymId });
-});
+}));
 
 // GET /api/onboard/creative-files — list files in the owner's Generated Drive folder
 app.get('/api/onboard/creative-files', requireAuth, async (req, res) => {
@@ -7508,7 +7524,7 @@ app.post('/api/admin/migrations/backfill-campaign-status', requireAdmin, async (
 });
 
 // POST /api/admin/gyms/:gymId/meta-credentials — save Meta credentials to R2 (admin only)
-app.post('/api/admin/gyms/:gymId/meta-credentials', requireAdmin, async (req, res) => {
+app.post('/api/admin/gyms/:gymId/meta-credentials', requireAdmin, asyncHandler(async (req, res) => {
   const { gymId } = req.params;
   const { adAccountId, pageId, accessToken, pixelId } = req.body || {};
   if (!adAccountId || !pageId || !accessToken || !pixelId) {
@@ -7537,7 +7553,7 @@ app.post('/api/admin/gyms/:gymId/meta-credentials', requireAdmin, async (req, re
   }
   console.log(`[meta-credentials] saved for gymId=${gymId} — expires ${tokenExpiresAt}`);
   res.json({ success: true, tokenExpiresAt });
-});
+}));
 
 // GET /api/admin/gyms/:gymId/meta-credentials — read Meta credentials from R2 (admin only)
 app.get('/api/admin/gyms/:gymId/meta-credentials', requireAdmin, async (req, res) => {
@@ -7575,7 +7591,7 @@ app.get('/api/admin/users', requireAdmin, async (req, res) => {
 });
 
 // PATCH /api/admin/users/:userId/access — toggle active/demo status (admin only)
-app.patch('/api/admin/users/:userId/access', requireAdmin, async (req, res) => {
+app.patch('/api/admin/users/:userId/access', requireAdmin, asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const { active } = req.body || {};
   if (typeof active !== 'boolean') return res.status(400).json({ error: 'active (boolean) required' });
@@ -7600,7 +7616,7 @@ app.patch('/api/admin/users/:userId/access', requireAdmin, async (req, res) => {
   // eslint-disable-next-line no-unused-vars
   const { passwordHash, resetToken, resetTokenExpiry, ...safeUser } = user;
   res.json({ success: true, user: safeUser });
-});
+}));
 
 // POST /api/admin/users/:userId/impersonate — issues a 1-hour JWT as the target user.
 // Payload mirrors generateToken() so all role/location/permission checks downstream just work.
@@ -7897,7 +7913,7 @@ app.delete('/api/admin/users/:userId', requireAdmin, async (req, res) => {
 });
 
 // DELETE /api/admin/users/:userId/locations/:gymId — remove one location from an owner account
-app.delete('/api/admin/users/:userId/locations/:gymId', requireAdmin, async (req, res) => {
+app.delete('/api/admin/users/:userId/locations/:gymId', requireAdmin, asyncHandler(async (req, res) => {
   const { userId, gymId } = req.params;
   const users = await getUsers().catch(() => null);
   if (!users) return res.status(503).json({ error: 'User database unavailable' });
@@ -7917,10 +7933,10 @@ app.delete('/api/admin/users/:userId/locations/:gymId', requireAdmin, async (req
   await saveUsers(users);
   const { passwordHash, resetToken, resetTokenExpiry, ...safeUser } = u;
   res.json({ success: true, user: safeUser });
-});
+}));
 
 // POST /api/admin/users — create a new gym owner account directly (admin only)
-app.post('/api/admin/users', requireAdmin, async (req, res) => {
+app.post('/api/admin/users', requireAdmin, asyncHandler(async (req, res) => {
   const { name, email, gymName, gymId, city } = req.body || {};
   if (!name || !email || !gymName || !gymId || !city) {
     return res.status(400).json({ error: 'name, email, gymName, gymId, and city are required' });
@@ -7971,7 +7987,7 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
   // eslint-disable-next-line no-unused-vars
   const { passwordHash: _, ...safeUser } = newUser;
   res.status(201).json({ success: true, user: safeUser, tempPassword });
-});
+}));
 
 // ── Meta Token Status ─────────────────────────────────────────────────────────
 app.get('/api/meta/token-status', requireAuth, (req, res) => {
@@ -8578,6 +8594,32 @@ app.get('/api/kill-switch/status', requireAuth, (req, res) => {
     : empty;
 
   res.json({ meta: toStatus(lastMeta), google: toStatus(lastGoogle) });
+});
+
+// ─── Error-handling middleware ─────────────────────────────────────────────
+// Mounted AFTER all routes and BEFORE the SPA fallback so any error forwarded
+// via next(err) — from asyncHandler-wrapped routes or any other middleware —
+// lands here instead of leaking as an unhandled rejection. Logs the route,
+// method, and a short stack, then returns a clean 500 with a stable JSON
+// shape for API requests or a plain-text body for HTML requests.
+//
+// Express 4 dispatch rule: a middleware with arity 4 (err, req, res, next) is
+// treated as an error handler. DO NOT remove the unused `next` parameter — it
+// is what makes Express recognize this as an error handler.
+//
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const method = req && req.method;
+  const url = req && (req.originalUrl || req.url);
+  console.error(`[error] ${method} ${url} → ${err && err.message}`);
+  if (err && err.stack) console.error(err.stack.split('\n').slice(0, 6).join('\n'));
+  if (res.headersSent) return; // can't change response now; just log
+  const isApi = (url || '').startsWith('/api/');
+  if (isApi) {
+    res.status(500).json({ error: (err && err.message) || 'Internal server error' });
+  } else {
+    res.status(500).type('text/plain').send('Internal server error');
+  }
 });
 
 // SPA fallback

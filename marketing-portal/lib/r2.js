@@ -72,6 +72,16 @@ async function r2Get(locationId, filePath) {
 
 /**
  * Write a location-scoped object. Auto-serializes objects to JSON.
+ *
+ * Throws on PutObject failure with the key in the message. Callers MUST
+ * handle the rejection — either with their own try/catch, or by being mounted
+ * under the asyncHandler wrapper in server.js which converts rejections into
+ * clean 500s via the error-handling middleware.
+ *
+ * Why throw instead of swallow: silently returning success on a write failure
+ * means downstream reads see stale data and the app lies to the user
+ * ("success: true" when nothing landed in R2). Same pattern as
+ * r2PutSharedBinary which has thrown since the rehost work shipped.
  */
 async function r2Put(locationId, filePath, data) {
   const key = buildKey(locationId, filePath);
@@ -85,6 +95,7 @@ async function r2Put(locationId, filePath, data) {
     }));
   } catch (err) {
     console.error(`[R2] r2Put failed for key=${key}:`, err.message);
+    throw new Error(`r2Put failed for key=${key}: ${err.message}`);
   }
 }
 
@@ -144,6 +155,8 @@ async function r2GetShared(filePath) {
 
 /**
  * Write to shared/ prefix (cross-location assets).
+ *
+ * Throws on PutObject failure — see r2Put doc for the rationale.
  */
 async function r2PutShared(filePath, data) {
   const key = buildSharedKey(filePath);
@@ -157,6 +170,7 @@ async function r2PutShared(filePath, data) {
     }));
   } catch (err) {
     console.error(`[R2] r2PutShared failed for key=${key}:`, err.message);
+    throw new Error(`r2PutShared failed for key=${key}: ${err.message}`);
   }
 }
 
