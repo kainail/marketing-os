@@ -796,6 +796,12 @@ app.use((req, res, next) => {
   // Onboarding session paths are UUID-secured — no login required for Marcus's screen.
   // Admin-only sub-routes (/notes, /simulate-research, POST /research) carry requireAdmin individually.
   if (req.path.startsWith('/api/onboarding/sessions/')) return next();
+  // Public creative proxy — UUID-in-path is the capability. Browsers can't
+  // carry a Bearer token in <img src> and Meta fetches image_url server-side.
+  // Scoped narrowly to /creative/ so future /api/public/* routes aren't
+  // accidentally exempted. Route's own guardrails (UUID + filename + ext
+  // validation + creatives-prefix check) stay intact at server.js:7140.
+  if (req.path.startsWith('/api/public/creative/')) return next();
   requireAuth(req, res, next);
 });
 
