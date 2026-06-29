@@ -4355,17 +4355,28 @@ function setHook(idx, source) {
 }
 window.setAdStudioHook = setHook;
 
+// One canonical "is this the currently selected creative" key, used by every
+// render path (featured card, tile chooser, library grid). Tile picks key off
+// .type; library picks key off the Drive file id. Reading from this helper
+// instead of doing pair-wise comparisons is what keeps the three render
+// surfaces in sync after a click.
+function getSelectionKey(img) {
+  if (!img) return null;
+  if (img.selectionKey) return img.selectionKey;
+  if (img.driveFileId)  return 'lib:'  + img.driveFileId;
+  if (img.type)         return 'tile:' + img.type;
+  return null;
+}
+
 function setImage(type) {
   const tiles = (adStudio.data && adStudio.data.creatives && adStudio.data.creatives.tiles) || [];
   const next = tiles.find(t => t.type === type);
   if (!next || next.status !== 'complete' || !next.url) return;
-  adStudio.image = next; // tile shape: { type, temperature, url, status } — has .type
-  // Clear tile-side selection then re-apply.
-  document.querySelectorAll('#ad-studio-images .image-tile').forEach(el => el.classList.remove('selected'));
-  const sel = document.querySelector(`#ad-studio-images .image-tile[data-type="${type}"]`);
-  if (sel) sel.classList.add('selected');
-  // Single selection across tiles + library — clear any library card highlight.
-  document.querySelectorAll('#ad-studio-library .lib-card.selected').forEach(el => el.classList.remove('selected'));
+  // Store the tile with an explicit selectionKey so getSelectionKey can find
+  // it without re-parsing the shape. Render-from-state — no manual classList.
+  adStudio.image = { ...next, selectionKey: 'tile:' + type };
+  renderImages();
+  renderLibrary();
   renderPreview();
   updateAdStudioDoneStates();
 }
@@ -4417,7 +4428,9 @@ async function pickLibraryItem(driveFileId) {
   }
 
   adStudio.image = {
-    // No .type field — that's what de-selects the curated 3 tiles visually.
+    // No .type field — that's what makes getSelectionKey return 'lib:...'
+    // instead of 'tile:...', which is what de-selects the curated 3 tiles
+    // visually on the next renderImages() call.
     selectionKey: 'lib:' + driveFileId,
     driveFileId,
     url: item._blobUrl,
@@ -4427,12 +4440,9 @@ async function pickLibraryItem(driveFileId) {
     source: item.source,
   };
 
-  // Single selection: clear tile + library highlights, then mark this card.
-  document.querySelectorAll('#ad-studio-images .image-tile.selected').forEach(el => el.classList.remove('selected'));
-  document.querySelectorAll('#ad-studio-library .lib-card.selected').forEach(el => el.classList.remove('selected'));
-  const card = document.querySelector(`#ad-studio-library .lib-card[data-id="${driveFileId}"]`);
-  if (card) card.classList.add('selected');
-
+  // Render-from-state — both render fns re-derive selection via getSelectionKey.
+  renderImages();
+  renderLibrary();
   renderPreview();
   updateAdStudioDoneStates();
 }
@@ -4458,7 +4468,7 @@ function renderLibrary() {
   }
   const expanded = !!adStudio.libraryExpanded;
   const arrow = expanded ? '▾' : '▸';
-  const selectedKey = adStudio.image && adStudio.image.selectionKey;
+  const selectedKey = getSelectionKey(adStudio.image);
 
   let gridHtml = '';
   if (expanded) {
@@ -4818,22 +4828,38 @@ function renderImages() {
     return;
   }
 
-  const { featured, others } = tilesByTemperature(adStudio.temperature);
+  const selectedKey = getSelectionKey(adStudio.image);
 
-  // Featured slot — prefer the temp-matching tile, fall back to whatever
-  // is currently selected, else first complete tile, else empty state.
-  const featuredTile = featured || tiles.find(t => t.status === 'complete' && t.url);
-  const featuredHtml = featuredTile && featuredTile.status === 'complete' && featuredTile.url
-    ? `<div class="image-featured" onclick="setAdStudioImage('${featuredTile.type}')">
-         <img src="${esc(featuredTile.url)}" alt="${esc(TEMP_LABEL[featuredTile.temperature] || featuredTile.type)} creative">
+  // Featured card = whatever's currently selected (tile OR library). Single
+  // source of truth: adStudio.image. Fallback to the temperature-matching
+  // tile only when nothing is selected yet (which on a normal load won't
+  // happen — selectDefaultsForTemperature sets adStudio.image before render).
+  let featuredUrl = null, featuredAlt = null;
+  if (adStudio.image && adStudio.image.url) {
+    featuredUrl = adStudio.image.url;
+    featuredAlt = adStudio.image.kind === 'photo' ? 'Your photo'
+                : (TEMP_LABEL[adStudio.image.temperature] || adStudio.image.type || 'creative');
+  } else {
+    const { featured } = tilesByTemperature(adStudio.temperature);
+    const fb = featured || tiles.find(t => t.status === 'complete' && t.url);
+    if (fb && fb.status === 'complete' && fb.url) {
+      featuredUrl = fb.url;
+      featuredAlt = TEMP_LABEL[fb.temperature] || fb.type;
+    }
+  }
+  // Featured card has no onclick — it just mirrors the active pick.
+  // Changing the pick happens via the smaller tiles or library cards below.
+  const featuredHtml = featuredUrl
+    ? `<div class="image-featured">
+         <img src="${esc(featuredUrl)}" alt="${esc(featuredAlt || 'creative')}">
        </div>`
-    : `<div class="image-empty">No ${TEMP_LABEL[adStudio.temperature].toLowerCase()} creative available${featuredTile && featuredTile.status === 'failed' ? ' (generation failed)' : ''}.</div>`;
+    : `<div class="image-empty">No creative selected.</div>`;
 
-  // Smaller chooser row — show ALL tiles (including featured) so the owner
-  // sees the full set. status !== 'complete' renders as a disabled placeholder.
+  // Smaller chooser row — show ALL tiles. status !== 'complete' renders as a
+  // disabled placeholder. .selected is derived from the canonical key check.
   const otherTiles = tiles.map(t => {
     if (t.status === 'complete' && t.url) {
-      const isSel = adStudio.image && adStudio.image.type === t.type;
+      const isSel = selectedKey === 'tile:' + t.type;
       return `<div class="image-tile ${isSel ? 'selected' : ''}" data-type="${t.type}"
                title="${esc(TEMP_LABEL[t.temperature] || t.type)}"
                onclick="setAdStudioImage('${t.type}')">
