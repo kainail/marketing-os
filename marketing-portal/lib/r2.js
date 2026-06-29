@@ -186,4 +186,65 @@ async function r2ListShared(prefix) {
   }
 }
 
-module.exports = { r2Get, r2Put, r2List, r2ListShared, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists };
+// ─── Binary helpers ────────────────────────────────────────────────────────
+// The default r2Put/r2GetShared pair is JSON-only — it hardcodes
+// ContentType: 'application/json' on write and streamToString → JSON.parse on
+// read. Image bytes must NOT go through those. The two helpers below preserve
+// raw bytes and respect content-type round-trip.
+
+async function streamToBuffer(stream) {
+  const chunks = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Write raw bytes under shared/<filePath> with an explicit content-type.
+ * Unlike r2PutShared, this REJECTS on failure — the rehost step in
+ * services/creativeGenerator.js needs to know when storage failed so it can
+ * fall back to keeping the ephemeral source URL.
+ */
+async function r2PutSharedBinary(filePath, buffer, contentType) {
+  const key = buildSharedKey(filePath);
+  if (!Buffer.isBuffer(buffer)) {
+    throw new TypeError('r2PutSharedBinary: buffer must be a Buffer');
+  }
+  try {
+    await getClient().send(new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType || 'application/octet-stream',
+    }));
+  } catch (err) {
+    console.error(`[R2] r2PutSharedBinary failed for key=${key}:`, err.message);
+    throw err;
+  }
+}
+
+/**
+ * Read raw bytes from shared/<filePath> with the stored content-type.
+ * Returns { body: Buffer, contentType, contentLength } or null if missing.
+ * Errors are logged and returned as null (the public proxy translates that
+ * into a 404 — never a 500).
+ */
+async function r2GetSharedRaw(filePath) {
+  const key = buildSharedKey(filePath);
+  try {
+    const res = await getClient().send(new GetObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+    const body = await streamToBuffer(res.Body);
+    return {
+      body,
+      contentType:   res.ContentType   || 'application/octet-stream',
+      contentLength: res.ContentLength || body.length,
+    };
+  } catch (err) {
+    if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) return null;
+    console.error(`[R2] r2GetSharedRaw failed for key=${key}:`, err.message);
+    return null;
+  }
+}
+
+module.exports = { r2Get, r2Put, r2List, r2ListShared, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists, r2PutSharedBinary, r2GetSharedRaw };

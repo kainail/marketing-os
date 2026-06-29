@@ -10,13 +10,58 @@
  * Content Schedule folder.
  */
 
+const crypto = require('crypto');
 const sharp = require('sharp');
-const { r2GetShared } = require('../lib/r2');
+const { r2GetShared, r2PutSharedBinary } = require('../lib/r2');
 const { uploadFileToDrive } = require('./googleDrive');
 
 const KIE_MODEL = 'nano-banana-pro';
 const KIE_CREATE_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const KIE_QUERY_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo';
+
+/**
+ * Download a freshly-generated kie.ai image while the URL is still alive,
+ * compress it, and store the bytes permanently in R2. Returns a permanent
+ * public-proxy URL on success, or null on any failure (caller falls back
+ * to the kie URL so a broken reference is never persisted).
+ *
+ * Path:  shared/gyms/<scopeId>/creatives/<tier>-<uuid>.jpg
+ * URL:   /api/public/creative/<scopeId>/<tier>-<uuid>.jpg
+ *   (the server-side route validates scopeId is UUID-shaped, the filename
+ *   is plain, and the resolved key stays inside the creatives prefix.)
+ */
+async function rehostKieImageToR2(kieUrl, scopeId, tier) {
+  if (!kieUrl || !scopeId) return null;
+  try {
+    const fetchRes = await fetch(kieUrl);
+    if (!fetchRes.ok) {
+      console.warn(`[Creative] rehost: kie download HTTP ${fetchRes.status} for tier=${tier}`);
+      return null;
+    }
+    const rawBuffer = Buffer.from(await fetchRes.arrayBuffer());
+    if (!rawBuffer.length) {
+      console.warn(`[Creative] rehost: kie download returned 0 bytes for tier=${tier}`);
+      return null;
+    }
+    // Compress to keep R2 payload + proxy bandwidth reasonable. Same shape as
+    // the Drive upload path: 1200px wide, quality-85 JPEG.
+    const buffer = await sharp(rawBuffer)
+      .resize({ width: 1200, withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    const filename = `${tier}-${crypto.randomUUID()}.jpg`;
+    const r2Path = `gyms/${scopeId}/creatives/${filename}`;
+    await r2PutSharedBinary(r2Path, buffer, 'image/jpeg');
+
+    const permanentUrl = `/api/public/creative/${scopeId}/${filename}`;
+    console.log(`[Creative] rehost: ${tier} → R2 ${rawBuffer.length}→${buffer.length} bytes, url=${permanentUrl}`);
+    return permanentUrl;
+  } catch (err) {
+    console.warn(`[Creative] rehost FAILED for tier=${tier}: ${err.message}`);
+    return null;
+  }
+}
 
 // Maps a 0-indexed image position within the 5-image set (or any multiple) to its
 // awareness tier. Kept in sync with buildImagePrompt's internal tier assignment so
@@ -406,10 +451,16 @@ async function generateOnboardingCreative(sessionId, generatedFolderId) {
         console.log(`[Creative] image ${i + 1}: score=${gate.score} passes=${gate.passes} reason="${gate.reason}"`);
         if (!gate.passes) continue;
 
-        // Caller didn't ask for Drive upload — return the kie URL + metadata directly.
+        // Caller didn't ask for Drive upload (ad-creatives pipeline). Rehost
+        // the ephemeral kie URL into R2 NOW, while the URL is still alive, so
+        // ad-creatives.json / confirmed-creative.json end up holding a
+        // permanent public-proxy URL instead of a 24-48h kie URL that 404s.
         if (!generatedFolderId) {
-          console.log(`[Creative] image ${i + 1}: no Drive folder — returning URL only`);
-          results.push({ url: imageUrl, tier, position, score: gate.score, reason: gate.reason });
+          const permanentUrl = await rehostKieImageToR2(imageUrl, sessionId, tier);
+          if (!permanentUrl) {
+            console.warn(`[Creative] image ${i + 1}: rehost failed — falling back to kie URL (will expire)`);
+          }
+          results.push({ url: permanentUrl || imageUrl, tier, position, score: gate.score, reason: gate.reason });
           continue;
         }
 

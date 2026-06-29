@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const cron = require('node-cron');
-const { r2Get, r2Put, r2List, r2ListShared, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists } = require('./lib/r2');
+const { r2Get, r2Put, r2List, r2ListShared, r2Delete, r2GetShared, r2PutShared, r2DeleteShared, r2Exists, r2GetSharedRaw } = require('./lib/r2');
 const { requireAuth, requireAdmin, requireLocation, generateToken, hashPassword, comparePassword, loginLimiter } = require('./lib/auth');
 const { getUsers, saveUsers, invalidate: invalidateUserCache } = require('./lib/userCache');
 const { Resend } = require('resend');
@@ -7134,6 +7134,68 @@ app.get('/api/onboard/creative-file/:fileId', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[creative-file] proxy failed:', err.message);
     if (!res.headersSent) res.status(500).json({ error: 'Could not load file' });
+  }
+});
+
+// ─── GET /api/public/creative/:gymId/:filename ─────────────────────────────
+// Public proxy that streams ad-creative image bytes out of R2. Intentionally
+// PUBLIC (no requireAuth) for two reasons:
+//   1. The browser's <img src> tag can't carry an Authorization header.
+//   2. Meta's ad-creative endpoint fetches image_url server-side, so the URL
+//      must be reachable by Meta's servers as well.
+// Access control is capability-by-obscurity: the filename embeds a v4 UUID
+// produced at generation time, so the URL cannot be guessed even with the
+// gymId in hand. Same model as any standard image-CDN.
+//
+// HARD GUARDRAILS (defense in depth, in this exact order):
+//   - :gymId must match the UUID v1-5 shape.
+//   - :filename must be a plain filename (no path separators, no traversal
+//     dots, no leading dot, only [A-Za-z0-9._-]).
+//   - extension must be one of: .jpg .jpeg .png .webp.
+//   - the resolved R2 key must START WITH 'gyms/' AND CONTAIN '/creatives/'
+//     — this is the "only the creatives prefix" check, asserted explicitly
+//     rather than relying on the template producing a safe shape.
+// A request that fails any guard returns 400 before touching R2.
+const CREATIVE_GYMID_RX   = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CREATIVE_FILENAME_RX = /^[A-Za-z0-9._-]{1,128}$/;
+const CREATIVE_EXT_RX      = /\.(jpg|jpeg|png|webp)$/i;
+
+app.get('/api/public/creative/:gymId/:filename', async (req, res) => {
+  const { gymId, filename } = req.params;
+
+  // 1. Shape checks — fail fast before any I/O.
+  if (!gymId || !CREATIVE_GYMID_RX.test(gymId)) {
+    return res.status(400).type('text/plain').send('Invalid gymId');
+  }
+  if (!filename || !CREATIVE_FILENAME_RX.test(filename) || filename.startsWith('.') || filename.includes('..')) {
+    return res.status(400).type('text/plain').send('Invalid filename');
+  }
+  if (!CREATIVE_EXT_RX.test(filename)) {
+    return res.status(400).type('text/plain').send('Unsupported extension');
+  }
+
+  // 2. Build the key and verify it sits inside the creatives prefix.
+  //    Defense in depth: the guard above already rejects path traversal, but
+  //    this check is the contract the route promises ("only objects under
+  //    gyms/<id>/creatives/").
+  const key = `gyms/${gymId}/creatives/${filename}`;
+  if (!key.startsWith('gyms/') || !key.includes('/creatives/')) {
+    return res.status(400).type('text/plain').send('Invalid path');
+  }
+
+  try {
+    const obj = await r2GetSharedRaw(key);
+    if (!obj) return res.status(404).type('text/plain').send('Not found');
+
+    res.setHeader('Content-Type', obj.contentType || 'image/jpeg');
+    if (obj.contentLength) res.setHeader('Content-Length', String(obj.contentLength));
+    // UUID-in-filename = content-addressed = immutable. Year-long cache,
+    // safe for both browsers and Meta's image cache.
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    return res.end(obj.body);
+  } catch (err) {
+    console.error('[creative-proxy] failed:', err.message);
+    if (!res.headersSent) res.status(500).type('text/plain').send('Could not load image');
   }
 });
 
